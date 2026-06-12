@@ -466,8 +466,8 @@
             <div style="background:#2980b9;color:#fff;border-radius:8px;padding:5px 10px;text-align:center;line-height:1.2;display:flex;align-items:center;gap:5px;">
                 <span class="live-dot"></span>
                 <div>
-                    <div style="font-weight:700;font-size:0.85rem;">2K</div>
-                    <div style="font-size:0.65rem;opacity:0.85;">Views</div>
+                    <div style="font-weight:700;font-size:0.85rem;">Top 8</div>
+                    <div style="font-size:0.65rem;opacity:0.85;">Trending</div>
                 </div>
             </div>
             <div style="background:#1e1e1e;color:#fff;border-radius:8px;padding:5px 10px;text-align:center;line-height:1.2;">
@@ -478,9 +478,6 @@
         <h3 style="color:#fff;margin:10px 0 4px;">Sweet Monster — Episode #01</h3>
         <p class="runtime-badge"><i class="fas fa-film"></i> 4K Quality</p>
         <p class="episode-synopsis">Mollary's boyfriend has had enough of being bossed around — in front of friends, behind closed doors, always on Mollary's terms. Tired of playing along, he starts looking elsewhere for the loyalty he isn't getting at home. A quiet decision that's about to change everything.</p>
-        <div class="film-buttons">
-            <button class="notify-btn-film" onclick="shareEpisode(this, 'sweet-monster-ep1', 'Sweet Monster — Episode #01')"><i class="fas fa-share-alt"></i> Share</button>
-        </div>
     </div>
 </div>
 
@@ -1016,19 +1013,6 @@ function playSmEp1(el) {
     el.innerHTML = '<iframe style="width:100%;height:100%;border:0;" src="https://www.youtube.com/embed/sIcTXVVZh_o?autoplay=1" title="Sweet Monster Episode 1" allow="autoplay; encrypted-media" allowfullscreen></iframe>';
     el.style.cursor = 'default';
     el.onclick = null;
-}
-function shareEpisode(btn, sectionId, title) {
-    const url = 'https://reinblackscreativz.com/sweet-monster-episode-1';
-    const shareData = { title: title, text: 'Watch ' + title + ' on Reinblacks Mini Films!', url: url };
-    if (navigator.share) {
-        navigator.share(shareData).catch(() => {});
-    } else if (navigator.clipboard) {
-        navigator.clipboard.writeText(url).then(() => {
-            const original = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-check"></i> Link Copied!';
-            setTimeout(() => { btn.innerHTML = original; }, 2000);
-        });
-    }
 }
 const introBrand = document.getElementById('intro-brand');
     if(introBrand){
