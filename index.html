@@ -1017,11 +1017,6 @@ function playSmEp1(el) {
     el.style.cursor = 'default';
     el.onclick = null;
 }
-        function playSmEp1(el) {
-    el.innerHTML = '<iframe style="width:100%;height:100%;border:0;" src="https://www.youtube.com/embed/sIcTXVVZh_o?autoplay=1" title="Sweet Monster Episode 1" allow="autoplay; encrypted-media" allowfullscreen></iframe>';
-    el.style.cursor = 'default';
-    el.onclick = null;
-}
 function shareEpisode(btn, sectionId, title) {
     const url = 'https://reinblackscreativz.com/sweet-monster-episode-1';
     const shareData = { title: title, text: 'Watch ' + title + ' on Reinblacks Mini Films!', url: url };
@@ -1035,8 +1030,7 @@ function shareEpisode(btn, sectionId, title) {
         });
     }
 }
-setTimeout(() => {
-    const introBrand = document.getElementById('intro-brand');
+const introBrand = document.getElementById('intro-brand');
     if(introBrand){
         const text = introBrand.textContent;
         introBrand.innerHTML = text.split('').map((char, i) =>
@@ -1045,7 +1039,6 @@ setTimeout(() => {
             : `<span style="display:inline-block;opacity:0;animation:letterFadeIn 0.08s ease ${0.3 + i * 0.08}s forwards">${char}</span>`
         ).join('');
     }
-}, 100);
     </script>
 </body>
 </html>    
