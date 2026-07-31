@@ -300,6 +300,25 @@
   .mode-badge.show{display:inline-block;}
   .mode-badge.dev{background:#2a1a00;color:#ffcc66;border:1px solid #5a3a00;}
   .mode-badge.prod{background:#062a24;color:var(--cyan);border:1px solid #0a4a40;}
+  .import-debug{
+    display:none;position:fixed;left:8px;right:8px;bottom:72px;max-height:38vh;z-index:120;
+    background:rgba(10,10,12,.96);border:1px solid #333;border-radius:10px;
+    font-family:'JetBrains Mono',monospace;font-size:10px;color:#c8c8d0;
+    flex-direction:column;box-shadow:0 8px 28px rgba(0,0,0,.55);
+  }
+  .import-debug.show{display:flex;}
+  .import-debug .id-head{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:8px 10px;border-bottom:1px solid #2a2a2e;color:#fff;font-weight:700;font-size:11px;
+  }
+  .import-debug .id-head button{color:var(--cyan);font-size:11px;font-weight:600;padding:2px 6px;}
+  .import-debug .id-body{overflow-y:auto;padding:8px 10px;line-height:1.45;white-space:pre-wrap;word-break:break-word;}
+  .import-debug .id-line{margin-bottom:3px;}
+  .import-debug .id-line.ok{color:#7dffa6;}
+  .import-debug .id-line.err{color:#ff8a8a;}
+  .import-debug .id-line.warn{color:#ffcc66;}
+  .import-debug .id-line.info{color:#9ad7ff;}
+
 
   .export-overlay{
     position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;
@@ -736,6 +755,18 @@
   style="position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none;"></video>
 <audio id="hiddenAudio" style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0;"></audio>
 <input type="file" id="fileInput" accept="video/*,video/mp4,video/webm,video/quicktime,.mp4,.mov,.webm,.m4v" multiple style="display:none">
+<div class="import-debug" id="importDebug">
+  <div class="id-head">
+    <span>Import debug</span>
+    <span>
+      <button type="button" id="importDebugCopy">Copy</button>
+      <button type="button" id="importDebugClear">Clear</button>
+      <button type="button" id="importDebugClose">Close</button>
+    </span>
+  </div>
+  <div class="id-body" id="importDebugBody"></div>
+</div>
+
 
 <div class="studio-overlay" id="filterStudio">
   <div class="studio-tabs">
@@ -1155,69 +1186,124 @@
     return lines.join('\n');
   }
 
-  /**
-   * Build a playable object URL. Development Mode uses the most compatible strategy:
-   * explicit MIME blob wrapper so Android Chrome under content:// is less likely to
-   * treat the source as empty/unknown.
-   */
-  async function createCompatibleMediaUrl(file){
-    const mime=file.type||guessMimeFromName(file.name)||'video/mp4';
-    if(APP_MODE==='development'){
-      // Strategy 1: re-wrap as Blob with explicit type (helps empty file.type on Android).
-      try{
-        const typed=new Blob([file], {type: mime});
-        const url=URL.createObjectURL(typed);
-        importStageLog('Object URL created', 'dev-typed-blob '+mime);
-        return {url, mime, strategy:'dev-typed-blob'};
-      }catch(e){
-        importStageLog('Object URL created', 'dev-typed-blob failed: '+(e&&e.message));
-      }
-      // Strategy 2: ArrayBuffer copy (last-resort, memory-heavy — only for smaller files).
-      if(file.size && file.size < 80*1048576){
-        try{
-          const buf=await file.arrayBuffer();
-          const typed=new Blob([buf], {type: mime});
-          const url=URL.createObjectURL(typed);
-          importStageLog('Object URL created', 'dev-arraybuffer '+mime);
-          return {url, mime, strategy:'dev-arraybuffer'};
-        }catch(e){
-          importStageLog('Object URL created', 'dev-arraybuffer failed: '+(e&&e.message));
-        }
-      }
+  // =====================================================================
+  // IMPORT DEBUG + PIPELINE (does not block on environment)
+  // =====================================================================
+  let importLog=[];
+  function showImportDebug(){ const el=$('#importDebug'); if(el) el.classList.add('show'); }
+  function hideImportDebug(){ const el=$('#importDebug'); if(el) el.classList.remove('show'); }
+  function renderImportDebugBody(){
+    const body=$('#importDebugBody'); if(!body) return;
+    body.innerHTML=importLog.map(e=>{
+      const cls=e.level||'info';
+      return '<div class="id-line '+cls+'">['+e.t+'] '+escapeHtml(e.msg)+'</div>';
+    }).join('');
+    body.scrollTop=body.scrollHeight;
+  }
+  function safeJson(v){ try{ return JSON.stringify(v); }catch(e){ return String(v); } }
+  function importDbg(msg, level, data){
+    const t=new Date().toISOString().slice(11,23);
+    const extra=data!==undefined ? ' '+safeJson(data) : '';
+    importLog.push({t, msg:String(msg)+extra, level:level||'info'});
+    const cons=level==='err'?console.error:level==='warn'?console.warn:console.log;
+    cons('[import] '+msg, data!==undefined?data:'');
+    renderImportDebugBody();
+    showImportDebug();
+  }
+  function importStageLog(stage, detail){ importDbg(stage+(detail?(' — '+detail):''), 'info'); }
+  function mediaSnap(v){
+    if(!v) return {};
+    const err=v.error;
+    return {
+      readyState:v.readyState,
+      networkState:v.networkState,
+      error:err?{code:err.code,message:err.message||''}:null,
+      currentSrc:(v.currentSrc||'').slice(0,72),
+      videoWidth:v.videoWidth,
+      videoHeight:v.videoHeight,
+      duration:v.duration
+    };
+  }
+  function showImportProgress(stage, pct, detail){
+    const overlay=$('#exportOverlay');
+    if(overlay){
+      overlay.classList.add('show');
+      const mark=overlay.querySelector('.mark');
+      if(mark) mark.textContent=stage||'Importing…';
+      const fill=$('#exportFill'), pctEl=$('#exportPct');
+      const p=Math.max(0,Math.min(100,pct==null?0:pct));
+      if(fill) fill.style.width=p+'%';
+      if(pctEl) pctEl.textContent=(detail?detail+' · ':'')+Math.round(p)+'%';
     }
-    // Production (and dev fallback): direct object URL from the File.
-    const url=URL.createObjectURL(file);
-    console.log('[import] object URL created', {strategy: APP_MODE==='production'?'prod-file':'dev-file-fallback', mime, url: url.slice(0,48)+'…', mode: APP_MODE});
-    importStageLog('Object URL created', (APP_MODE==='production'?'prod-file':'dev-file-fallback')+' '+mime);
-    return {url, mime, strategy: APP_MODE==='production'?'prod-file':'dev-file-fallback'};
+    importDbg('UI progress: '+stage+' @'+Math.round(pct==null?0:pct)+'%'+(detail?(' · '+detail):''), 'info');
+  }
+  function hideImportProgress(){
+    const overlay=$('#exportOverlay');
+    if(overlay) overlay.classList.remove('show');
+    const mark=overlay && overlay.querySelector('.mark');
+    if(mark) mark.textContent='EXPORTING';
+  }
+  function stageTimeout(ms, stageName){
+    return new Promise((_,reject)=>setTimeout(()=>reject(new Error('Stage timed out: '+stageName+' ('+ms+'ms)')), ms));
+  }
+  function raceStage(promise, ms, stageName){
+    return Promise.race([promise, stageTimeout(ms, stageName)]);
   }
 
-  /**
-   * Probe a File with a hidden <video>.
-   * Development Mode: compatible loading, never labels environment failures as "unsupported codec".
-   * Production Mode: standard optimized path for http/https hosts.
-   */
+  async function createCompatibleMediaUrl(file){
+    const mime=file.type||guessMimeFromName(file.name)||'video/mp4';
+    importDbg('createCompatibleMediaUrl', 'info', {
+      name:file.name, size:file.size, type:file.type||'(empty)', lastModified:file.lastModified,
+      mimeGuess:mime, mode:APP_MODE, protocol:EXEC_CTX.protocol
+    });
+    try{
+      const url=URL.createObjectURL(file);
+      if(!url) throw new Error('createObjectURL returned empty');
+      importDbg('object URL created', 'ok', {strategy:'direct-file', mime, url:url.slice(0,64)+'…'});
+      return {url, mime, strategy:'direct-file'};
+    }catch(e){
+      importDbg('direct createObjectURL failed', 'err', {error:String(e&&e.message||e)});
+    }
+    try{
+      const typed=new Blob([file], {type:mime});
+      const url=URL.createObjectURL(typed);
+      importDbg('object URL created', 'ok', {strategy:'typed-blob', mime, url:url.slice(0,64)+'…'});
+      return {url, mime, strategy:'typed-blob'};
+    }catch(e){
+      importDbg('typed-blob createObjectURL failed', 'err', {error:String(e&&e.message||e)});
+    }
+    if(file.size && file.size<80*1048576){
+      try{
+        const buf=await file.arrayBuffer();
+        importDbg('arrayBuffer read', 'ok', {bytes:buf.byteLength});
+        const url=URL.createObjectURL(new Blob([buf],{type:mime}));
+        importDbg('object URL created', 'ok', {strategy:'arraybuffer', url:url.slice(0,64)+'…'});
+        return {url, mime, strategy:'arraybuffer'};
+      }catch(e){
+        importDbg('arrayBuffer strategy failed', 'err', {error:String(e&&e.message||e)});
+      }
+    }
+    throw new Error('All createObjectURL strategies failed');
+  }
+
   function probeVideoFile(file, onStage){
     return new Promise(async (resolve, reject)=>{
       const support=browserCanPlaySupport(file.type||guessMimeFromName(file.name));
-      const containerSupport=support.containerMp4||support.containerWebm||support.container||'';
-      if(!isLikelyVideoFile(file) && !containerSupport){
-        const mediaErr={code:4, name:'MEDIA_ERR_SRC_NOT_SUPPORTED', message:'Not a recognized video type.'};
+      importDbg('probe start', 'info', {
+        name:file.name, size:file.size, type:file.type||'(empty)', lastModified:file.lastModified,
+        mode:APP_MODE, protocol:EXEC_CTX.protocol, origin:EXEC_CTX.origin,
+        canPlayMp4:support.containerMp4||'', canPlayWebm:support.containerWebm||''
+      });
+      importDbg(APP_MODE==='production'?'Production mode — import not blocked by environment':'Development mode — import still attempted', APP_MODE==='production'?'ok':'warn');
+
+      if(!isLikelyVideoFile(file) && !(support.containerMp4||support.containerWebm||support.container)){
+        importDbg('Rejected: not recognized as video', 'err', {type:file.type, name:file.name});
         reject({
-          file, support, mediaErr, stage:'File selected',
-          userMessage: EXEC_CTX.restricted
-            ? 'This does not look like a video file (or the restricted context hid its type).'
-            : 'This does not look like a video file.',
-          diagnostics:formatDiagnostics(file, support, mediaErr, null, null, 'File selected')
+          file, support, mediaErr:{code:4,name:'MEDIA_ERR_SRC_NOT_SUPPORTED',message:'Not a recognized video type.'},
+          stage:'File selected', userMessage:'This does not look like a video file.',
+          diagnostics:formatDiagnostics(file, support, null, null, null, 'File selected')
         });
         return;
-      }
-
-      // Early guidance for large files in Development Mode
-      const sizeMb=(file.size||0)/1048576;
-      if(EXEC_CTX.restricted && sizeMb>80){
-        importStageLog('File selected', 'large file in restricted context '+sizeMb.toFixed(1)+'MB');
-        onStage && onStage('File selected', 8, 'Large file · Dev mode');
       }
 
       onStage && onStage('Object URL created', 12);
@@ -1226,54 +1312,39 @@
         const created=await createCompatibleMediaUrl(file);
         url=created.url; mime=created.mime; strategy=created.strategy;
       }catch(e){
+        importDbg('URL creation failed', 'err', {error:String(e&&e.message||e)});
         reject({
           file, support, mediaErr:{code:0,name:'URL_CREATE_FAILED',message:String(e&&e.message||e)},
-          stage:'Object URL created',
-          userMessage:userFacingCodecMessage(file, support, {code:4,name:'MEDIA_ERR_SRC_NOT_SUPPORTED',message:'URL create failed'}),
-          diagnostics:formatDiagnostics(file, support, null, 'URL create: '+(e&&e.message), null, 'Object URL created')
+          stage:'Object URL created', userMessage:'Could not create a media URL for this file.',
+          diagnostics:formatDiagnostics(file, support, null, String(e&&e.message||e), null, 'Object URL created')
         });
         return;
       }
 
       const v=document.createElement('video');
-      v.muted=true;
-      v.playsInline=true;
-      v.setAttribute('playsinline','');
-      v.setAttribute('webkit-playsinline','');
-      // Development: metadata-only to reduce pressure on restricted blob backends.
-      // Production: metadata is still enough to import; auto can help fast-start files.
+      v.muted=true; v.playsInline=true;
+      v.setAttribute('playsinline',''); v.setAttribute('webkit-playsinline','');
       v.preload='metadata';
-      // Do NOT set crossOrigin on blob: object URLs — it can trigger MEDIA_ERR_SRC_NOT_SUPPORTED
-      // on http/https hosts (GitHub Pages) even for valid local File picks.
       v.style.cssText='position:fixed;left:-9999px;width:4px;height:4px;opacity:0.01;pointer-events:none;';
       document.body.appendChild(v);
+      importDbg('video element created & in DOM', 'ok');
 
-      let settled=false;
+      let settled=false, currentStage='Object URL created';
       const flags={metadata:false, loadeddata:false, canplay:false, frame:false};
-      let currentStage='Object URL created';
-
-      const overallMs = APP_MODE==='development'
-        ? Math.min(180000, Math.max(45000, (file.size||0)/40))
-        : Math.min(300000, Math.max(60000, (file.size||0)/50));
+      const overallMs=Math.min(300000, Math.max(60000, (file.size||0)/50));
       const overallTimer=setTimeout(()=>{
         if(settled) return;
-        if(flags.metadata && isFinite(v.duration)){
-          finishOk('overall-timeout-with-metadata');
-          return;
-        }
+        if(flags.metadata && isFinite(v.duration)){ finishOk('overall-timeout-with-metadata'); return; }
         settled=true;
-        const snap=mediaElementSnapshot(v);
+        const snap=mediaSnap(v);
+        importDbg('TIMEOUT before metadata', 'err', snap);
         cleanup(false);
-        const mediaErr={code:0, name:'STAGE_TIMEOUT', message:'Timed out before metadata'};
-        const stage=currentStage||'Metadata loaded';
+        try{ URL.revokeObjectURL(url); importDbg('object URL revoked (timeout)', 'warn'); }catch(e){}
         reject({
-          file, support, mediaErr, stage, videoEl:null,
-          userMessage: EXEC_CTX.restricted
-            ? ('Stuck at "'+stage+'" in Development Mode ('+EXEC_CTX.label+'). Large MP4s often cannot finish loading from content://. Serve the editor over http/https and retry.')
-            : 'Stuck waiting for metadata. Try a web-optimized (fast-start) MP4.',
-          diagnostics:formatDiagnostics(file, support, mediaErr,
-            'networkState='+snap.networkState+' readyState='+snap.readyState+'\nLog:\n'+importLog.join('\n'),
-            null, stage)
+          file, support, mediaErr:{code:0,name:'STAGE_TIMEOUT',message:'Timed out before metadata'},
+          stage:currentStage||'Metadata loaded',
+          userMessage:'Timed out waiting for video metadata at stage: '+(currentStage||'unknown'),
+          diagnostics:formatDiagnostics(file, support, null, safeJson(snap), v, currentStage)
         });
       }, overallMs);
 
@@ -1284,14 +1355,11 @@
           if(v.parentNode) v.parentNode.removeChild(v);
         }
       }
-
       function finishOk(reason){
         if(settled) return;
-        settled=true;
-        clearTimeout(overallTimer);
+        settled=true; clearTimeout(overallTimer);
         currentStage='Duration and dimensions read';
-        importStageLog('Duration and dimensions read',
-          v.videoWidth+'x'+v.videoHeight+' · '+(isFinite(v.duration)?v.duration.toFixed(2)+'s':'?')+' · '+strategy);
+        importDbg('probe success — object URL kept for timeline', 'ok', {reason, strategy, ...mediaSnap(v)});
         onStage && onStage('Duration and dimensions read', 70,
           (v.videoWidth||'?')+'\u00d7'+(v.videoHeight||'?')+' · '+(isFinite(v.duration)?v.duration.toFixed(1)+'s':''));
         resolve({
@@ -1301,85 +1369,55 @@
           support, mime, flags, reason, strategy
         });
       }
-
       function fail(stage){
         if(settled) return;
         const mediaErr=describeMediaError(v);
-        if(!mediaErr || !mediaErr.code){
-          importStageLog(stage||'error', 'spurious error event ignored (no MediaError.code)');
+        const snap=mediaSnap(v);
+        if(!mediaErr||!mediaErr.code){
+          importDbg('error event without MediaError.code (ignored)', 'warn', snap);
           return;
         }
-        settled=true;
-        currentStage=stage||'error';
-        const snap=mediaElementSnapshot(v);
-        importStageLog(currentStage, mediaErr.name+' code '+mediaErr.code+' ns='+snap.networkState+' rs='+snap.readyState);
+        settled=true; currentStage=stage||'error';
+        importDbg('media ERROR', 'err', {stage:currentStage, mediaErr, snap, strategy});
         cleanup(false);
-        try{ URL.revokeObjectURL(url); }catch(e){}
+        try{ URL.revokeObjectURL(url); importDbg('object URL revoked (failure)', 'warn'); }catch(e){}
         reject({
           file, support, mediaErr, stage:currentStage,
           userMessage:userFacingCodecMessage(file, support, mediaErr)+' (stage: '+currentStage+')',
-          diagnostics:formatDiagnostics(file, support, mediaErr,
-            'strategy='+strategy+'\nLog:\n'+importLog.join('\n'), v, currentStage)
+          diagnostics:formatDiagnostics(file, support, mediaErr, 'strategy='+strategy+'\n'+safeJson(snap), v, currentStage)
         });
       }
 
-      v.addEventListener('loadstart',()=>{
-        currentStage='Object URL created';
-        importStageLog('loadstart', 'mode='+APP_MODE+' strategy='+strategy);
-        onStage && onStage('Object URL created', 15, APP_MODE==='development'?'Dev load…':'Loading…');
-      });
-      v.addEventListener('progress',()=>{
-        if(settled) return;
-        try{
-          if(v.buffered && v.buffered.length && isFinite(v.duration) && v.duration>0){
-            const end=v.buffered.end(v.buffered.length-1);
-            const pct=20+Math.min(40, (end/v.duration)*40);
-            currentStage='Metadata loaded';
-            onStage && onStage('Metadata loaded', pct, 'Buffering '+(end/v.duration*100).toFixed(0)+'%');
+      const MEDIA_EVENTS=['loadstart','durationchange','loadedmetadata','loadeddata','canplay','canplaythrough','progress','suspend','abort','error','emptied','stalled','waiting','playing','seeked'];
+      MEDIA_EVENTS.forEach(evName=>{
+        v.addEventListener(evName, ()=>{
+          const snap=mediaSnap(v);
+          const level=evName==='error'?'err':(evName==='stalled'||evName==='abort'||evName==='waiting'?'warn':'info');
+          importDbg('media event: '+evName, level, snap);
+          if(evName==='loadstart'){ currentStage='Object URL created'; onStage&&onStage('Object URL created',15,'Loading…'); }
+          if(evName==='loadedmetadata'){
+            flags.metadata=true; currentStage='Metadata loaded'; onStage&&onStage('Metadata loaded',55);
+            const grace=setTimeout(()=>{ if(!settled&&flags.metadata) finishOk('metadata-grace'); }, 1500);
+            if(v.readyState>=2 || (v.videoWidth>0 && isFinite(v.duration))){ clearTimeout(grace); finishOk('metadata-ready'); }
           }
-        }catch(e){}
+          if(evName==='loadeddata'){
+            flags.loadeddata=true; currentStage='loadeddata'; onStage&&onStage('loadeddata',62);
+            if(v.readyState>=2 && v.videoWidth>0){ flags.frame=true; currentStage='First frame decoded'; onStage&&onStage('First frame decoded',68); }
+            if(flags.metadata && !settled) finishOk('loadeddata');
+          }
+          if(evName==='canplay'||evName==='canplaythrough'){
+            flags.canplay=true; currentStage=evName; onStage&&onStage(evName,65);
+            if(flags.metadata && !settled) finishOk(evName);
+          }
+          if(evName==='error') fail(currentStage||'Metadata loaded');
+        });
       });
-
-      v.addEventListener('loadedmetadata',()=>{
-        flags.metadata=true;
-        currentStage='Metadata loaded';
-        importStageLog('Metadata loaded', 'readyState='+v.readyState+' mode='+APP_MODE);
-        console.log('[import] metadata loaded', {readyState:v.readyState, width:v.videoWidth, height:v.videoHeight, duration:v.duration, mode:APP_MODE});
-        onStage && onStage('Metadata loaded', 55);
-        const grace=setTimeout(()=>{
-          if(!settled && flags.metadata) finishOk('metadata-grace');
-        }, APP_MODE==='development' ? 800 : 1500);
-        if(v.readyState>=2 || v.videoWidth>0){
-          clearTimeout(grace);
-          finishOk('metadata-ready');
-        }
-      });
-
-      v.addEventListener('loadeddata',()=>{
-        flags.loadeddata=true;
-        currentStage='loadeddata';
-        importStageLog('loadeddata', 'readyState='+v.readyState);
-        onStage && onStage('loadeddata', 62);
-        if(v.readyState>=2 && v.videoWidth>0){
-          flags.frame=true;
-          currentStage='First frame decoded';
-          importStageLog('First frame decoded', v.videoWidth+'x'+v.videoHeight);
-          onStage && onStage('First frame decoded', 68);
-        }
-        if(flags.metadata && !settled) finishOk('loadeddata');
-      });
-      v.addEventListener('canplay',()=>{
-        flags.canplay=true;
-        currentStage='canplay';
-        importStageLog('canplay', 'readyState='+v.readyState);
-        onStage && onStage('canplay', 65);
-        if(flags.metadata && !settled) finishOk('canplay');
-      });
-      v.addEventListener('error',()=>fail(currentStage||'Metadata loaded'));
 
       try{ if(mime) v.setAttribute('type', mime); }catch(e){}
+      importDbg('assigning object URL to video.src', 'info', {url:url.slice(0,64)+'…', typeAttr:mime});
       v.src=url;
-      try{ v.load(); }catch(e){}
+      try{ v.load(); importDbg('video.load() called', 'ok', mediaSnap(v)); }
+      catch(e){ importDbg('video.load() threw', 'err', {error:String(e&&e.message||e)}); }
     });
   }
 
@@ -1462,7 +1500,11 @@
       if(file.type && !file.type.startsWith('video/') && !isLikelyVideoFile(file)) continue;
 
       importLog=[];
+      renderImportDebugBody();
       const sizeLabel=file.size?((file.size/1048576).toFixed(1)+' MB'):'';
+      importDbg('file object received', 'ok', {
+        name:file.name, size:file.size, type:file.type||'(empty)', lastModified:file.lastModified, mode:APP_MODE
+      });
       importStageLog('File selected', (file.name||'')+' · '+sizeLabel+' · mode='+APP_MODE);
       if(EXEC_CTX.restricted && file.size && file.size > 100*1048576){
         // Soft warning only — still attempt import with compatible strategy.
@@ -1515,7 +1557,7 @@
         renderMediaListEdit();
         addClipToTimeline(item);
         importStageLog('Timeline clip created', 'clip count='+state.clips.length);
-        console.log('[import] timeline import', {name:item.name, duration:item.duration, clips:state.clips.length, mode:APP_MODE});
+        importDbg('timeline import complete', 'ok', {name:item.name, duration:item.duration, clips:state.clips.length});
 
         showImportProgress('Preview initialized', 96);
         importStageLog('Preview initialized');
@@ -4017,6 +4059,16 @@
   showContextWarningIfNeeded();
   const _cwd=$('#contextWarnDismiss');
   if(_cwd) _cwd.addEventListener('click',()=>{ const w=$('#contextWarn'); if(w) w.classList.remove('show'); });
+  const _idc=$('#importDebugClose'); if(_idc) _idc.addEventListener('click', hideImportDebug);
+  const _idr=$('#importDebugClear'); if(_idr) _idr.addEventListener('click',()=>{ importLog=[]; renderImportDebugBody(); });
+  const _idcp=$('#importDebugCopy'); if(_idcp) _idcp.addEventListener('click',()=>{
+    const text=importLog.map(e=>'['+e.t+'] '+e.msg).join('\n');
+    try{ navigator.clipboard.writeText(text); }catch(e){
+      const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); }catch(e2){}
+      ta.remove();
+    }
+  });
 })();
 </script>
 </body>
