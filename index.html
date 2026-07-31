@@ -727,13 +727,15 @@
 
 </div>
 
-<!-- Off-screen (not display:none) so mobile browsers keep decoding frames for canvas drawImage -->
-<video id="hiddenVideo" playsinline webkit-playsinline crossorigin="anonymous"
+<!-- Off-screen (not display:none) so mobile browsers keep decoding frames for canvas drawImage.
+     No crossorigin attribute: blob: object URLs from <input type=file> fail to load on some
+     http/https hosts (e.g. GitHub Pages) when crossorigin="anonymous" is set. -->
+<video id="hiddenVideo" playsinline webkit-playsinline
   style="position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none;"></video>
-<video id="hiddenVideo2" playsinline webkit-playsinline crossorigin="anonymous" muted
+<video id="hiddenVideo2" playsinline webkit-playsinline muted
   style="position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none;"></video>
-<audio id="hiddenAudio" style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0;" crossorigin="anonymous"></audio>
-<input type="file" id="fileInput" accept="video/*,video/mp4,video/webm,video/quicktime,video/x-m4v,.mp4,.mov,.webm,.m4v,.mkv" multiple style="display:none">
+<audio id="hiddenAudio" style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0;"></audio>
+<input type="file" id="fileInput" accept="video/*,video/mp4,video/webm,video/quicktime,.mp4,.mov,.webm,.m4v" multiple style="display:none">
 
 <div class="studio-overlay" id="filterStudio">
   <div class="studio-tabs">
@@ -903,9 +905,27 @@
 
   // ================= MEDIA IMPORT =================
   const fileInput=$('#fileInput');
-  $('#searchBtn').addEventListener('click',()=>fileInput.click());
-  $('#importVideoBtn').addEventListener('click',()=>fileInput.click());
-  fileInput.addEventListener('change',e=>{ handleFiles(e.target.files); e.target.value=''; });
+  function openVideoPicker(source){
+    console.log('[import] file picker opened', {source: source||'unknown', mode: APP_MODE, protocol: EXEC_CTX.protocol});
+    try{ fileInput.click(); }
+    catch(err){ console.error('[import] file picker click failed', err); }
+  }
+  $('#searchBtn').addEventListener('click',()=>openVideoPicker('searchBtn'));
+  $('#importVideoBtn').addEventListener('click',()=>openVideoPicker('importVideoBtn'));
+  fileInput.addEventListener('change', e=>{
+    // Snapshot File objects BEFORE clearing the input. FileList is live on some browsers
+    // and becomes empty after value='' — that broke GitHub Pages / production imports.
+    const list=e.target.files;
+    const files=list ? Array.from(list) : [];
+    console.log('[import] file selected', {count: files.length, names: files.map(f=>f.name), types: files.map(f=>f.type||'(empty)')});
+    e.target.value='';
+    if(!files.length){
+      console.warn('[import] change event with zero files (user cancelled?)');
+      return;
+    }
+    files.forEach((f,i)=>console.log('[import] file object received', i, {name:f.name, type:f.type, size:f.size}));
+    handleFiles(files);
+  });
 
   // ---- Robust media compatibility (canPlayType + MediaError codes) ----
   // Do NOT reject MP4 based on a generic browser error or empty file.type.
@@ -1167,6 +1187,7 @@
     }
     // Production (and dev fallback): direct object URL from the File.
     const url=URL.createObjectURL(file);
+    console.log('[import] object URL created', {strategy: APP_MODE==='production'?'prod-file':'dev-file-fallback', mime, url: url.slice(0,48)+'…', mode: APP_MODE});
     importStageLog('Object URL created', (APP_MODE==='production'?'prod-file':'dev-file-fallback')+' '+mime);
     return {url, mime, strategy: APP_MODE==='production'?'prod-file':'dev-file-fallback'};
   }
@@ -1221,8 +1242,9 @@
       v.setAttribute('webkit-playsinline','');
       // Development: metadata-only to reduce pressure on restricted blob backends.
       // Production: metadata is still enough to import; auto can help fast-start files.
-      v.preload = APP_MODE==='development' ? 'metadata' : 'metadata';
-      v.crossOrigin = APP_MODE==='production' ? 'anonymous' : null;
+      v.preload='metadata';
+      // Do NOT set crossOrigin on blob: object URLs — it can trigger MEDIA_ERR_SRC_NOT_SUPPORTED
+      // on http/https hosts (GitHub Pages) even for valid local File picks.
       v.style.cssText='position:fixed;left:-9999px;width:4px;height:4px;opacity:0.01;pointer-events:none;';
       document.body.appendChild(v);
 
@@ -1322,6 +1344,7 @@
         flags.metadata=true;
         currentStage='Metadata loaded';
         importStageLog('Metadata loaded', 'readyState='+v.readyState+' mode='+APP_MODE);
+        console.log('[import] metadata loaded', {readyState:v.readyState, width:v.videoWidth, height:v.videoHeight, duration:v.duration, mode:APP_MODE});
         onStage && onStage('Metadata loaded', 55);
         const grace=setTimeout(()=>{
           if(!settled && flags.metadata) finishOk('metadata-grace');
@@ -1492,6 +1515,7 @@
         renderMediaListEdit();
         addClipToTimeline(item);
         importStageLog('Timeline clip created', 'clip count='+state.clips.length);
+        console.log('[import] timeline import', {name:item.name, duration:item.duration, clips:state.clips.length, mode:APP_MODE});
 
         showImportProgress('Preview initialized', 96);
         importStageLog('Preview initialized');
@@ -2985,7 +3009,7 @@
     const url=URL.createObjectURL(file);
     if(file.type.startsWith('video/')){
       const video=document.createElement('video');
-      video.src=url; video.muted=true; video.playsInline=true; video.crossOrigin='anonymous';
+      video.src=url; video.muted=true; video.playsInline=true; /* no crossOrigin for blob URLs */
       video.addEventListener('loadedmetadata',()=>{
         const start=state.playhead;
         const dur=Math.min(video.duration||3,10);
@@ -3165,7 +3189,7 @@
     addBtn.className='clip-add-btn';
     addBtn.style.left=(TRACK_PAD+dur*state.pxPerSec+6)+'px';
     addBtn.textContent='+';
-    addBtn.addEventListener('click',()=>fileInput.click());
+    addBtn.addEventListener('click',()=>openVideoPicker('timelineAdd'));
     videoTrackEl.appendChild(addBtn);
 
     for(let i=0;i<state.clips.length-1;i++){
