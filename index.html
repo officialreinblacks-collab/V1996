@@ -754,7 +754,9 @@
 <video id="hiddenVideo2" playsinline webkit-playsinline muted
   style="position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none;"></video>
 <audio id="hiddenAudio" style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0;"></audio>
-<input type="file" id="fileInput" accept="video/*,video/mp4,video/webm,video/quicktime,.mp4,.mov,.webm,.m4v" multiple style="display:none">
+<input type="file" id="fileInput" accept="video/*" multiple
+  style="position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0.001;overflow:hidden;z-index:-1;">
+<label id="fileInputLabel" for="fileInput" style="position:fixed;width:1px;height:1px;opacity:0;overflow:hidden;">Import</label>
 <div class="import-debug" id="importDebug">
   <div class="id-head">
     <span>Import debug</span>
@@ -936,30 +938,212 @@
 
   // ================= MEDIA IMPORT =================
   const fileInput=$('#fileInput');
-  function openVideoPicker(source){
-    console.log('[import] file picker opened', {source: source||'unknown', mode: APP_MODE, protocol: EXEC_CTX.protocol});
-    try{ fileInput.click(); }
-    catch(err){ console.error('[import] file picker click failed', err); }
+  // ---- Android Chrome file-picker reliability ----
+  // display:none inputs often open the picker but never fire "change".
+  // We use an off-screen visible input, dual events, and a visibility/focus fallback.
+  let pickerPending=false;
+  let pickerOpenedAt=0;
+  let pickerHandledToken=0;
+
+  function ensurePickerStatusUI(){
+    let el=$('#pickerStatus');
+    if(el) return el;
+    el=document.createElement('div');
+    el.id='pickerStatus';
+    el.style.cssText='display:none;position:fixed;left:10px;right:10px;top:48px;z-index:200;background:rgba(12,12,14,.96);border:1px solid #333;border-radius:10px;padding:12px 14px;font-family:JetBrains Mono,monospace;font-size:11px;color:#ddd;line-height:1.55;box-shadow:0 8px 28px rgba(0,0,0,.5);max-height:45vh;overflow:auto;';
+    document.body.appendChild(el);
+    return el;
   }
-  $('#searchBtn').addEventListener('click',()=>openVideoPicker('searchBtn'));
-  $('#importVideoBtn').addEventListener('click',()=>openVideoPicker('importVideoBtn'));
-  fileInput.addEventListener('change', e=>{
-    // Snapshot File objects BEFORE clearing the input. FileList is live on some browsers
-    // and becomes empty after value='' — that broke GitHub Pages / production imports.
-    const list=e.target.files;
-    const files=list ? Array.from(list) : [];
-    console.log('[import] file selected', {count: files.length, names: files.map(f=>f.name), types: files.map(f=>f.type||'(empty)')});
-    e.target.value='';
-    if(!files.length){
-      console.warn('[import] change event with zero files (user cancelled?)');
+  function setPickerStatus(steps, errorMsg){
+    const el=ensurePickerStatusUI();
+    const lines=steps.map(s=>{
+      const icon=s.ok===true?'\u2713':(s.ok===false?'\u2717':'\u00b7');
+      const col=s.ok===true?'#7dffa6':(s.ok===false?'#ff8a8a':'#aaa');
+      return '<div style="color:'+col+'">'+icon+' '+s.label+(s.detail?(' \u2014 '+s.detail):'')+'</div>';
+    }).join('');
+    el.innerHTML='<div style="font-weight:700;color:#fff;margin-bottom:6px;">Import status</div>'+lines+
+      (errorMsg?('<div style="color:#ff8a8a;margin-top:8px;white-space:pre-wrap;">'+errorMsg+'</div>'):'')+
+      '<div style="margin-top:10px;text-align:right;"><button type="button" id="pickerStatusClose" style="color:#00E5D6;font-size:12px;">Dismiss</button></div>';
+    el.style.display='block';
+    const b=$('#pickerStatusClose'); if(b) b.onclick=()=>{ el.style.display='none'; };
+  }
+
+  function openVideoPicker(source){
+    pickerPending=true;
+    pickerOpenedAt=Date.now();
+    const token=++pickerHandledToken;
+    const steps=[
+      {label:'File picker opened', ok:true, detail:String(source||'')},
+      {label:'File selected', ok:null},
+      {label:'Change event fired', ok:null},
+      {label:'File object received', ok:null},
+      {label:'Import started', ok:null},
+    ];
+    setPickerStatus(steps);
+    console.log('[import] file picker opened', {
+      source:source||'unknown',
+      mode:typeof APP_MODE!=='undefined'?APP_MODE:'?',
+      protocol:location.protocol,
+      inputExists:!!fileInput,
+      accept:fileInput && fileInput.accept,
+      display:fileInput && getComputedStyle(fileInput).display
+    });
+    try{ fileInput.value=''; }catch(e){}
+    // Prefer label.click() path when available (stronger user-activation chain on some Androids).
+    try{
+      const label=$('#fileInputLabel');
+      if(label){ label.click(); }
+      else { fileInput.click(); }
+    }catch(err){
+      console.error('[import] file picker click failed', err);
+      pickerPending=false;
+      steps[0].ok=false; steps[0].detail=String(err&&err.message||err);
+      setPickerStatus(steps, 'Could not open the system file picker.');
       return;
     }
-    files.forEach((f,i)=>console.log('[import] file object received', i, {name:f.name, type:f.type, size:f.size}));
-    handleFiles(files);
-  });
+    // If the page never gets a change/input event after returning from the picker,
+    // surface that instead of failing silently.
+    setTimeout(()=>{
+      if(pickerPending && token===pickerHandledToken && Date.now()-pickerOpenedAt>1200){
+        // Still pending after 1.2s — may be waiting for user; another check runs on visibility.
+        console.log('[import] still waiting for change event…');
+      }
+    }, 1200);
+  }
 
-  // ---- Robust media compatibility (canPlayType + MediaError codes) ----
-  // Do NOT reject MP4 based on a generic browser error or empty file.type.
+  function onFilesChosen(files, via){
+    const token=pickerHandledToken;
+    pickerPending=false;
+    const steps=[
+      {label:'File picker opened', ok:true},
+      {label:'File selected', ok:files.length>0, detail:files.length?(files.length+' file(s)'):'0 files'},
+      {label:'Change event fired', ok:true, detail:String(via)},
+      {label:'File object received', ok:null},
+      {label:'Import started', ok:null},
+    ];
+    console.log('[import] files chosen via='+via, {
+      count:files.length,
+      names:files.map(f=>f.name),
+      sizes:files.map(f=>f.size),
+      types:files.map(f=>f.type||'(empty)'),
+      lastModified:files.map(f=>f.lastModified)
+    });
+    if(!files.length){
+      steps[1].ok=false; steps[3].ok=false; steps[4].ok=false;
+      setPickerStatus(steps,
+        'The picker closed with 0 files (input.files.length === 0).\n'+
+        'This is an Android Chrome file-input quirk, not a codec error.\n'+
+        'Try: pick again from Downloads/Gallery, or use a shorter test clip first.');
+      return;
+    }
+    const f=files[0];
+    steps[3]={label:'File object received', ok:true,
+      detail:(f.name||'?')+' · '+(f.size||0)+' B · type='+(f.type||'(empty)')+' · mod='+(f.lastModified||'?')};
+    steps[4]={label:'Import started', ok:true};
+    setPickerStatus(steps);
+    try{
+      const p=handleFiles(files);
+      if(p && typeof p.then==='function'){
+        p.catch(err=>{
+          console.error('[import] handleFiles rejection', err);
+          setPickerStatus(steps, 'Import failed: '+(err&&err.message?err.message:String(err)));
+          alert('Import failed: '+(err&&err.message?err.message:String(err)));
+        });
+      }
+    }catch(err){
+      console.error('[import] handleFiles threw', err);
+      steps[4].ok=false;
+      setPickerStatus(steps, 'Import crashed: '+(err&&err.message?err.message:String(err)));
+      alert('Import error: '+(err&&err.message?err.message:String(err)));
+    }
+  }
+
+  function readInputFiles(){
+    try{
+      const list=fileInput && fileInput.files;
+      return list?Array.from(list):[];
+    }catch(e){
+      console.error('[import] readInputFiles failed', e);
+      return [];
+    }
+  }
+
+  function handlePickerEvent(e, via){
+    try{
+      const files=readInputFiles();
+      // Snapshot first, then clear so the same file can be re-selected later.
+      try{ fileInput.value=''; }catch(err){}
+      onFilesChosen(files, via);
+    }catch(err){
+      pickerPending=false;
+      console.error('[import] '+via+' handler exception', err);
+      setPickerStatus([
+        {label:'File picker opened', ok:true},
+        {label:'Change event fired', ok:true, detail:via},
+        {label:'Handler exception', ok:false, detail:String(err&&err.message||err)},
+      ], 'JavaScript error after file selection:\n'+(err&&err.stack?err.stack:String(err)));
+      alert('Import handler error: '+(err&&err.message?err.message:String(err)));
+    }
+  }
+
+  // Capture phase helps when something stops propagation on bubble.
+  fileInput.addEventListener('change', e=>handlePickerEvent(e,'change'), true);
+  fileInput.addEventListener('input', e=>{
+    const files=readInputFiles();
+    if(!files.length) return; // wait for change
+    handlePickerEvent(e,'input');
+  }, true);
+
+  // Fallback: when returning from the Android picker the page becomes visible again.
+  // If change/input never fired, try reading input.files now.
+  function checkPickerAfterReturn(reason){
+    if(!pickerPending) return;
+    if(Date.now()-pickerOpenedAt < 400) return; // too soon
+    const files=readInputFiles();
+    console.log('[import] post-return check ('+reason+')', {
+      pending:pickerPending,
+      files:files.length,
+      elapsed:Date.now()-pickerOpenedAt
+    });
+    if(files.length){
+      try{ fileInput.value=''; }catch(e){}
+      onFilesChosen(files, 'visibility:'+reason);
+      return;
+    }
+    // Give change event a bit more time after focus returns
+    setTimeout(()=>{
+      if(!pickerPending) return;
+      const files2=readInputFiles();
+      if(files2.length){
+        try{ fileInput.value=''; }catch(e){}
+        onFilesChosen(files2, 'visibility-delayed:'+reason);
+        return;
+      }
+      // User may have cancelled — only report after a clear delay
+      if(Date.now()-pickerOpenedAt > 800){
+        pickerPending=false;
+        setPickerStatus([
+          {label:'File picker opened', ok:true},
+          {label:'File selected', ok:false, detail:'0 files'},
+          {label:'Change event fired', ok:false, detail:'never received'},
+          {label:'File object received', ok:false},
+          {label:'Import started', ok:false},
+        ],
+          'Returned from the system picker with no file and no change event.\n'+
+          'Possible causes: picker cancelled, Android killed the file handle, or the input lost the selection.\n'+
+          'Try again; if it keeps happening, pick from Downloads using the system Files app.');
+      }
+    }, 500);
+  }
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState==='visible') checkPickerAfterReturn('visibilitychange');
+  });
+  window.addEventListener('focus', ()=>checkPickerAfterReturn('window-focus'));
+  fileInput.addEventListener('blur', ()=>checkPickerAfterReturn('input-blur'));
+
+  $('#searchBtn').addEventListener('click', e=>{ e.preventDefault(); openVideoPicker('searchBtn'); });
+  $('#importVideoBtn').addEventListener('click', e=>{ e.preventDefault(); openVideoPicker('importVideoBtn'); });
+
   const MEDIA_ERR_NAMES={1:'MEDIA_ERR_ABORTED',2:'MEDIA_ERR_NETWORK',3:'MEDIA_ERR_DECODE',4:'MEDIA_ERR_SRC_NOT_SUPPORTED'};
   const VIDEO_EXT_MIME={
     mp4:'video/mp4', m4v:'video/mp4', mov:'video/quicktime', webm:'video/webm',
@@ -1495,17 +1679,25 @@
   }
 
   async function handleFiles(fileList){
-    const files=[...fileList];
+    const files=Array.isArray(fileList)?fileList.slice():Array.from(fileList||[]);
+    console.log('[import] handleFiles called', {count:files.length, mode:typeof APP_MODE!=='undefined'?APP_MODE:'?'});
+    if(!files.length){
+      console.warn('[import] handleFiles empty list');
+      alert('No file received from the picker.');
+      return;
+    }
+    let imported=0, skipped=0;
     for(const file of files){
-      if(file.type && !file.type.startsWith('video/') && !isLikelyVideoFile(file)) continue;
+      const likely=isLikelyVideoFile(file) || (file.type && file.type.startsWith('video/')) || !file.type;
+      if(file.type && !file.type.startsWith('video/') && !isLikelyVideoFile(file)){
+        skipped++;
+        console.warn('[import] skipped non-video', file.name, file.type);
+        continue;
+      }
 
       importLog=[];
-      renderImportDebugBody();
       const sizeLabel=file.size?((file.size/1048576).toFixed(1)+' MB'):'';
-      importDbg('file object received', 'ok', {
-        name:file.name, size:file.size, type:file.type||'(empty)', lastModified:file.lastModified, mode:APP_MODE
-      });
-      importStageLog('File selected', (file.name||'')+' · '+sizeLabel+' · mode='+APP_MODE);
+      importStageLog('File selected', (file.name||'')+' · '+sizeLabel+' · mode='+(typeof APP_MODE!=='undefined'?APP_MODE:'?'));
       if(EXEC_CTX.restricted && file.size && file.size > 100*1048576){
         // Soft warning only — still attempt import with compatible strategy.
         console.warn('[REIN EDIT] Large file in Development Mode; failures are likely environment-related.');
@@ -1557,7 +1749,7 @@
         renderMediaListEdit();
         addClipToTimeline(item);
         importStageLog('Timeline clip created', 'clip count='+state.clips.length);
-        importDbg('timeline import complete', 'ok', {name:item.name, duration:item.duration, clips:state.clips.length});
+        console.log('[import] timeline import', {name:item.name, duration:item.duration, clips:state.clips.length, mode:APP_MODE});
 
         showImportProgress('Preview initialized', 96);
         importStageLog('Preview initialized');
@@ -1571,6 +1763,7 @@
 
         showImportProgress('Import complete', 100);
         importStageLog('Import complete');
+        imported++;
         await new Promise(r=>setTimeout(r, 280));
       }catch(err){
         if(!err.stage) err.stage='Import pipeline';
@@ -1580,6 +1773,13 @@
       }
     }
     hideImportProgress();
+    if(!imported){
+      const msg = skipped===files.length && files.length
+        ? 'The selected file was skipped (not detected as video). Try another file or ensure it has a .mp4 extension.'
+        : 'Import did not add any clip. See Import status overlay and console for the failing step.';
+      console.warn('[import] nothing imported', {imported, skipped, total:files.length});
+      alert(msg);
+    }
   }
 
   function renderMediaListEdit(){
@@ -4059,16 +4259,6 @@
   showContextWarningIfNeeded();
   const _cwd=$('#contextWarnDismiss');
   if(_cwd) _cwd.addEventListener('click',()=>{ const w=$('#contextWarn'); if(w) w.classList.remove('show'); });
-  const _idc=$('#importDebugClose'); if(_idc) _idc.addEventListener('click', hideImportDebug);
-  const _idr=$('#importDebugClear'); if(_idr) _idr.addEventListener('click',()=>{ importLog=[]; renderImportDebugBody(); });
-  const _idcp=$('#importDebugCopy'); if(_idcp) _idcp.addEventListener('click',()=>{
-    const text=importLog.map(e=>'['+e.t+'] '+e.msg).join('\n');
-    try{ navigator.clipboard.writeText(text); }catch(e){
-      const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select();
-      try{ document.execCommand('copy'); }catch(e2){}
-      ta.remove();
-    }
-  });
 })();
 </script>
 </body>
