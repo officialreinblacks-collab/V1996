@@ -61,6 +61,9 @@
   #previewCanvas{max-width:100%;max-height:100%;width:auto;height:auto;background:#000;display:block;}
   .no-media-overlay{position:absolute;text-align:center;color:var(--text-faint);font-size:12px;pointer-events:none;}
   .no-media-overlay .mark{font-family:'Bebas Neue';font-size:34px;color:#242428;letter-spacing:2px;}
+  .upload-spinner{width:28px;height:28px;border-radius:50%;border:2.5px solid #333;border-top-color:var(--cyan);
+    margin:0 auto 10px;animation:upload-spin .8s linear infinite;}
+  @keyframes upload-spin{to{transform:rotate(360deg);}}
 
   /* ---------- TRANSPORT ---------- */
   .transport{display:flex;align-items:center;justify-content:space-between;padding:10px 22px;flex-shrink:0;}
@@ -74,11 +77,11 @@
   .time-fixed .cur{color:#fff;}
 
   /* ---------- TIMELINE ---------- */
-  .timeline-area{flex-shrink:0;background:#000;display:flex;flex-direction:column;height:368px;border-top:1px solid #161618;overflow-y:auto;}
-  .timeline-body{flex:1;display:flex;overflow:hidden;min-height:0;}
-  .track-labels{flex-shrink:0;width:56px;display:flex;flex-direction:column;padding-top:0;}
-  .timeline-scroll{flex:1;overflow-x:auto;overflow-y:hidden;position:relative;}
-  .timeline-inner{position:relative;min-width:100%;height:100%;}
+  .timeline-area{flex-shrink:0;background:#000;display:flex;flex-direction:column;height:196px;border-top:1px solid #161618;}
+  .timeline-body{flex:1;display:flex;align-items:flex-start;overflow-y:auto;overflow-x:hidden;min-height:0;}
+  .track-labels{flex-shrink:0;width:56px;display:flex;flex-direction:column;padding-top:20px;}
+  .timeline-scroll{flex:1;overflow-x:auto;overflow-y:visible;position:relative;align-self:flex-start;}
+  .timeline-inner{position:relative;min-width:100%;height:auto;}
   .ruler{height:20px;position:relative;}
   .ruler .tick{position:absolute;top:6px;font-size:10px;color:var(--text-faint);font-family:'JetBrains Mono';white-space:nowrap;}
   .ruler .tick::before{content:'·';margin-right:3px;color:var(--text-faint);}
@@ -86,7 +89,7 @@
 
   .track-row{position:relative;height:52px;margin-bottom:6px;}
   .track-label-cell{
-    height:52px;margin-bottom:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--text-faint);
+    height:52px;flex-shrink:0;margin-bottom:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--text-faint);
   }
   .track-label-cell svg{width:16px;height:16px;}
   .track-label-cell span{font-size:9px;}
@@ -139,32 +142,25 @@
   .overlay-block.selected{border-color:var(--cyan);}
   .overlay-block span{font-size:10px;color:#ffd89a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
-  .filter-block{
-    position:absolute;top:2px;height:48px;border-radius:6px;background:linear-gradient(135deg,#0d3a3a,#1a1a1d);
-    border:1.5px solid #1e5a56;cursor:grab;display:flex;align-items:center;padding:0 8px;overflow:hidden;
+  .color-layer-block{
+    position:absolute;top:2px;height:40px;border-radius:6px;background:linear-gradient(135deg,#122a3a,#1a1a1d);
+    border:1.5px solid #1e3a4a;cursor:grab;display:flex;align-items:center;gap:4px;padding:0 8px;overflow:hidden;
   }
-  .filter-block.selected{border-color:var(--cyan);}
-  .filter-block.hidden-layer{opacity:.4;}
-  .filter-block.locked{cursor:not-allowed;}
-  .filter-block span{font-size:10px;color:#7fe8de;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .color-layer-block.selected{border-color:var(--cyan);}
+  .color-layer-block span{font-size:10px;color:#9adcff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .color-layer-block.hidden-layer{opacity:.45;}
+  .color-layer-block.locked-layer{background:linear-gradient(135deg,#2a2a2e,#1a1a1d);}
 
-  .adjust-block{
-    position:absolute;top:2px;height:48px;border-radius:6px;background:linear-gradient(135deg,#2a2a12,#1a1a1d);
-    border:1.5px solid #4a4a1e;cursor:grab;display:flex;align-items:center;padding:0 8px;overflow:hidden;
+  .filter-layer-block{
+    position:absolute;top:2px;height:40px;border-radius:6px;background:linear-gradient(135deg,#3a1230,#1a1a1d);
+    border:1.5px solid #4a1e3e;cursor:grab;display:flex;align-items:center;gap:4px;padding:0 8px;overflow:hidden;
   }
-  .adjust-block.selected{border-color:var(--cyan);}
-  .adjust-block.hidden-layer{opacity:.4;}
-  .adjust-block.locked{cursor:not-allowed;}
-  .adjust-block span{font-size:10px;color:#e8e87f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .filter-layer-block.selected{border-color:var(--cyan);}
+  .filter-layer-block span{font-size:10px;color:#ffa0e0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .filter-layer-block.hidden-layer{opacity:.45;}
+  .filter-layer-block.locked-layer{background:linear-gradient(135deg,#2a2a2e,#1a1a1d);}
 
-  .anim-block{
-    position:absolute;top:2px;height:48px;border-radius:6px;background:linear-gradient(135deg,#2a123a,#1a1a1d);
-    border:1.5px solid #4a2a5a;cursor:grab;display:flex;align-items:center;padding:0 8px;overflow:hidden;
-  }
-  .anim-block.selected{border-color:var(--cyan);}
-  .anim-block.hidden-layer{opacity:.4;}
-  .anim-block.locked{cursor:not-allowed;}
-  .anim-block span{font-size:10px;color:#d9bfff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .layer-lock-icon{width:11px;height:11px;flex:0 0 auto;opacity:.85;}
 
   .add-text-pill{
     position:absolute;top:8px;height:36px;display:flex;align-items:center;gap:6px;
@@ -204,10 +200,8 @@
   .sheet-header .title{font-size:13px;font-weight:600;letter-spacing:.3px;}
   .sheet-header button{color:var(--cyan);font-size:13px;font-weight:600;}
   .sheet-body{overflow-y:auto;padding:16px;}
-  .sheet-panel{display:none !important;}
-  .sheet-panel.active{display:block !important;}
-  #clipSheet .sheet-panel{display:none !important;}
-  #clipSheet .sheet-panel.active{display:block !important;}
+  .sheet-panel{display:none;}
+  .sheet-panel.active{display:block;}
 
   .section-label{font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:1px;margin:16px 0 8px;font-weight:600;}
   .section-label:first-child{margin-top:0;}
@@ -282,44 +276,6 @@
   .intensity-row input{flex:1;}
   .intensity-row .val{color:var(--text);font-family:'JetBrains Mono';width:34px;text-align:right;}
 
-  .context-warn{
-    display:none;flex-shrink:0;align-items:flex-start;gap:10px;
-    background:#2a1a00;border-bottom:1px solid #5a3a00;color:#ffcc66;
-    padding:10px 12px;font-size:11px;line-height:1.45;z-index:40;
-  }
-  .context-warn.show{display:flex;}
-  .context-warn .cw-text{flex:1;min-width:0;}
-  .context-warn .cw-text strong{color:#ffd98a;font-weight:700;}
-  .context-warn .cw-text code{font-family:'JetBrains Mono',monospace;font-size:10px;color:#ffe0a0;}
-  .context-warn button{flex-shrink:0;color:#ffcc66;font-size:16px;line-height:1;padding:2px 6px;opacity:.85;}
-  .mode-badge{
-    display:none;flex-shrink:0;align-self:flex-start;margin:6px 12px 0;
-    font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
-    padding:3px 8px;border-radius:6px;font-family:'JetBrains Mono',monospace;
-  }
-  .mode-badge.show{display:inline-block;}
-  .mode-badge.dev{background:#2a1a00;color:#ffcc66;border:1px solid #5a3a00;}
-  .mode-badge.prod{background:#062a24;color:var(--cyan);border:1px solid #0a4a40;}
-  .import-debug{
-    display:none;position:fixed;left:8px;right:8px;bottom:72px;max-height:38vh;z-index:120;
-    background:rgba(10,10,12,.96);border:1px solid #333;border-radius:10px;
-    font-family:'JetBrains Mono',monospace;font-size:10px;color:#c8c8d0;
-    flex-direction:column;box-shadow:0 8px 28px rgba(0,0,0,.55);
-  }
-  .import-debug.show{display:flex;}
-  .import-debug .id-head{
-    display:flex;align-items:center;justify-content:space-between;gap:8px;
-    padding:8px 10px;border-bottom:1px solid #2a2a2e;color:#fff;font-weight:700;font-size:11px;
-  }
-  .import-debug .id-head button{color:var(--cyan);font-size:11px;font-weight:600;padding:2px 6px;}
-  .import-debug .id-body{overflow-y:auto;padding:8px 10px;line-height:1.45;white-space:pre-wrap;word-break:break-word;}
-  .import-debug .id-line{margin-bottom:3px;}
-  .import-debug .id-line.ok{color:#7dffa6;}
-  .import-debug .id-line.err{color:#ff8a8a;}
-  .import-debug .id-line.warn{color:#ffcc66;}
-  .import-debug .id-line.info{color:#9ad7ff;}
-
-
   .export-overlay{
     position:fixed;inset:0;background:rgba(0,0,0,.9);display:none;align-items:center;justify-content:center;
     z-index:100;flex-direction:column;gap:16px;
@@ -329,28 +285,6 @@
   .export-bar{width:260px;height:5px;background:var(--panel-3);border-radius:3px;overflow:hidden;}
   .export-bar-fill{height:100%;width:0%;background:var(--cyan);transition:width .1s linear;}
   .export-overlay .pct{font-family:'JetBrains Mono';font-size:12px;color:var(--text-dim);}
-
-  /* ---- Speed panel (CapCut-style) ---- */
-  .speed-tabs{display:flex;gap:4px;margin-bottom:14px;background:var(--panel-2);border-radius:10px;padding:4px;}
-  .speed-tab{flex:1;padding:9px 4px;border-radius:8px;font-size:12px;font-weight:600;color:var(--text-dim);text-align:center;}
-  .speed-tab.active{background:var(--panel-3);color:#fff;}
-  .speed-pane{display:none;}
-  .speed-pane.active{display:block;}
-  .speed-duration{font-size:12px;color:var(--text-dim);margin-bottom:10px;font-family:'JetBrains Mono';}
-  .speed-duration span{color:var(--cyan);}
-  .speed-marks{display:flex;justify-content:space-between;font-size:10px;color:var(--text-faint);margin-bottom:4px;font-family:'JetBrains Mono';}
-  .speed-slider{width:100%;margin:4px 0 2px;}
-  .speed-val-big{text-align:center;font-size:22px;font-weight:700;color:var(--cyan);font-family:'JetBrains Mono';margin:6px 0 4px;}
-  .speed-curve-canvas{width:100%;height:140px;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;display:block;touch-action:none;}
-  .curve-preset-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;}
-  .curve-preset{flex:0 0 auto;width:64px;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--text-dim);font-size:10px;}
-  .curve-preset .cp-icon{width:52px;height:40px;border-radius:10px;background:var(--panel-2);border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;}
-  .curve-preset.active{color:var(--cyan);}
-  .curve-preset.active .cp-icon{border-color:var(--cyan);background:rgba(0,229,214,.08);}
-  .velocity-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
-  .velocity-card{aspect-ratio:1;border-radius:12px;background:var(--panel-2);border:2px solid transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:11px;color:var(--text-dim);padding:6px;text-align:center;}
-  .velocity-card.active{border-color:var(--cyan);color:var(--cyan);background:rgba(0,229,214,.08);}
-  .velocity-card .vc-icon{font-size:22px;line-height:1;}
 </style>
 </head>
 <body>
@@ -381,17 +315,15 @@
     </div>
   </div>
 
-  <div class="context-warn" id="contextWarn" role="alert">
-    <div class="cw-text" id="contextWarnText"></div>
-    <button type="button" id="contextWarnDismiss" aria-label="Dismiss">×</button>
-  </div>
-  <div class="mode-badge" id="modeBadge" title="Execution mode"></div>
-
   <div class="preview-area" id="previewArea">
     <canvas id="previewCanvas" width="1280" height="720"></canvas>
     <div class="no-media-overlay" id="noMediaOverlay">
       <div class="mark">REIN EDIT</div>
       <div>Tap the search icon to import a video</div>
+    </div>
+    <div class="no-media-overlay" id="uploadLoadingOverlay" style="display:none;">
+      <div class="upload-spinner"></div>
+      <div id="uploadLoadingText">Loading video…</div>
     </div>
   </div>
 
@@ -414,20 +346,16 @@
     <div class="timeline-body">
       <div class="track-labels" id="trackLabels">
         <div class="track-label-cell clickable" id="muteAllBtn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M23 9l-6 6M17 9l6 6"/></svg>
-          <span>Mute</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V3h16v4M4 21V10M20 21V10"/><path d="M4 10h16"/></svg>
+          <span>Video</span>
+        </div>
+        <div class="track-label-cell clickable" id="colorLabelBtn" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21V14M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 12h6"/></svg>
+          <span>Color</span>
         </div>
         <div class="track-label-cell clickable" id="filterLabelBtn" style="display:none;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="9" r="6"/><circle cx="15" cy="15" r="6"/></svg>
           <span>Filter</span>
-        </div>
-        <div class="track-label-cell clickable" id="adjustLabelBtn" style="display:none;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21V14M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 12h6"/></svg>
-          <span>Adjust</span>
-        </div>
-        <div class="track-label-cell clickable" id="animLabelBtn" style="display:none;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
-          <span>Anim</span>
         </div>
         <div class="track-label-cell clickable" id="audioLabelBtn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
@@ -446,9 +374,8 @@
         <div class="timeline-inner" id="timelineInner">
           <div class="ruler" id="ruler"></div>
           <div class="track-row" id="videoTrack"></div>
+          <div class="track-row" id="colorTrack" style="display:none;"></div>
           <div class="track-row" id="filterTrack" style="display:none;"></div>
-          <div class="track-row" id="adjustTrack" style="display:none;"></div>
-          <div class="track-row" id="animTrack" style="display:none;"></div>
           <div class="track-row" id="audioTrack"></div>
           <div class="track-row" id="textTrack"></div>
           <div class="track-row" id="overlayTrack" style="display:none;"></div>
@@ -513,92 +440,14 @@
         <div class="toggle-row"><span>Flash in</span><div class="switch" id="cFlashToggle"></div></div>
       </div>
       <div class="sheet-panel" data-cpanel="speed">
-        <div class="speed-tabs" id="speedTabs">
-          <button class="speed-tab active" data-stab="normal">Normal</button>
-          <button class="speed-tab" data-stab="curve">Curve</button>
-          <button class="speed-tab" data-stab="velocity">Velocity effects</button>
-        </div>
-
-        <div class="speed-pane active" data-spane="normal">
-          <div class="speed-duration" id="speedDurationRow">Duration: <span id="speedDurFrom">0.0s</span> → <span id="speedDurTo">0.0s</span></div>
-          <div class="speed-marks">
-            <span>0.1x</span><span>1x</span><span>2x</span><span>5x</span><span>10x</span><span>100x</span>
-          </div>
-          <input type="range" id="cSpeed" min="0.1" max="10" step="0.05" value="1" class="speed-slider">
-          <div class="speed-val-big" id="cSpeedVal">1.0x</div>
-          <div class="preset-grid" id="speedPresetGrid" style="grid-template-columns:repeat(5,1fr);margin-top:10px;"></div>
-          <div class="toggle-row" style="margin-top:12px;"><span>Smooth slow-mo</span><div class="switch" id="cSmoothSlowmo"></div></div>
-          <div class="toggle-row"><span>Change audio pitch</span><div class="switch" id="cPitchToggle"></div></div>
-          <div class="empty-hint" style="padding-top:8px;">Speeding up shortens the clip on the timeline; slowing down lengthens it.</div>
-        </div>
-
-        <div class="speed-pane" data-spane="curve">
-          <div class="section-label">Curve preset</div>
-          <div class="curve-preset-row" id="curvePresetRow"></div>
-          <div class="section-label">Manual curve</div>
-          <canvas id="speedCurveCanvas" width="360" height="140" class="speed-curve-canvas"></canvas>
-          <div class="empty-hint" style="padding-top:6px;">Drag points up/down to change speed. Higher = faster. Double-tap canvas to add a point.</div>
-          <div class="btn-grid" style="margin-top:8px;">
-            <button class="row-btn" id="curveResetBtn">Reset curve</button>
-            <button class="row-btn" id="curveApplyBtn">Apply to clip</button>
-          </div>
-        </div>
-
-        <div class="speed-pane" data-spane="velocity">
-          <div class="section-label">Velocity effects</div>
-          <div class="velocity-grid" id="velocityGrid"></div>
-          <div class="field" style="margin-top:12px;"><label>Intensity <span class="val" id="velIntensityVal">100%</span></label>
-            <input type="range" id="velIntensity" min="0" max="100" value="100">
-          </div>
-          <div class="empty-hint">Velocity effects add flash, blur, or zoom pulses as the clip speeds up or slows down.</div>
-        </div>
+        <div class="field"><label>Playback speed <span class="val" id="cSpeedVal">1.0x</span></label><input type="range" id="cSpeed" min="0.25" max="2" step="0.05" value="1"></div>
+        <div class="empty-hint">Speeding up shortens this clip on the timeline; slowing down lengthens it.</div>
       </div>
       <div class="sheet-panel" data-cpanel="beats">
         <button class="row-btn" id="detectBeatsBtn">Detect beats from this clip's audio</button>
         <div class="empty-hint" id="beatsStatus">Finds rhythmic hits in the audio and marks them on the timeline ruler as snap guides for cutting on the beat.</div>
         <button class="row-btn danger" id="clearBeatsBtn" style="margin-top:10px;">Clear beat markers</button>
       </div>
-    </div>
-  </div>
-
-  <div class="bottom-sheet" id="layerSheet">
-    <div class="sheet-header">
-      <span class="title" id="layerSheetTitle">Layer</span>
-      <button id="layerSheetDone">Done</button>
-    </div>
-    <div class="sheet-body">
-      <div class="section-label">Identity</div>
-      <div class="field"><label>Name</label><input type="text" id="layerNameInput" placeholder="Layer name"></div>
-      <div class="section-label">Controls</div>
-      <div class="toggle-row"><span>Visible</span><div class="switch" id="layerVisibleToggle"></div></div>
-      <div class="toggle-row"><span>Locked</span><div class="switch" id="layerLockToggle"></div></div>
-      <div class="field"><label>Opacity <span class="val" id="layerOpacityVal">100%</span></label><input type="range" id="layerOpacity" min="0" max="100" value="100"></div>
-      <div class="field"><label>Blend mode</label>
-        <select id="layerBlendMode">
-          <option value="normal">Normal</option>
-          <option value="multiply">Multiply</option>
-          <option value="screen">Screen</option>
-          <option value="overlay">Overlay</option>
-          <option value="soft-light">Soft Light</option>
-          <option value="hard-light">Hard Light</option>
-          <option value="difference">Difference</option>
-          <option value="lighten">Lighten</option>
-          <option value="darken">Darken</option>
-          <option value="color-dodge">Color Dodge</option>
-          <option value="color-burn">Color Burn</option>
-        </select>
-      </div>
-      <div class="section-label">Timing</div>
-      <div class="field"><label>Start <span class="val" id="layerStartVal">0.0s</span></label><input type="range" id="layerStart" min="0" max="60" step="0.1" value="0"></div>
-      <div class="field"><label>End <span class="val" id="layerEndVal">3.0s</span></label><input type="range" id="layerEnd" min="0" max="60" step="0.1" value="3"></div>
-      <div class="section-label">Actions</div>
-      <div class="btn-grid">
-        <button class="row-btn" id="layerDuplicateBtn">Duplicate</button>
-        <button class="row-btn" id="layerSplitBtn">Split at playhead</button>
-      </div>
-      <button class="row-btn" id="layerEditTypeBtn">Edit layer settings ▸</button>
-      <button class="row-btn danger" id="layerDeleteBtn">Delete layer</button>
-      <div class="empty-hint" id="layerTypeHint" style="padding-top:8px;"></div>
     </div>
   </div>
 
@@ -623,6 +472,33 @@
       </div>
       <button class="row-btn" id="trPreviewBtn">▶ Preview transition</button>
       <button class="row-btn danger" id="trRemoveBtn">Remove transition</button>
+    </div>
+  </div>
+
+  <div class="bottom-sheet" id="layerSheet">
+    <div class="sheet-header">
+      <span class="title" id="layerSheetTitle">Layer</span>
+      <button id="layerSheetDone">Done</button>
+    </div>
+    <div class="sheet-body">
+      <div class="field"><label>Name</label><input type="text" id="layerNameInput" style="width:100%;background:var(--panel-3);border:1px solid var(--border);border-radius:8px;color:#fff;padding:8px 10px;font-size:13px;"></div>
+      <div class="section-label">Timing</div>
+      <div class="field"><label>Start <span class="val" id="layerStartVal">0.0s</span></label><input type="range" id="layerStartSlider" min="0" max="60" step="0.1"></div>
+      <div class="field"><label>End <span class="val" id="layerEndVal">0.0s</span></label><input type="range" id="layerEndSlider" min="0" max="60" step="0.1"></div>
+      <div class="section-label">Appearance</div>
+      <div class="field"><label>Opacity <span class="val" id="layerOpacityVal">100%</span></label><input type="range" id="layerOpacitySlider" min="0" max="100"></div>
+      <div class="field">
+        <select id="layerBlendSelect"></select>
+      </div>
+      <div class="section-label">Options</div>
+      <button class="row-btn" id="layerEditContentBtn">Edit values</button>
+      <button class="row-btn" id="layerMoveUpBtn">↑ Move up (render later)</button>
+      <button class="row-btn" id="layerMoveDownBtn">↓ Move down (render earlier)</button>
+      <button class="row-btn" id="layerVisibilityBtn">Hide layer</button>
+      <button class="row-btn" id="layerLockBtn">Lock layer</button>
+      <button class="row-btn" id="layerDuplicateBtn">Duplicate</button>
+      <button class="row-btn" id="layerSplitBtn2">Split at playhead</button>
+      <button class="row-btn danger" id="layerDeleteBtn">Delete layer</button>
     </div>
   </div>
 
@@ -746,29 +622,10 @@
 
 </div>
 
-<!-- Off-screen (not display:none) so mobile browsers keep decoding frames for canvas drawImage.
-     No crossorigin attribute: blob: object URLs from <input type=file> fail to load on some
-     http/https hosts (e.g. GitHub Pages) when crossorigin="anonymous" is set. -->
-<video id="hiddenVideo" playsinline webkit-playsinline
-  style="position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none;"></video>
-<video id="hiddenVideo2" playsinline webkit-playsinline muted
-  style="position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none;"></video>
-<audio id="hiddenAudio" style="position:fixed;left:-9999px;width:1px;height:1px;opacity:0;"></audio>
-<input type="file" id="fileInput" accept="video/*" multiple
-  style="position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0.001;overflow:hidden;z-index:-1;">
-<label id="fileInputLabel" for="fileInput" style="position:fixed;width:1px;height:1px;opacity:0;overflow:hidden;">Import</label>
-<div class="import-debug" id="importDebug">
-  <div class="id-head">
-    <span>Import debug</span>
-    <span>
-      <button type="button" id="importDebugCopy">Copy</button>
-      <button type="button" id="importDebugClear">Clear</button>
-      <button type="button" id="importDebugClose">Close</button>
-    </span>
-  </div>
-  <div class="id-body" id="importDebugBody"></div>
-</div>
-
+<video id="hiddenVideo" style="display:none" playsinline crossorigin="anonymous"></video>
+<video id="hiddenVideo2" style="display:none" playsinline crossorigin="anonymous" muted></video>
+<audio id="hiddenAudio" style="display:none" crossorigin="anonymous"></audio>
+<input type="file" id="fileInput" accept="video/*" multiple style="display:none">
 
 <div class="studio-overlay" id="filterStudio">
   <div class="studio-tabs">
@@ -824,8 +681,7 @@
   const TRACK_PAD = 10;
 
   const state = {
-    library:[], clips:[], texts:[], audioClips:[], overlays:[], transitions:[],
-    layers:[], // non-destructive effect layers (filter, adjust, …)
+    library:[], clips:[], texts:[], audioClips:[], overlays:[], transitions:[], effectLayers:[],
     selected:{type:null,id:null},
     playhead:0, playing:false, pxPerSec:45, activeClipUrl:null, activeAudioUrl:null, secondaryUrl:null,
     ratioMode:'auto',
@@ -882,6 +738,168 @@
   ];
   const CHIP_LIST = ['Featured','NEW','Hits','Life','Photo Booth','Cinematic','Mono'];
 
+  // ================= EFFECT LAYER ENGINE =================
+  // Color adjustments and filters used to be baked directly into clip.grade / clip.filterId,
+  // which meant they always covered the whole clip and could never be split, stacked, or
+  // removed from just part of a clip. They now live in state.effectLayers instead — independent
+  // objects with their own [start,end) on the *global* timeline, own opacity/blend mode, own
+  // visibility/lock, that render in a compositing pass on top of whatever's already on the
+  // canvas (clip or transition). Nothing about a layer references a clip's internal geometry,
+  // so splitting/duplicating/deleting/moving a layer never touches the underlying video.
+  const BLEND_MODES = [
+    {id:'normal', label:'Normal', op:'source-over'},
+    {id:'multiply', label:'Multiply', op:'multiply'},
+    {id:'screen', label:'Screen', op:'screen'},
+    {id:'overlay', label:'Overlay', op:'overlay'},
+    {id:'soft-light', label:'Soft Light', op:'soft-light'},
+    {id:'hard-light', label:'Hard Light', op:'hard-light'},
+    {id:'difference', label:'Difference', op:'difference'},
+    {id:'lighten', label:'Lighten', op:'lighten'},
+    {id:'darken', label:'Darken', op:'darken'},
+    {id:'color-dodge', label:'Color Dodge', op:'color-dodge'},
+    {id:'color-burn', label:'Color Burn', op:'color-burn'},
+  ];
+  function blendOp(id){ const b=BLEND_MODES.find(x=>x.id===id); return b?b.op:'source-over'; }
+  function makeEffectLayer(type, start, end){
+    return {
+      id:newId(), type, name: type==='color' ? 'Color Adjustment' : 'Filter',
+      start, end, visible:true, locked:false, opacity:100, blendMode:'normal',
+      grade: type==='color' ? defaultGrade() : undefined,
+      filterId: type==='filter' ? null : undefined,
+      filterIntensity: type==='filter' ? 100 : undefined,
+      clipLink: null, // soft reference set only when auto-created from the per-clip Filters/Adjust studio
+    };
+  }
+  function layerGrade(layer){
+    if(layer.type==='color') return layer.grade;
+    if(layer.type==='filter'){
+      if(!layer.filterId) return defaultGrade();
+      const f=FILTER_LIBRARY.find(x=>x.id===layer.filterId);
+      if(!f) return defaultGrade();
+      return mixGrade(defaultGrade(), f.settings, (layer.filterIntensity!=null?layer.filterIntensity:100)/100);
+    }
+    return defaultGrade();
+  }
+  function isNeutralGrade(g){ return Object.keys(defaultGrade()).every(k=>!g[k]); }
+  function layerHasVisibleEffect(layer){
+    if(layer.type==='color') return !isNeutralGrade(layer.grade);
+    if(layer.type==='filter') return !!layer.filterId;
+    return false;
+  }
+  function effectLayerAt(id){ return state.effectLayers.find(l=>l.id===id) || null; }
+  function selectedEffectLayer(){
+    if(state.selected.type==='color' || state.selected.type==='filter') return effectLayerAt(state.selected.id);
+    return null;
+  }
+  // Find-only lookup used by read-only UI (which card/slider to show) — never creates a layer
+  // just because a panel was opened.
+  function findClipLayer(clip, type){
+    if(!clip) return null;
+    return state.effectLayers.find(l=>l.type===type && l.clipLink===clip.id) || null;
+  }
+  // Find-or-create, used only by actual mutation handlers (slider input, filter card tap).
+  function ensureClipLayer(clip, type){
+    let layer=findClipLayer(clip, type);
+    if(!layer){
+      layer=makeEffectLayer(type, clip.timelineStart, clip.timelineStart+clip.duration);
+      layer.clipLink=clip.id;
+      state.effectLayers.push(layer);
+      showEffectTrack(type);
+    }
+    return layer;
+  }
+  // What the Adjust / Filters studio should read from and write to: an explicitly-selected
+  // layer takes priority (so tapping a layer block on the timeline edits *that* layer even if
+  // it no longer aligns with any clip), otherwise it falls back to the selected clip's layer.
+  function adjustTarget(createIfMissing){
+    if(state.selected.type==='color') return effectLayerAt(state.selected.id);
+    const clip=selectedClip();
+    if(!clip) return null;
+    return createIfMissing ? ensureClipLayer(clip,'color') : findClipLayer(clip,'color');
+  }
+  function filterTarget(createIfMissing){
+    if(state.selected.type==='filter') return effectLayerAt(state.selected.id);
+    const clip=selectedClip();
+    if(!clip) return null;
+    return createIfMissing ? ensureClipLayer(clip,'filter') : findClipLayer(clip,'filter');
+  }
+  function showEffectTrack(type){
+    if(type==='color'){ $('#colorLabelBtn').style.display='flex'; colorTrackEl.style.display='block'; }
+    else if(type==='filter'){ $('#filterLabelBtn').style.display='flex'; filterTrackEl.style.display='block'; }
+  }
+  function refreshEffectTrackVisibility(){
+    const hasColor=state.effectLayers.some(l=>l.type==='color');
+    const hasFilter=state.effectLayers.some(l=>l.type==='filter');
+    $('#colorLabelBtn').style.display = hasColor ? 'flex' : 'none';
+    colorTrackEl.style.display = hasColor ? 'block' : 'none';
+    $('#filterLabelBtn').style.display = hasFilter ? 'flex' : 'none';
+    filterTrackEl.style.display = hasFilter ? 'block' : 'none';
+  }
+  function duplicateEffectLayer(layer){
+    if(!layer || layer.locked) return null;
+    const dup={...layer, id:newId(), name:layer.name+' copy', clipLink:null};
+    if(layer.type==='color') dup.grade={...layer.grade};
+    state.effectLayers.push(dup);
+    return dup;
+  }
+  function deleteEffectLayer(layer){
+    if(!layer || layer.locked) return;
+    state.effectLayers=state.effectLayers.filter(l=>l.id!==layer.id);
+  }
+  function splitEffectLayerAtPlayhead(layer){
+    if(!layer || layer.locked) return null;
+    const t=state.playhead;
+    if(t<=layer.start+0.1 || t>=layer.end-0.1) return null;
+    const second={...layer, id:newId(), start:t, clipLink:null};
+    if(layer.type==='color') second.grade={...layer.grade};
+    layer.end=t; layer.clipLink=null;
+    state.effectLayers.push(second);
+    return second;
+  }
+  // Render/composite order spans ALL effect layers together (color and filter layers share one
+  // stack — see applyEffectLayerStack), so "move up/down" swaps a layer's position in that same
+  // flat array rather than reordering within just its own track.
+  function moveEffectLayer(layer, dir){
+    if(!layer || layer.locked) return;
+    const idx=state.effectLayers.indexOf(layer);
+    const swapIdx=idx+dir;
+    if(idx<0 || swapIdx<0 || swapIdx>=state.effectLayers.length) return;
+    [state.effectLayers[idx], state.effectLayers[swapIdx]] = [state.effectLayers[swapIdx], state.effectLayers[idx]];
+  }
+
+  // The actual compositor: given whatever's currently drawn on targetCtx (a finished clip or
+  // transition frame), apply every active, visible, non-neutral layer in stack order (array
+  // order = bottom-to-top). Each layer is rendered as "the CSS-filtered version of everything
+  // beneath it", then blended back on top using its own opacity + blend mode — the standard
+  // adjustment-layer model used by Premiere/Resolve/After Effects.
+  const layerScratchCanvas=document.createElement('canvas'), layerScratchCtx=layerScratchCanvas.getContext('2d');
+  function ensureLayerScratch(W,H){
+    if(layerScratchCanvas.width!==W||layerScratchCanvas.height!==H){ layerScratchCanvas.width=W; layerScratchCanvas.height=H; }
+  }
+  function applyEffectLayerStack(targetCtx, W, H, t){
+    const active=state.effectLayers.filter(l=>
+      l.visible!==false && (l.type==='color'||l.type==='filter') &&
+      t>=l.start && t<l.end && layerHasVisibleEffect(l)
+    );
+    if(!active.length) return;
+    ensureLayerScratch(W,H);
+    active.forEach(layer=>{
+      const grade=layerGrade(layer);
+      layerScratchCtx.clearRect(0,0,W,H);
+      layerScratchCtx.filter=gradeFilterString(grade);
+      layerScratchCtx.drawImage(targetCtx.canvas,0,0); // filtered snapshot of the composite so far
+      layerScratchCtx.filter='none';
+      applyGradePostPass(layerScratchCtx, W, H, grade);
+
+      targetCtx.save();
+      targetCtx.globalAlpha=Math.max(0,Math.min(1,(layer.opacity!=null?layer.opacity:100)/100));
+      targetCtx.globalCompositeOperation=blendOp(layer.blendMode);
+      targetCtx.drawImage(layerScratchCanvas,0,0);
+      targetCtx.restore();
+    });
+    targetCtx.globalAlpha=1; targetCtx.globalCompositeOperation='source-over';
+  }
+
   // ================= TRANSITION ENGINE =================
   // Transitions live "between" two adjacent clips (state.transitions[i] sits between
   // state.clips[i] and state.clips[i+1]). Instead of a gap or a hard cut, the next clip's
@@ -916,7 +934,8 @@
 
   const canvas=$('#previewCanvas'), ctx=canvas.getContext('2d');
   const hiddenVideo=$('#hiddenVideo'), hiddenVideo2=$('#hiddenVideo2'), hiddenAudio=$('#hiddenAudio');
-  const videoTrackEl=$('#videoTrack'), filterTrackEl=$('#filterTrack'), adjustTrackEl=$('#adjustTrack'), animTrackEl=$('#animTrack'), audioTrackEl=$('#audioTrack'), textTrackEl=$('#textTrack'), overlayTrackEl=$('#overlayTrack');
+  const videoTrackEl=$('#videoTrack'), audioTrackEl=$('#audioTrack'), textTrackEl=$('#textTrack'), overlayTrackEl=$('#overlayTrack');
+  const colorTrackEl=$('#colorTrack'), filterTrackEl=$('#filterTrack');
   const rulerEl=$('#ruler'), playheadEl=$('#playheadEl'), timelineInner=$('#timelineInner'), timelineScroll=$('#timelineScroll');
   const noMediaOverlay=$('#noMediaOverlay');
 
@@ -935,853 +954,85 @@
   }
 
   function fmtTime(s){ if(!isFinite(s))s=0; const m=Math.floor(s/60), sec=Math.floor(s%60); return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0'); }
+  // Some browsers/codecs (WebM/VP9 especially, but not exclusively) will report a video as
+  // fully loaded (readyState 4) at currentTime===0 while drawImage() still paints black —
+  // the actual frame buffer for canvas compositing isn't populated until a real seek
+  // completes, and seeking to exactly 0 is sometimes treated as a no-op. Nudging the target
+  // time by a hair forces a genuine seek and avoids ever landing on that unseekable instant.
+  function seekSafeTime(t){ return t<=0.001 ? 0.03 : t; }
 
   // ================= MEDIA IMPORT =================
   const fileInput=$('#fileInput');
-  // ---- Android Chrome file-picker reliability ----
-  // display:none inputs often open the picker but never fire "change".
-  // We use an off-screen visible input, dual events, and a visibility/focus fallback.
-  let pickerPending=false;
-  let pickerOpenedAt=0;
-  let pickerHandledToken=0;
+  $('#searchBtn').addEventListener('click',()=>fileInput.click());
+  $('#importVideoBtn').addEventListener('click',()=>fileInput.click());
+  fileInput.addEventListener('change',e=>{ handleFiles(e.target.files); fileInput.value=''; });
 
-  function ensurePickerStatusUI(){
-    let el=$('#pickerStatus');
-    if(el) return el;
-    el=document.createElement('div');
-    el.id='pickerStatus';
-    el.style.cssText='display:none;position:fixed;left:10px;right:10px;top:48px;z-index:200;background:rgba(12,12,14,.96);border:1px solid #333;border-radius:10px;padding:12px 14px;font-family:JetBrains Mono,monospace;font-size:11px;color:#ddd;line-height:1.55;box-shadow:0 8px 28px rgba(0,0,0,.5);max-height:45vh;overflow:auto;';
-    document.body.appendChild(el);
-    return el;
-  }
-  function setPickerStatus(steps, errorMsg){
-    const el=ensurePickerStatusUI();
-    const lines=steps.map(s=>{
-      const icon=s.ok===true?'\u2713':(s.ok===false?'\u2717':'\u00b7');
-      const col=s.ok===true?'#7dffa6':(s.ok===false?'#ff8a8a':'#aaa');
-      return '<div style="color:'+col+'">'+icon+' '+s.label+(s.detail?(' \u2014 '+s.detail):'')+'</div>';
-    }).join('');
-    el.innerHTML='<div style="font-weight:700;color:#fff;margin-bottom:6px;">Import status</div>'+lines+
-      (errorMsg?('<div style="color:#ff8a8a;margin-top:8px;white-space:pre-wrap;">'+errorMsg+'</div>'):'')+
-      '<div style="margin-top:10px;text-align:right;"><button type="button" id="pickerStatusClose" style="color:#00E5D6;font-size:12px;">Dismiss</button></div>';
-    el.style.display='block';
-    const b=$('#pickerStatusClose'); if(b) b.onclick=()=>{ el.style.display='none'; };
-  }
-
-  function openVideoPicker(source){
-    pickerPending=true;
-    pickerOpenedAt=Date.now();
-    const token=++pickerHandledToken;
-    const steps=[
-      {label:'File picker opened', ok:true, detail:String(source||'')},
-      {label:'File selected', ok:null},
-      {label:'Change event fired', ok:null},
-      {label:'File object received', ok:null},
-      {label:'Import started', ok:null},
-    ];
-    setPickerStatus(steps);
-    console.log('[import] file picker opened', {
-      source:source||'unknown',
-      mode:typeof APP_MODE!=='undefined'?APP_MODE:'?',
-      protocol:location.protocol,
-      inputExists:!!fileInput,
-      accept:fileInput && fileInput.accept,
-      display:fileInput && getComputedStyle(fileInput).display
-    });
-    try{ fileInput.value=''; }catch(e){}
-    // Prefer label.click() path when available (stronger user-activation chain on some Androids).
-    try{
-      const label=$('#fileInputLabel');
-      if(label){ label.click(); }
-      else { fileInput.click(); }
-    }catch(err){
-      console.error('[import] file picker click failed', err);
-      pickerPending=false;
-      steps[0].ok=false; steps[0].detail=String(err&&err.message||err);
-      setPickerStatus(steps, 'Could not open the system file picker.');
-      return;
-    }
-    // If the page never gets a change/input event after returning from the picker,
-    // surface that instead of failing silently.
-    setTimeout(()=>{
-      if(pickerPending && token===pickerHandledToken && Date.now()-pickerOpenedAt>1200){
-        // Still pending after 1.2s — may be waiting for user; another check runs on visibility.
-        console.log('[import] still waiting for change event…');
+  function handleFiles(fileList){
+    const videoFiles=[...fileList].filter(f=>f.type.startsWith('video/'));
+    if(videoFiles.length===0) return;
+    let pending=videoFiles.length;
+    const loadingOverlay=$('#uploadLoadingOverlay'), loadingText=$('#uploadLoadingText');
+    noMediaOverlay.style.display='none';
+    loadingOverlay.style.display='flex';
+    loadingText.textContent = videoFiles.length>1 ? `Loading ${videoFiles.length} videos…` : `Loading "${videoFiles[0].name}"…`;
+    function settleOne(){
+      pending--;
+      if(pending<=0){
+        loadingOverlay.style.display='none';
+        if(state.clips.length===0) noMediaOverlay.style.display='block';
       }
-    }, 1200);
-  }
-
-  function onFilesChosen(files, via){
-    const token=pickerHandledToken;
-    pickerPending=false;
-    const steps=[
-      {label:'File picker opened', ok:true},
-      {label:'File selected', ok:files.length>0, detail:files.length?(files.length+' file(s)'):'0 files'},
-      {label:'Change event fired', ok:true, detail:String(via)},
-      {label:'File object received', ok:null},
-      {label:'Import started', ok:null},
-    ];
-    console.log('[import] files chosen via='+via, {
-      count:files.length,
-      names:files.map(f=>f.name),
-      sizes:files.map(f=>f.size),
-      types:files.map(f=>f.type||'(empty)'),
-      lastModified:files.map(f=>f.lastModified)
-    });
-    if(!files.length){
-      steps[1].ok=false; steps[3].ok=false; steps[4].ok=false;
-      setPickerStatus(steps,
-        'The picker closed with 0 files (input.files.length === 0).\n'+
-        'This is an Android Chrome file-input quirk, not a codec error.\n'+
-        'Try: pick again from Downloads/Gallery, or use a shorter test clip first.');
-      return;
+      else loadingText.textContent = `Loading… ${pending} remaining`;
     }
-    const f=files[0];
-    steps[3]={label:'File object received', ok:true,
-      detail:(f.name||'?')+' · '+(f.size||0)+' B · type='+(f.type||'(empty)')+' · mod='+(f.lastModified||'?')};
-    steps[4]={label:'Import started', ok:true};
-    setPickerStatus(steps);
-    try{
-      const p=handleFiles(files);
-      if(p && typeof p.then==='function'){
-        p.catch(err=>{
-          console.error('[import] handleFiles rejection', err);
-          setPickerStatus(steps, 'Import failed: '+(err&&err.message?err.message:String(err)));
-          alert('Import failed: '+(err&&err.message?err.message:String(err)));
-        });
-      }
-    }catch(err){
-      console.error('[import] handleFiles threw', err);
-      steps[4].ok=false;
-      setPickerStatus(steps, 'Import crashed: '+(err&&err.message?err.message:String(err)));
-      alert('Import error: '+(err&&err.message?err.message:String(err)));
-    }
-  }
-
-  function readInputFiles(){
-    try{
-      const list=fileInput && fileInput.files;
-      return list?Array.from(list):[];
-    }catch(e){
-      console.error('[import] readInputFiles failed', e);
-      return [];
-    }
-  }
-
-  function handlePickerEvent(e, via){
-    try{
-      const files=readInputFiles();
-      // Snapshot first, then clear so the same file can be re-selected later.
-      try{ fileInput.value=''; }catch(err){}
-      onFilesChosen(files, via);
-    }catch(err){
-      pickerPending=false;
-      console.error('[import] '+via+' handler exception', err);
-      setPickerStatus([
-        {label:'File picker opened', ok:true},
-        {label:'Change event fired', ok:true, detail:via},
-        {label:'Handler exception', ok:false, detail:String(err&&err.message||err)},
-      ], 'JavaScript error after file selection:\n'+(err&&err.stack?err.stack:String(err)));
-      alert('Import handler error: '+(err&&err.message?err.message:String(err)));
-    }
-  }
-
-  // Capture phase helps when something stops propagation on bubble.
-  fileInput.addEventListener('change', e=>handlePickerEvent(e,'change'), true);
-  fileInput.addEventListener('input', e=>{
-    const files=readInputFiles();
-    if(!files.length) return; // wait for change
-    handlePickerEvent(e,'input');
-  }, true);
-
-  // Fallback: when returning from the Android picker the page becomes visible again.
-  // If change/input never fired, try reading input.files now.
-  function checkPickerAfterReturn(reason){
-    if(!pickerPending) return;
-    if(Date.now()-pickerOpenedAt < 400) return; // too soon
-    const files=readInputFiles();
-    console.log('[import] post-return check ('+reason+')', {
-      pending:pickerPending,
-      files:files.length,
-      elapsed:Date.now()-pickerOpenedAt
-    });
-    if(files.length){
-      try{ fileInput.value=''; }catch(e){}
-      onFilesChosen(files, 'visibility:'+reason);
-      return;
-    }
-    // Give change event a bit more time after focus returns
-    setTimeout(()=>{
-      if(!pickerPending) return;
-      const files2=readInputFiles();
-      if(files2.length){
-        try{ fileInput.value=''; }catch(e){}
-        onFilesChosen(files2, 'visibility-delayed:'+reason);
-        return;
-      }
-      // User may have cancelled — only report after a clear delay
-      if(Date.now()-pickerOpenedAt > 800){
-        pickerPending=false;
-        setPickerStatus([
-          {label:'File picker opened', ok:true},
-          {label:'File selected', ok:false, detail:'0 files'},
-          {label:'Change event fired', ok:false, detail:'never received'},
-          {label:'File object received', ok:false},
-          {label:'Import started', ok:false},
-        ],
-          'Returned from the system picker with no file and no change event.\n'+
-          'Possible causes: picker cancelled, Android killed the file handle, or the input lost the selection.\n'+
-          'Try again; if it keeps happening, pick from Downloads using the system Files app.');
-      }
-    }, 500);
-  }
-  document.addEventListener('visibilitychange', ()=>{
-    if(document.visibilityState==='visible') checkPickerAfterReturn('visibilitychange');
-  });
-  window.addEventListener('focus', ()=>checkPickerAfterReturn('window-focus'));
-  fileInput.addEventListener('blur', ()=>checkPickerAfterReturn('input-blur'));
-
-  $('#searchBtn').addEventListener('click', e=>{ e.preventDefault(); openVideoPicker('searchBtn'); });
-  $('#importVideoBtn').addEventListener('click', e=>{ e.preventDefault(); openVideoPicker('importVideoBtn'); });
-
-  const MEDIA_ERR_NAMES={1:'MEDIA_ERR_ABORTED',2:'MEDIA_ERR_NETWORK',3:'MEDIA_ERR_DECODE',4:'MEDIA_ERR_SRC_NOT_SUPPORTED'};
-  const VIDEO_EXT_MIME={
-    mp4:'video/mp4', m4v:'video/mp4', mov:'video/quicktime', webm:'video/webm',
-    mkv:'video/x-matroska', ogv:'video/ogg', '3gp':'video/3gpp', '3g2':'video/3gpp2'
-  };
-  // Common codec strings used with canPlayType (Chrome Android friendly).
-  const CODEC_PROBES=[
-    {id:'avc1-baseline', label:'H.264 Baseline', mime:'video/mp4; codecs="avc1.42E01E"'},
-    {id:'avc1-main', label:'H.264 Main', mime:'video/mp4; codecs="avc1.4D401E"'},
-    {id:'avc1-high', label:'H.264 High', mime:'video/mp4; codecs="avc1.64001E"'},
-    {id:'avc1-aac', label:'H.264 + AAC', mime:'video/mp4; codecs="avc1.42E01E, mp4a.40.2"'},
-    {id:'hevc-hvc1', label:'HEVC (hvc1)', mime:'video/mp4; codecs="hvc1.1.6.L93.B0"'},
-    {id:'hevc-hev1', label:'HEVC (hev1)', mime:'video/mp4; codecs="hev1.1.6.L93.B0"'},
-    {id:'vp9', label:'VP9', mime:'video/webm; codecs="vp9"'},
-    {id:'vp8', label:'VP8', mime:'video/webm; codecs="vp8"'},
-    {id:'av1', label:'AV1', mime:'video/mp4; codecs="av01.0.05M.08"'},
-  ];
-
-  function guessMimeFromName(name){
-    const ext=(name||'').split('.').pop().toLowerCase();
-    return VIDEO_EXT_MIME[ext]||'';
-  }
-  function isLikelyVideoFile(file){
-    if(file.type && file.type.startsWith('video/')) return true;
-    // Android Chrome often reports empty type or application/octet-stream for camera/gallery MP4s.
-    if(!file.type || file.type==='application/octet-stream' || file.type==='application/mp4'){
-      const ext=(file.name||'').split('.').pop().toLowerCase();
-      return !!VIDEO_EXT_MIME[ext];
-    }
-    return false;
-  }
-  function browserCanPlaySupport(mime){
-    const probe=document.createElement('video');
-    const results={};
-    // Container-level
-    const base=mime||'video/mp4';
-    results.container=probe.canPlayType(base)||'';
-    results.containerMp4=probe.canPlayType('video/mp4')||'';
-    results.containerWebm=probe.canPlayType('video/webm')||'';
-    // Codec-level
-    CODEC_PROBES.forEach(c=>{ results[c.id]=probe.canPlayType(c.mime)||''; });
-    return results;
-  }
-  function supportLabel(val){
-    if(val==='probably') return 'probably (supported)';
-    if(val==='maybe') return 'maybe (likely supported)';
-    return '"" (not supported)';
-  }
-  function describeMediaError(videoEl){
-    const err=videoEl && videoEl.error;
-    if(!err) return {code:0, name:'NONE', message:'No MediaError'};
-    const code=err.code||0;
-    const name=MEDIA_ERR_NAMES[code]||('UNKNOWN_'+code);
-    const messages={
-      1:'Loading aborted.',
-      2:'Network error while loading media.',
-      3:'Media is corrupted or uses a codec this browser cannot decode.',
-      4:'Media format or source is not supported by this browser.',
-    };
-    return {code, name, message:messages[code]||err.message||'Unknown media error'};
-  }
-  // ---- Execution context (content:// / null origin / file://) ----
-  // =====================================================================
-  // EXECUTION CONTEXT — Development Mode vs Production Mode
-  // =====================================================================
-  function detectExecutionContext(){
-    let href='', protocol='', origin='';
-    try{ href=String(location.href||''); }catch(e){ href=''; }
-    try{ protocol=String(location.protocol||''); }catch(e){ protocol=''; }
-    try{ origin=String(location.origin||''); }catch(e){ origin=''; }
-    const isContent = protocol==='content:' || /^content:/i.test(href);
-    const isFile = protocol==='file:' || /^file:/i.test(href);
-    const isBlobPage = protocol==='blob:';
-    const isHttp = protocol==='http:' || protocol==='https:';
-    const isNullOrigin = !origin || origin==='null' || origin==='undefined';
-    let opaque=false;
-    try{ opaque = (window.origin==='null'); }catch(e){ opaque=true; }
-    // Restricted = anything that is not a normal web origin.
-    const restricted = !isHttp || isContent || isFile || isNullOrigin || opaque;
-    const mode = restricted ? 'development' : 'production';
-    const label = isContent ? 'content://'
-      : isFile ? 'file://'
-      : isNullOrigin ? 'null origin'
-      : (opaque ? 'opaque origin' : (origin||protocol||'unknown'));
-    return {
-      href, protocol, origin, mode,
-      isContent, isFile, isBlobPage, isHttp, isNullOrigin, opaque, restricted, label
-    };
-  }
-  const EXEC_CTX = detectExecutionContext();
-  const APP_MODE = EXEC_CTX.mode; // 'development' | 'production'
-
-  function hostingSuggestions(){
-    return [
-      'Open via a local server:  npx serve .',
-      'Or:  python3 -m http.server 8080',
-      'Deploy to GitHub Pages, Netlify, or Vercel (https://)',
-      'Then open the http:// or https:// URL in Chrome — not the raw file from Files.'
-    ].join('\n');
-  }
-
-  function contextWarningMessage(ctx){
-    ctx = ctx || EXEC_CTX;
-    return (
-      'REIN EDIT Development Mode — running from '+ctx.label+'. '+
-      'Browser media APIs are limited in this context. Large MP4s often fail with MEDIA_ERR_SRC_NOT_SUPPORTED even when the file is valid. '+
-      'This is an environment limitation, not proof the video is unsupported.\n\n'+
-      hostingSuggestions()
-    );
-  }
-
-  function showContextWarningIfNeeded(){
-    const badge=$('#modeBadge');
-    if(badge){
-      badge.classList.add('show', APP_MODE==='development'?'dev':'prod');
-      badge.classList.remove(APP_MODE==='development'?'prod':'dev');
-      badge.textContent = APP_MODE==='development' ? 'Dev · '+EXEC_CTX.label : 'Production · '+EXEC_CTX.protocol;
-    }
-    if(!EXEC_CTX.restricted) return;
-    const el=$('#contextWarn'), text=$('#contextWarnText');
-    if(!el||!text) return;
-    text.innerHTML =
-      '<strong>Development Mode</strong> — opened from <code>'+EXEC_CTX.label.replace(/</g,'&lt;')+'</code>. '+
-      'Media APIs are limited here; large videos may fail even if the MP4 is valid. '+
-      'This is <em>not</em> the same as an unsupported codec. '+
-      'For full reliability use <code>http://</code> / <code>https://</code> '+
-      '(local server, GitHub Pages, or Netlify).';
-    el.classList.add('show');
-    console.warn('[REIN EDIT] '+contextWarningMessage(EXEC_CTX));
-  }
-
-  function mediaElementSnapshot(videoEl){
-    if(!videoEl) return {networkState:'?', readyState:'?', errorCode:0, errorName:'NONE'};
-    const ns=videoEl.networkState, rs=videoEl.readyState;
-    const nsNames={0:'EMPTY',1:'IDLE',2:'LOADING',3:'NO_SOURCE'};
-    const rsNames={0:'HAVE_NOTHING',1:'HAVE_METADATA',2:'HAVE_CURRENT_DATA',3:'HAVE_FUTURE_DATA',4:'HAVE_ENOUGH_DATA'};
-    const err=videoEl.error;
-    return {
-      networkState: ns+' ('+(nsNames[ns]||'?')+')',
-      readyState: rs+' ('+(rsNames[rs]||'?')+')',
-      errorCode: err?err.code:0,
-      errorName: err?( {1:'MEDIA_ERR_ABORTED',2:'MEDIA_ERR_NETWORK',3:'MEDIA_ERR_DECODE',4:'MEDIA_ERR_SRC_NOT_SUPPORTED'}[err.code]||('CODE_'+err.code) ):'NONE'
-    };
-  }
-
-  function contextDiagnosticLine(){
-    return 'Mode: '+APP_MODE.toUpperCase()+
-      ' | protocol='+EXEC_CTX.protocol+
-      ' | origin='+EXEC_CTX.origin+
-      ' | context='+EXEC_CTX.label+
-      (EXEC_CTX.restricted ? ' | RESTRICTED' : ' | ok');
-  }
-
-  function userFacingCodecMessage(file, support, mediaErr){
-    const mime=file.type||guessMimeFromName(file.name)||'unknown';
-    const isMp4=/mp4|m4v|quicktime|mov/i.test(mime) || /\.(mp4|m4v|mov)$/i.test(file.name||'');
-    const sizeMb=(file.size||0)/1048576;
-
-    // Restricted context: NEVER call a valid-looking MP4 "unsupported".
-    if(EXEC_CTX.restricted){
-      if(mediaErr && (mediaErr.code===4 || mediaErr.code===3 || mediaErr.code===2)){
-        return (
-          'Import failed because of the browser environment ('+EXEC_CTX.label+'), not because the file is unsupported. '+
-          (sizeMb>40?('Large files (~'+sizeMb.toFixed(0)+' MB) are especially unreliable from content:// or file://. '):'')+
-          'Open REIN EDIT from http:// or https:// (npx serve, GitHub Pages, or Netlify) and try again.'
-        );
-      }
-      return (
-        'Could not load this video in Development Mode ('+EXEC_CTX.label+'). '+
-        'This often happens with large MP4s when the page is not served over http/https. '+
-        'Host the editor on a local web server or static host, then re-import.'
-      );
-    }
-
-    // Production Mode — genuine codec/format guidance.
-    const hevcSupported=!!(support['hevc-hvc1']||support['hevc-hev1']);
-    const h264Supported=!!(support['avc1-baseline']||support['avc1-main']||support['avc1-high']||support['avc1-aac']||support.containerMp4);
-    if(mediaErr && mediaErr.code===3){
-      if(isMp4 && !hevcSupported){
-        return 'This MP4 could not be decoded (often HEVC/H.265). Re-export as H.264 (AVC) + AAC for Chrome/Android.';
-      }
-      return 'This file could not be decoded. It may use an unsupported or damaged codec.';
-    }
-    if(mediaErr && mediaErr.code===4){
-      if(isMp4 && h264Supported){
-        return 'This MP4 could not be opened. It may use an unsupported codec (e.g. HEVC/H.265) or an unusual profile. Try H.264 + AAC.';
-      }
-      if(isMp4) return 'This MP4 uses an unsupported codec for this browser.';
-      return 'This media format is not supported by this browser.';
-    }
-    if(mediaErr && mediaErr.code===2) return 'Network error while loading the file.';
-    if(mediaErr && mediaErr.code===1) return 'Loading was aborted.';
-    return 'Could not load this video.';
-  }
-
-  function formatDiagnostics(file, support, mediaErr, extra, videoEl, stage){
-    const mime=file.type||guessMimeFromName(file.name)||'(empty — guessed from extension)';
-    const snap=mediaElementSnapshot(videoEl);
-    const lines=[
-      contextDiagnosticLine(),
-      'Protocol: '+EXEC_CTX.protocol,
-      'Origin: '+EXEC_CTX.origin,
-      'Import stage: '+(stage||extra||'(n/a)'),
-      'File: '+(file.name||'(unnamed)'),
-      'Size: '+((file.size/1048576).toFixed(2))+' MB',
-      'MIME type: '+mime,
-      'networkState: '+snap.networkState,
-      'readyState: '+snap.readyState,
-      'MediaError.code: '+snap.errorCode+(snap.errorName!=='NONE'?' ('+snap.errorName+')':''),
-      'canPlayType(video/mp4): '+supportLabel(support.containerMp4),
-      'canPlayType(video/webm): '+supportLabel(support.containerWebm),
-      'H.264: '+supportLabel(support['avc1-baseline']||support['avc1-main']||''),
-      'HEVC/H.265: '+supportLabel(support['hevc-hvc1']||support['hevc-hev1']||''),
-      'VP9: '+supportLabel(support.vp9||''),
-    ];
-    if(mediaErr && mediaErr.code){
-      lines.push('Reported MediaError code: '+mediaErr.code+' ('+mediaErr.name+')');
-      lines.push('Reported MediaError: '+mediaErr.message);
-    }
-    if(EXEC_CTX.restricted){
-      lines.push('NOTE: Restricted context — MEDIA_ERR_SRC_NOT_SUPPORTED often means the environment blocked the load, not that the MP4 is invalid.');
-    }
-    if(extra) lines.push(String(extra));
-    return lines.join('\n');
-  }
-
-  // =====================================================================
-  // IMPORT DEBUG + PIPELINE (does not block on environment)
-  // =====================================================================
-  let importLog=[];
-  function showImportDebug(){ const el=$('#importDebug'); if(el) el.classList.add('show'); }
-  function hideImportDebug(){ const el=$('#importDebug'); if(el) el.classList.remove('show'); }
-  function renderImportDebugBody(){
-    const body=$('#importDebugBody'); if(!body) return;
-    body.innerHTML=importLog.map(e=>{
-      const cls=e.level||'info';
-      return '<div class="id-line '+cls+'">['+e.t+'] '+escapeHtml(e.msg)+'</div>';
-    }).join('');
-    body.scrollTop=body.scrollHeight;
-  }
-  function safeJson(v){ try{ return JSON.stringify(v); }catch(e){ return String(v); } }
-  function importDbg(msg, level, data){
-    const t=new Date().toISOString().slice(11,23);
-    const extra=data!==undefined ? ' '+safeJson(data) : '';
-    importLog.push({t, msg:String(msg)+extra, level:level||'info'});
-    const cons=level==='err'?console.error:level==='warn'?console.warn:console.log;
-    cons('[import] '+msg, data!==undefined?data:'');
-    renderImportDebugBody();
-    showImportDebug();
-  }
-  function importStageLog(stage, detail){ importDbg(stage+(detail?(' — '+detail):''), 'info'); }
-  function mediaSnap(v){
-    if(!v) return {};
-    const err=v.error;
-    return {
-      readyState:v.readyState,
-      networkState:v.networkState,
-      error:err?{code:err.code,message:err.message||''}:null,
-      currentSrc:(v.currentSrc||'').slice(0,72),
-      videoWidth:v.videoWidth,
-      videoHeight:v.videoHeight,
-      duration:v.duration
-    };
-  }
-  function showImportProgress(stage, pct, detail){
-    const overlay=$('#exportOverlay');
-    if(overlay){
-      overlay.classList.add('show');
-      const mark=overlay.querySelector('.mark');
-      if(mark) mark.textContent=stage||'Importing…';
-      const fill=$('#exportFill'), pctEl=$('#exportPct');
-      const p=Math.max(0,Math.min(100,pct==null?0:pct));
-      if(fill) fill.style.width=p+'%';
-      if(pctEl) pctEl.textContent=(detail?detail+' · ':'')+Math.round(p)+'%';
-    }
-    importDbg('UI progress: '+stage+' @'+Math.round(pct==null?0:pct)+'%'+(detail?(' · '+detail):''), 'info');
-  }
-  function hideImportProgress(){
-    const overlay=$('#exportOverlay');
-    if(overlay) overlay.classList.remove('show');
-    const mark=overlay && overlay.querySelector('.mark');
-    if(mark) mark.textContent='EXPORTING';
-  }
-  function stageTimeout(ms, stageName){
-    return new Promise((_,reject)=>setTimeout(()=>reject(new Error('Stage timed out: '+stageName+' ('+ms+'ms)')), ms));
-  }
-  function raceStage(promise, ms, stageName){
-    return Promise.race([promise, stageTimeout(ms, stageName)]);
-  }
-
-  async function createCompatibleMediaUrl(file){
-    const mime=file.type||guessMimeFromName(file.name)||'video/mp4';
-    importDbg('createCompatibleMediaUrl', 'info', {
-      name:file.name, size:file.size, type:file.type||'(empty)', lastModified:file.lastModified,
-      mimeGuess:mime, mode:APP_MODE, protocol:EXEC_CTX.protocol
-    });
-    try{
+    videoFiles.forEach(file=>{
       const url=URL.createObjectURL(file);
-      if(!url) throw new Error('createObjectURL returned empty');
-      importDbg('object URL created', 'ok', {strategy:'direct-file', mime, url:url.slice(0,64)+'…'});
-      return {url, mime, strategy:'direct-file'};
-    }catch(e){
-      importDbg('direct createObjectURL failed', 'err', {error:String(e&&e.message||e)});
-    }
-    try{
-      const typed=new Blob([file], {type:mime});
-      const url=URL.createObjectURL(typed);
-      importDbg('object URL created', 'ok', {strategy:'typed-blob', mime, url:url.slice(0,64)+'…'});
-      return {url, mime, strategy:'typed-blob'};
-    }catch(e){
-      importDbg('typed-blob createObjectURL failed', 'err', {error:String(e&&e.message||e)});
-    }
-    if(file.size && file.size<80*1048576){
-      try{
-        const buf=await file.arrayBuffer();
-        importDbg('arrayBuffer read', 'ok', {bytes:buf.byteLength});
-        const url=URL.createObjectURL(new Blob([buf],{type:mime}));
-        importDbg('object URL created', 'ok', {strategy:'arraybuffer', url:url.slice(0,64)+'…'});
-        return {url, mime, strategy:'arraybuffer'};
-      }catch(e){
-        importDbg('arrayBuffer strategy failed', 'err', {error:String(e&&e.message||e)});
-      }
-    }
-    throw new Error('All createObjectURL strategies failed');
-  }
-
-  function probeVideoFile(file, onStage){
-    return new Promise(async (resolve, reject)=>{
-      const support=browserCanPlaySupport(file.type||guessMimeFromName(file.name));
-      importDbg('probe start', 'info', {
-        name:file.name, size:file.size, type:file.type||'(empty)', lastModified:file.lastModified,
-        mode:APP_MODE, protocol:EXEC_CTX.protocol, origin:EXEC_CTX.origin,
-        canPlayMp4:support.containerMp4||'', canPlayWebm:support.containerWebm||''
-      });
-      importDbg(APP_MODE==='production'?'Production mode — import not blocked by environment':'Development mode — import still attempted', APP_MODE==='production'?'ok':'warn');
-
-      if(!isLikelyVideoFile(file) && !(support.containerMp4||support.containerWebm||support.container)){
-        importDbg('Rejected: not recognized as video', 'err', {type:file.type, name:file.name});
-        reject({
-          file, support, mediaErr:{code:4,name:'MEDIA_ERR_SRC_NOT_SUPPORTED',message:'Not a recognized video type.'},
-          stage:'File selected', userMessage:'This does not look like a video file.',
-          diagnostics:formatDiagnostics(file, support, null, null, null, 'File selected')
-        });
-        return;
-      }
-
-      onStage && onStage('Object URL created', 12);
-      let url, mime, strategy;
-      try{
-        const created=await createCompatibleMediaUrl(file);
-        url=created.url; mime=created.mime; strategy=created.strategy;
-      }catch(e){
-        importDbg('URL creation failed', 'err', {error:String(e&&e.message||e)});
-        reject({
-          file, support, mediaErr:{code:0,name:'URL_CREATE_FAILED',message:String(e&&e.message||e)},
-          stage:'Object URL created', userMessage:'Could not create a media URL for this file.',
-          diagnostics:formatDiagnostics(file, support, null, String(e&&e.message||e), null, 'Object URL created')
-        });
-        return;
-      }
-
       const v=document.createElement('video');
       v.muted=true; v.playsInline=true;
-      v.setAttribute('playsinline',''); v.setAttribute('webkit-playsinline','');
-      v.preload='metadata';
-      v.style.cssText='position:fixed;left:-9999px;width:4px;height:4px;opacity:0.01;pointer-events:none;';
-      document.body.appendChild(v);
-      importDbg('video element created & in DOM', 'ok');
-
-      let settled=false, currentStage='Object URL created';
-      const flags={metadata:false, loadeddata:false, canplay:false, frame:false};
-      const overallMs=Math.min(300000, Math.max(60000, (file.size||0)/50));
-      const overallTimer=setTimeout(()=>{
+      let settled=false;
+      const settleOnce=()=>{ if(settled) return; settled=true; clearTimeout(watchdog); settleOne(); };
+      // Belt-and-suspenders: if a file's video element never fires 'loadedmetadata' OR 'error'
+      // (seen in the wild with some corrupt/exotic containers), don't leave the loading overlay
+      // stuck forever — that would be strictly worse than the silent-failure bug this replaces.
+      const watchdog=setTimeout(()=>{
         if(settled) return;
-        if(flags.metadata && isFinite(v.duration)){ finishOk('overall-timeout-with-metadata'); return; }
-        settled=true;
-        const snap=mediaSnap(v);
-        importDbg('TIMEOUT before metadata', 'err', snap);
-        cleanup(false);
-        try{ URL.revokeObjectURL(url); importDbg('object URL revoked (timeout)', 'warn'); }catch(e){}
-        reject({
-          file, support, mediaErr:{code:0,name:'STAGE_TIMEOUT',message:'Timed out before metadata'},
-          stage:currentStage||'Metadata loaded',
-          userMessage:'Timed out waiting for video metadata at stage: '+(currentStage||'unknown'),
-          diagnostics:formatDiagnostics(file, support, null, safeJson(snap), v, currentStage)
-        });
-      }, overallMs);
-
-      function cleanup(keepElement){
-        clearTimeout(overallTimer);
-        if(!keepElement){
-          try{ v.removeAttribute('src'); v.load(); }catch(e){}
-          if(v.parentNode) v.parentNode.removeChild(v);
-        }
-      }
-      function finishOk(reason){
-        if(settled) return;
-        settled=true; clearTimeout(overallTimer);
-        currentStage='Duration and dimensions read';
-        importDbg('probe success — object URL kept for timeline', 'ok', {reason, strategy, ...mediaSnap(v)});
-        onStage && onStage('Duration and dimensions read', 70,
-          (v.videoWidth||'?')+'\u00d7'+(v.videoHeight||'?')+' · '+(isFinite(v.duration)?v.duration.toFixed(1)+'s':''));
-        resolve({
-          ok:true, url, video:v, keepInDom:true,
-          width:v.videoWidth||0, height:v.videoHeight||0,
-          duration:isFinite(v.duration)?v.duration:0,
-          support, mime, flags, reason, strategy
-        });
-      }
-      function fail(stage){
-        if(settled) return;
-        const mediaErr=describeMediaError(v);
-        const snap=mediaSnap(v);
-        if(!mediaErr||!mediaErr.code){
-          importDbg('error event without MediaError.code (ignored)', 'warn', snap);
-          return;
-        }
-        settled=true; currentStage=stage||'error';
-        importDbg('media ERROR', 'err', {stage:currentStage, mediaErr, snap, strategy});
-        cleanup(false);
-        try{ URL.revokeObjectURL(url); importDbg('object URL revoked (failure)', 'warn'); }catch(e){}
-        reject({
-          file, support, mediaErr, stage:currentStage,
-          userMessage:userFacingCodecMessage(file, support, mediaErr)+' (stage: '+currentStage+')',
-          diagnostics:formatDiagnostics(file, support, mediaErr, 'strategy='+strategy+'\n'+safeJson(snap), v, currentStage)
-        });
-      }
-
-      const MEDIA_EVENTS=['loadstart','durationchange','loadedmetadata','loadeddata','canplay','canplaythrough','progress','suspend','abort','error','emptied','stalled','waiting','playing','seeked'];
-      MEDIA_EVENTS.forEach(evName=>{
-        v.addEventListener(evName, ()=>{
-          const snap=mediaSnap(v);
-          const level=evName==='error'?'err':(evName==='stalled'||evName==='abort'||evName==='waiting'?'warn':'info');
-          importDbg('media event: '+evName, level, snap);
-          if(evName==='loadstart'){ currentStage='Object URL created'; onStage&&onStage('Object URL created',15,'Loading…'); }
-          if(evName==='loadedmetadata'){
-            flags.metadata=true; currentStage='Metadata loaded'; onStage&&onStage('Metadata loaded',55);
-            const grace=setTimeout(()=>{ if(!settled&&flags.metadata) finishOk('metadata-grace'); }, 1500);
-            if(v.readyState>=2 || (v.videoWidth>0 && isFinite(v.duration))){ clearTimeout(grace); finishOk('metadata-ready'); }
-          }
-          if(evName==='loadeddata'){
-            flags.loadeddata=true; currentStage='loadeddata'; onStage&&onStage('loadeddata',62);
-            if(v.readyState>=2 && v.videoWidth>0){ flags.frame=true; currentStage='First frame decoded'; onStage&&onStage('First frame decoded',68); }
-            if(flags.metadata && !settled) finishOk('loadeddata');
-          }
-          if(evName==='canplay'||evName==='canplaythrough'){
-            flags.canplay=true; currentStage=evName; onStage&&onStage(evName,65);
-            if(flags.metadata && !settled) finishOk(evName);
-          }
-          if(evName==='error') fail(currentStage||'Metadata loaded');
-        });
+        settleOnce();
+        URL.revokeObjectURL(url);
+        alert(`"${file.name}" is taking too long to load and may be in a format this browser can't decode (try MP4/H.264 or WebM).`);
+      }, 15000);
+      // If metadata never loads (unsupported codec/container, corrupt file), the app used to
+      // just sit there forever with zero feedback — indistinguishable from a broken upload.
+      v.addEventListener('error',()=>{
+        URL.revokeObjectURL(url);
+        settleOnce();
+        alert(`Couldn't load "${file.name}" — the file may be corrupt or in a format this browser can't decode (try MP4/H.264 or WebM).`);
       });
-
-      try{ if(mime) v.setAttribute('type', mime); }catch(e){}
-      importDbg('assigning object URL to video.src', 'info', {url:url.slice(0,64)+'…', typeAttr:mime});
+      v.addEventListener('loadedmetadata',async ()=>{
+        const item={id:newId(),name:file.name,url,duration:v.duration,filmstrip:null,width:v.videoWidth,height:v.videoHeight};
+        if(state.library.length===0 && state.ratioMode==='auto'){ setCanvasRatio('auto', v.videoWidth, v.videoHeight); }
+        state.library.push(item);
+        renderMediaListEdit();
+        item.filmstrip=await generateFilmstrip(v,item.duration);
+        renderMediaListEdit();
+        addClipToTimeline(item);
+        settleOnce();
+      });
       v.src=url;
-      try{ v.load(); importDbg('video.load() called', 'ok', mediaSnap(v)); }
-      catch(e){ importDbg('video.load() threw', 'err', {error:String(e&&e.message||e)}); }
     });
   }
-
-  /** Thumbnail strip — optional. Always resolves within a hard stage cap. */
-  function generateFilmstrip(videoEl, duration, onStage){
+  function generateFilmstrip(videoEl,duration){
     return new Promise(resolve=>{
-      if(!videoEl || !isFinite(duration) || duration<=0){
-        importStageLog('Thumbnail generated', 'skipped (no duration)');
-        resolve(null); return;
-      }
-      if(!videoEl.parentNode) document.body.appendChild(videoEl);
-
-      const frames=duration>180?3:(duration>60?4:5);
-      const tw=64, th=36;
+      const frames=6, tw=64, th=36;
       const strip=document.createElement('canvas'); strip.width=tw*frames; strip.height=th;
-      const sctx=strip.getContext('2d');
-      let i=0;
-      const perSeekMs=1800;
-      const totalCapMs=perSeekMs*frames+1000;
-      const capTimer=setTimeout(()=>{
-        importStageLog('Thumbnail generated', 'stage cap reached — returning partial');
-        try{ resolve(strip.toDataURL('image/jpeg',0.5)); }catch(e){ resolve(null); }
-      }, totalCapMs);
-
-      function done(data){
-        clearTimeout(capTimer);
-        importStageLog('Thumbnail generated', data?'ok':'empty');
-        resolve(data||null);
-      }
+      const sctx=strip.getContext('2d'); let i=0;
       function grab(){
-        if(i>=frames){
-          try{ done(strip.toDataURL('image/jpeg',0.5)); }catch(e){ done(null); }
-          return;
-        }
-        onStage && onStage('Thumbnail generated', 72+Math.round((i/frames)*12), 'Frame '+(i+1)+'/'+frames);
-        const t=Math.min(duration-0.05, Math.max(0, (duration*(i+0.5))/frames));
-        let finished=false;
-        const finish=()=>{
-          if(finished) return;
-          finished=true;
-          try{ sctx.drawImage(videoEl, i*tw, 0, tw, th); }catch(e){}
-          i++;
-          grab();
-        };
-        const timer=setTimeout(finish, perSeekMs);
-        try{
-          videoEl.addEventListener('seeked', ()=>{ clearTimeout(timer); finish(); }, {once:true});
-          videoEl.currentTime=t;
-        }catch(e){
-          clearTimeout(timer);
-          finish();
-        }
+        if(i>=frames){ resolve(strip.toDataURL('image/jpeg',0.6)); return; }
+        const t=(duration*(i+0.5))/frames;
+        const onSeek=()=>{ videoEl.removeEventListener('seeked',onSeek); try{sctx.drawImage(videoEl,i*tw,0,tw,th);}catch(e){} i++; grab(); };
+        videoEl.addEventListener('seeked',onSeek);
+        videoEl.currentTime=Math.min(t,duration-0.05);
       }
       grab();
     });
   }
-
-  function showMediaImportError(err){
-    hideImportProgress();
-    const stage=err.stage?('Failed at stage: '+err.stage+'\n\n'):'';
-    let msg=err.userMessage||'Could not load this video.';
-    // Never imply the file is unsupported when the context is restricted.
-    if(EXEC_CTX.restricted){
-      msg = msg.replace(/unsupported codec/gi, 'codec/environment issue')
-               .replace(/not supported by this browser/gi, 'blocked in this environment');
-      if(msg.indexOf('http://')===-1 && msg.indexOf('https://')===-1){
-        msg += '\n\nDevelopment Mode ('+EXEC_CTX.label+') limits media APIs. '+
-          'Valid MP4 files (especially large ones) often fail here.\n\n'+
-          hostingSuggestions();
-      }
-    }
-    const diag=err.diagnostics||'';
-    console.warn('[REIN EDIT] Media import failed\n'+stage+diag+'\nLog:\n'+importLog.join('\n'));
-    alert(stage+msg+'\n\n--- Diagnostics ---\n'+diag);
-  }
-
-  async function handleFiles(fileList){
-    const files=Array.isArray(fileList)?fileList.slice():Array.from(fileList||[]);
-    console.log('[import] handleFiles called', {count:files.length, mode:typeof APP_MODE!=='undefined'?APP_MODE:'?'});
-    if(!files.length){
-      console.warn('[import] handleFiles empty list');
-      alert('No file received from the picker.');
-      return;
-    }
-    let imported=0, skipped=0;
-    for(const file of files){
-      const likely=isLikelyVideoFile(file) || (file.type && file.type.startsWith('video/')) || !file.type;
-      if(file.type && !file.type.startsWith('video/') && !isLikelyVideoFile(file)){
-        skipped++;
-        console.warn('[import] skipped non-video', file.name, file.type);
-        continue;
-      }
-
-      importLog=[];
-      const sizeLabel=file.size?((file.size/1048576).toFixed(1)+' MB'):'';
-      importStageLog('File selected', (file.name||'')+' · '+sizeLabel+' · mode='+(typeof APP_MODE!=='undefined'?APP_MODE:'?'));
-      if(EXEC_CTX.restricted && file.size && file.size > 100*1048576){
-        // Soft warning only — still attempt import with compatible strategy.
-        console.warn('[REIN EDIT] Large file in Development Mode; failures are likely environment-related.');
-      }
-      showImportProgress(
-        EXEC_CTX.restricted ? 'File selected · Dev mode' : 'File selected',
-        5,
-        sizeLabel
-      );
-
-      let probeEl=null;
-      try{
-        const result=await probeVideoFile(file, (stage, pct, detail)=>{
-          showImportProgress(stage, pct, detail||sizeLabel);
-        });
-        probeEl=result.video;
-
-        showImportProgress('Thumbnail generated', 74, sizeLabel);
-        let filmstrip=null;
-        try{
-          filmstrip=await raceStage(
-            generateFilmstrip(result.video, result.duration, (stage, pct, detail)=>{
-              showImportProgress(stage, pct, detail);
-            }),
-            12000,
-            'Thumbnail generated'
-          );
-        }catch(e){
-          importStageLog('Thumbnail generated', 'skipped: '+(e && e.message));
-          filmstrip=null;
-        }
-
-        try{
-          if(probeEl && probeEl.parentNode) probeEl.parentNode.removeChild(probeEl);
-        }catch(e){}
-
-        showImportProgress('Timeline clip created', 90, sizeLabel);
-        importStageLog('Timeline clip created');
-        const item={
-          id:newId(), name:file.name, url:result.url,
-          duration:result.duration, filmstrip,
-          width:result.width, height:result.height,
-          mime:result.mime, support:result.support
-        };
-        if(state.library.length===0 && state.ratioMode==='auto'){
-          setCanvasRatio('auto', result.width, result.height);
-        }
-        state.library.push(item);
-        renderMediaListEdit();
-        addClipToTimeline(item);
-        importStageLog('Timeline clip created', 'clip count='+state.clips.length);
-        console.log('[import] timeline import', {name:item.name, duration:item.duration, clips:state.clips.length, mode:APP_MODE});
-
-        showImportProgress('Preview initialized', 96);
-        importStageLog('Preview initialized');
-        try{
-          state.playhead=0;
-          syncMediaToPlayhead(true);
-          drawFrame();
-        }catch(e){
-          importStageLog('Preview initialized', 'warn: '+(e && e.message));
-        }
-
-        showImportProgress('Import complete', 100);
-        importStageLog('Import complete');
-        imported++;
-        await new Promise(r=>setTimeout(r, 280));
-      }catch(err){
-        if(!err.stage) err.stage='Import pipeline';
-        showMediaImportError(err);
-        try{ if(probeEl && probeEl.parentNode) probeEl.parentNode.removeChild(probeEl); }catch(e){}
-        continue;
-      }
-    }
-    hideImportProgress();
-    if(!imported){
-      const msg = skipped===files.length && files.length
-        ? 'The selected file was skipped (not detected as video). Try another file or ensure it has a .mp4 extension.'
-        : 'Import did not add any clip. See Import status overlay and console for the failing step.';
-      console.warn('[import] nothing imported', {imported, skipped, total:files.length});
-      alert(msg);
-    }
-  }
-
   function renderMediaListEdit(){
     const list=$('#mediaListEdit'); list.innerHTML='';
     state.library.forEach(item=>{
@@ -1827,10 +1078,6 @@
     const clip={id:newId(),libId:libItem.id,url:libItem.url,name:libItem.name,trimStart:0,trimEnd:libItem.duration,
       filmstrip:libItem.filmstrip,grade:defaultGrade(),filterId:null,filterIntensity:100,timelineStart:0,muted:false,volume:100,
       fadeIn:false,fadeOut:false,fadeInDur:0.5,fadeOutDur:0.5,speed:1,frameMode:'fill',
-      speedMode:'normal', // normal | curve | velocity
-      speedCurve:null, // [{t:0..1, s:speed}, ...] normalized over clip media
-      smoothSlowmo:false, keepPitch:false,
-      velocityEffect:'none', velocityIntensity:100,
       animIn:'none',animOut:'none',animInDur:0.4,animOutDur:0.4,shake:false,flash:false};
     const hadClips=state.clips.length>0;
     state.clips.push(clip);
@@ -1839,6 +1086,10 @@
     select('clip',clip.id);
     renderAll();
     noMediaOverlay.style.display='none';
+    // Load the actual frame into the preview right away — otherwise hiddenVideo.src never gets
+    // set until the user presses Play or scrubs, and the canvas just sits black with no
+    // indication anything loaded (looks exactly like the upload silently failed).
+    syncMediaToPlayhead(true);
   }
   function recalcTimelinePositions(){
     // Keep the transitions array aligned 1:1 with the gaps between clips — defensive padding
@@ -1849,11 +1100,7 @@
 
     let t=0;
     state.clips.forEach((c,i)=>{
-      if(c.speedMode==='curve' && c.curvePreset && c.curvePreset!=='none' && c.speedCurve){
-        c.duration=curveTimelineDuration(c);
-      } else {
-        c.duration=Math.max(0.05,(c.trimEnd-c.trimStart)/(c.speed||1));
-      }
+      c.duration=Math.max(0.05,(c.trimEnd-c.trimStart)/c.speed);
       c.timelineStart=t;
       const next=state.clips[i+1];
       const tr=state.transitions[i];
@@ -1911,40 +1158,15 @@
     state.selected={type,id};
     updateEditPanel(); updateAudioPanel(); updateTextPanel(); updateEffectsPanel(); updateOverlayPanel();
     renderTimeline();
-    const isClipToolbar = type==='clip';
-    $('#bottomNavWrap').style.display = isClipToolbar ? 'none' : 'block';
-    $('#clipToolbarWrap').style.display = isClipToolbar ? 'block' : 'none';
+    $('#bottomNavWrap').style.display = type==='clip' ? 'none' : 'block';
+    $('#clipToolbarWrap').style.display = type==='clip' ? 'block' : 'none';
     setTimeout(refreshNavFades, 0);
     if(type!=='clip') closeClipSheet();
-    if(type==='layer') openLayerSheet();
-    else closeLayerSheet();
   }
   function selectedClip(){ return state.selected.type==='clip' ? state.clips.find(c=>c.id===state.selected.id) : null; }
   function selectedText(){ return state.selected.type==='text' ? state.texts.find(t=>t.id===state.selected.id) : null; }
   function selectedAudio(){ return state.selected.type==='audio' ? state.audioClips.find(a=>a.id===state.selected.id) : null; }
   function selectedOverlay(){ return state.selected.type==='overlay' ? state.overlays.find(o=>o.id===state.selected.id) : null; }
-  function selectedLayer(){ return state.selected.type==='layer' ? state.layers.find(l=>l.id===state.selected.id) : null; }
-  function layersOfType(type){ return state.layers.filter(l=>l.type===type); }
-  function filterLayers(){ return layersOfType('filter'); }
-  function adjustLayers(){ return layersOfType('adjust'); }
-  function animLayers(){ return layersOfType('anim'); }
-  function showFilterTrack(show){
-    $('#filterLabelBtn').style.display = show ? 'flex' : 'none';
-    filterTrackEl.style.display = show ? 'block' : 'none';
-  }
-  function showAdjustTrack(show){
-    $('#adjustLabelBtn').style.display = show ? 'flex' : 'none';
-    adjustTrackEl.style.display = show ? 'block' : 'none';
-  }
-  function showAnimTrack(show){
-    $('#animLabelBtn').style.display = show ? 'flex' : 'none';
-    animTrackEl.style.display = show ? 'block' : 'none';
-  }
-  function refreshEffectTracks(){
-    showFilterTrack(filterLayers().length>0);
-    showAdjustTrack(adjustLayers().length>0);
-    showAnimTrack(animLayers().length>0);
-  }
 
   // ================= GRADING ENGINE =================
   // Applies a grade object to whatever is currently drawn on targetCtx (the video frame must
@@ -1960,39 +1182,11 @@
     Object.keys(base).forEach(k=> out[k]=lerp(base[k], target[k]!==undefined?target[k]:base[k], amt));
     return out;
   }
-  function effectiveGrade(clip){
-    // Base grade from the clip itself (legacy baked adjusts still work).
-    let g={...clip.grade};
-    const t=state.playhead;
-    // Non-destructive color-adjustment layers (stack in order).
-    adjustLayers().forEach(layer=>{
-      if(!layer.visible) return;
-      if(layer.targetClipId && layer.targetClipId!==clip.id) return;
-      if(t<layer.start || t>=layer.end) return;
-      if(!layer.grade) return;
-      const op=(layer.opacity!=null?layer.opacity:100)/100;
-      // Add layer deltas onto the current grade so multiple adjust layers stack.
-      Object.keys(layer.grade).forEach(k=>{
-        g[k]=(g[k]||0)+(layer.grade[k]||0)*op;
-      });
-    });
-    // Legacy baked-on filter (kept so older projects still render).
-    if(clip.filterId){
-      const f=FILTER_LIBRARY.find(x=>x.id===clip.filterId);
-      if(f) g=mixGrade(g, f.settings, (clip.filterIntensity!=null?clip.filterIntensity:100)/100);
-    }
-    // Non-destructive filter layers that target this clip and cover the current playhead.
-    filterLayers().forEach(layer=>{
-      if(!layer.visible) return;
-      if(layer.targetClipId && layer.targetClipId!==clip.id) return;
-      if(t<layer.start || t>=layer.end) return;
-      const f=FILTER_LIBRARY.find(x=>x.id===layer.filterId);
-      if(!f) return;
-      const amt=((layer.intensity!=null?layer.intensity:100)/100)*((layer.opacity!=null?layer.opacity:100)/100);
-      g=mixGrade(g, f.settings, amt);
-    });
-    return g;
-  }
+  // NOTE: clips still carry a vestigial `grade`/`filterId`/`filterIntensity` field (kept only
+  // so unrelated code like clip duplication doesn't need touching), but rendering no longer
+  // reads them — every clip renders raw, and all color/filter effects come from
+  // state.effectLayers via layerGrade() + applyEffectLayerStack() instead. See the
+  // "EFFECT LAYER ENGINE" section above.
   let grainTiles=null;
   function getGrainTile(){
     if(!grainTiles) grainTiles=[0,1,2].map(()=>{
@@ -2068,7 +1262,8 @@
   // ---- Filter Studio (full-screen browser) ----
   const studio=$('#filterStudio');
   function openStudio(tab){
-    if(!selectedClip() && state.clips.length){
+    const hasLayerTarget = state.selected.type==='color' || state.selected.type==='filter';
+    if(!selectedClip() && !hasLayerTarget && state.clips.length){
       const c=activeClipAt(state.playhead)||state.clips[0];
       select('clip', c.id);
     }
@@ -2120,133 +1315,20 @@
     return tc.toDataURL('image/jpeg',0.7);
   }
 
-  function createFilterLayer(filterId, clip, intensity){
-    const f=FILTER_LIBRARY.find(x=>x.id===filterId);
-    const name=f?f.name:'Filter';
-    const start=clip?clip.timelineStart:state.playhead;
-    const end=clip?(clip.timelineStart+clip.duration):(state.playhead+3);
-    const layer={
-      id:newId(),
-      type:'filter',
-      name,
-      filterId,
-      intensity:intensity!=null?intensity:100,
-      targetClipId:clip?clip.id:null, // null = applies to whatever video is under the playhead
-      start, end,
-      visible:true,
-      locked:false,
-      opacity:100,
-      blendMode:'normal',
-    };
-    state.layers.push(layer);
-    showFilterTrack(true);
-    return layer;
-  }
-  function createAdjustLayer(clip, initialGrade){
-    const start=clip?clip.timelineStart:state.playhead;
-    const end=clip?(clip.timelineStart+clip.duration):(state.playhead+3);
-    const layer={
-      id:newId(),
-      type:'adjust',
-      name:'Color Adjust',
-      grade: initialGrade ? {...initialGrade} : defaultGrade(),
-      targetClipId:clip?clip.id:null,
-      start, end,
-      visible:true,
-      locked:false,
-      opacity:100,
-      blendMode:'normal',
-    };
-    state.layers.push(layer);
-    showAdjustTrack(true);
-    return layer;
-  }
-  function ensureAdjustLayerForEdit(clip){
-    // Prefer the currently selected adjust layer.
-    let layer=selectedLayer();
-    if(layer && layer.type==='adjust') return layer;
-    // Else an adjust layer on this clip that covers the playhead.
-    const t=state.playhead;
-    layer=adjustLayers().find(l=>
-      (!l.targetClipId || (clip && l.targetClipId===clip.id)) &&
-      t>=l.start && t<l.end
-    );
-    if(layer){ select('layer', layer.id); return layer; }
-    // Create a fresh adjust layer spanning the clip (or a short range at the playhead).
-    const target=clip || activeClipAt(state.playhead) || state.clips[0];
-    if(!target) return null;
-    layer=createAdjustLayer(target, defaultGrade());
-    select('layer', layer.id);
-    renderTimeline();
-    return layer;
-  }
-  function animLayerName(layer){
-    const parts=[];
-    if(layer.animIn && layer.animIn!=='none') parts.push('In:'+layer.animIn);
-    if(layer.animOut && layer.animOut!=='none') parts.push('Out:'+layer.animOut);
-    return parts.length ? parts.join(' · ') : 'Animation';
-  }
-  function createAnimLayer(clip, opts){
-    opts=opts||{};
-    const start=clip?clip.timelineStart:state.playhead;
-    const end=clip?(clip.timelineStart+clip.duration):(state.playhead+3);
-    const layer={
-      id:newId(),
-      type:'anim',
-      name:'Animation',
-      animIn:opts.animIn||'none',
-      animOut:opts.animOut||'none',
-      animInDur:opts.animInDur!=null?opts.animInDur:0.4,
-      animOutDur:opts.animOutDur!=null?opts.animOutDur:0.4,
-      targetClipId:clip?clip.id:null,
-      start, end,
-      visible:true,
-      locked:false,
-      opacity:100,
-      blendMode:'normal',
-    };
-    layer.name=animLayerName(layer);
-    state.layers.push(layer);
-    showAnimTrack(true);
-    return layer;
-  }
-  function ensureAnimLayerForEdit(clip){
-    let layer=selectedLayer();
-    if(layer && layer.type==='anim') return layer;
-    const t=state.playhead;
-    layer=animLayers().find(l=>
-      (!l.targetClipId || (clip && l.targetClipId===clip.id)) &&
-      t>=l.start && t<l.end
-    );
-    if(layer){ select('layer', layer.id); return layer; }
-    const target=clip || activeClipAt(state.playhead) || state.clips[0];
-    if(!target) return null;
-    layer=createAnimLayer(target, {});
-    select('layer', layer.id);
-    renderTimeline();
-    return layer;
-  }
   function renderFilterGrid(){
     const grid=$('#filterGrid'); grid.innerHTML='';
     const clip=selectedClip();
-    const layer=selectedLayer();
+    const target=filterTarget(false); // read-only lookup — never creates a layer just to render the grid
     const search=($('#filterSearch').value||'').toLowerCase();
-    const activeFilterId = (layer && layer.type==='filter') ? layer.filterId
-      : (clip && clip.filterId) ? clip.filterId : null;
 
     const noneCard=document.createElement('div');
-    noneCard.className='filter-card'+(activeFilterId==null?' selected':'');
+    noneCard.className='filter-card'+((!target || !target.filterId)?' selected':'');
     noneCard.innerHTML=`<div class="fc-none"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M5 5l14 14"/></svg></div><div class="fc-label">None</div>`;
     noneCard.addEventListener('click',()=>{
-      // "None" clears the selected filter layer (or legacy clip filter).
-      if(layer && layer.type==='filter'){
-        state.layers=state.layers.filter(l=>l.id!==layer.id);
-        refreshEffectTracks();
-        select(null,null);
-      } else if(clip){
-        clip.filterId=null; clip.filterIntensity=100;
-      }
-      renderFilterGrid(); renderTimeline(); drawFrame();
+      // "None" removes the filter layer entirely rather than leaving an empty one behind.
+      const existing=filterTarget(false);
+      if(existing) deleteEffectLayer(existing);
+      renderFilterGrid(); renderTimeline(); refreshEffectTrackVisibility(); drawFrame();
     });
     grid.appendChild(noneCard);
 
@@ -2255,25 +1337,13 @@
       .filter(f=> !search || f.name.toLowerCase().includes(search))
       .forEach(f=>{
         const card=document.createElement('div');
-        card.className='filter-card'+(activeFilterId===f.id?' selected':'');
+        card.className='filter-card'+((target&&target.filterId===f.id)?' selected':'');
         card.style.backgroundImage=`url(${thumbForGrade(f.settings)})`;
         card.innerHTML=`${f.pro?'<div class="fc-pro">PRO</div>':''}<div class="fc-label">${escapeHtml(f.name)}</div>`;
         card.addEventListener('click',()=>{
-          // Prefer editing an already-selected filter layer; otherwise create a new one
-          // on the selected (or active) clip — non-destructive, does not mutate the clip.
-          if(layer && layer.type==='filter'){
-            layer.filterId=f.id;
-            layer.name=f.name;
-            layer.intensity=100;
-            select('layer', layer.id);
-          } else {
-            const target=clip || activeClipAt(state.playhead) || state.clips[0];
-            if(!target) return;
-            // Clear legacy baked filter so the new layer is the only source of truth.
-            if(target.filterId){ target.filterId=null; target.filterIntensity=100; }
-            const nl=createFilterLayer(f.id, target, 100);
-            select('layer', nl.id);
-          }
+          if(!clip && state.selected.type!=='filter') return;
+          const layer=filterTarget(true); // creates the layer on first real interaction
+          layer.filterId=f.id; layer.filterIntensity=100;
           renderFilterGrid(); renderTimeline(); drawFrame();
           $('#intensityRow').style.display='flex';
           $('#filterIntensity').value=100; $('#filterIntensityVal').textContent='100%';
@@ -2281,25 +1351,13 @@
         grid.appendChild(card);
       });
 
-    const showIntensity = !!(layer && layer.type==='filter') || !!(clip && clip.filterId);
-    $('#intensityRow').style.display = showIntensity ? 'flex' : 'none';
-    if(layer && layer.type==='filter'){
-      $('#filterIntensity').value=layer.intensity; $('#filterIntensityVal').textContent=layer.intensity+'%';
-    } else if(clip && clip.filterId){
-      $('#filterIntensity').value=clip.filterIntensity; $('#filterIntensityVal').textContent=clip.filterIntensity+'%';
-    }
+    $('#intensityRow').style.display = (target && target.filterId) ? 'flex' : 'none';
+    if(target && target.filterId){ $('#filterIntensity').value=target.filterIntensity; $('#filterIntensityVal').textContent=target.filterIntensity+'%'; }
   }
   $('#filterSearch').addEventListener('input',renderFilterGrid);
   $('#filterIntensity').addEventListener('input',e=>{
-    const layer=selectedLayer();
-    if(layer && layer.type==='filter'){
-      layer.intensity=Number(e.target.value);
-      $('#filterIntensityVal').textContent=e.target.value+'%';
-      drawFrame();
-      return;
-    }
-    const clip=selectedClip(); if(!clip) return;
-    clip.filterIntensity=Number(e.target.value);
+    const layer=filterTarget(true); if(!layer) return;
+    layer.filterIntensity=Number(e.target.value);
     $('#filterIntensityVal').textContent=e.target.value+'%';
     drawFrame();
   });
@@ -2321,82 +1379,25 @@
     {key:'grain',label:'Grain',min:0,max:100},
   ];
   function renderAdjustSliders(){
-    const clip=selectedClip() || activeClipAt(state.playhead) || state.clips[0];
-    const layer=(selectedLayer() && selectedLayer().type==='adjust') ? selectedLayer() : null;
-    const hasTarget=!!(clip || layer);
+    const clip=selectedClip();
+    const hasTarget = clip || state.selected.type==='color';
     $('#studioAdjustEmpty').style.display=hasTarget?'none':'block';
     const wrap=$('#studioAdjustSliders'); wrap.innerHTML='';
     if(!hasTarget) return;
-
-    // Source of values: selected adjust layer, else zeros (layer created on first edit).
-    const gradeSource = layer ? layer.grade : defaultGrade();
-
-    // Hint row
-    const hint=document.createElement('div');
-    hint.className='empty-hint';
-    hint.style.padding='0 0 12px';
-    hint.style.textAlign='left';
-    hint.textContent = layer
-      ? 'Editing adjust layer · changes only apply between its start and end on the timeline.'
-      : 'Moving a slider creates a Color Adjust layer on the selected clip (non-destructive).';
-    wrap.appendChild(hint);
-
+    const existing=adjustTarget(false); // read-only — show neutral values until the user actually adjusts something
+    const grade=existing?existing.grade:defaultGrade();
     ADJUST_FIELDS.forEach(f=>{
-      const val=gradeSource[f.key]||0;
+      const val=grade[f.key];
       const field=document.createElement('div'); field.className='field';
       field.innerHTML=`<label>${f.label} <span class="val">${val}</span></label><input type="range" min="${f.min}" max="${f.max}" value="${val}">`;
       const input=field.querySelector('input'), out=field.querySelector('.val');
       input.addEventListener('input',()=>{
-        let L=selectedLayer();
-        if(!L || L.type!=='adjust'){
-          L=ensureAdjustLayerForEdit(clip);
-          if(!L) return;
-        }
-        L.grade[f.key]=Number(input.value);
-        out.textContent=input.value;
-        // Reflect non-zero adjustments in the layer name for timeline readability.
-        const active=ADJUST_FIELDS.filter(af=>(L.grade[af.key]||0)!==0).map(af=>af.label);
-        L.name = active.length ? ('Adj: '+active.slice(0,2).join(', ')+(active.length>2?'…':'')) : 'Color Adjust';
-        renderTimeline();
-        drawFrame();
+        const layer=adjustTarget(true); // creates the color layer on first real interaction
+        layer.grade[f.key]=Number(input.value); out.textContent=input.value;
+        renderTimeline(); drawFrame();
       });
       wrap.appendChild(field);
     });
-
-    // Reset + new layer actions
-    const actions=document.createElement('div');
-    actions.style.marginTop='12px';
-    const resetBtn=document.createElement('button');
-    resetBtn.className='row-btn';
-    resetBtn.textContent='Reset this layer to neutral';
-    resetBtn.addEventListener('click',()=>{
-      let L=selectedLayer();
-      if(!L || L.type!=='adjust') L=ensureAdjustLayerForEdit(clip);
-      if(!L) return;
-      L.grade=defaultGrade();
-      L.name='Color Adjust';
-      renderAdjustSliders(); renderTimeline(); drawFrame();
-    });
-    actions.appendChild(resetBtn);
-    const newBtn=document.createElement('button');
-    newBtn.className='row-btn';
-    newBtn.textContent='＋ New adjust layer on this clip';
-    newBtn.addEventListener('click',()=>{
-      const target=clip || activeClipAt(state.playhead) || state.clips[0];
-      if(!target) return;
-      const L=createAdjustLayer(target, defaultGrade());
-      select('layer', L.id);
-      renderAdjustSliders(); renderTimeline(); drawFrame();
-    });
-    actions.appendChild(newBtn);
-    if(layer){
-      const delBtn=document.createElement('button');
-      delBtn.className='row-btn danger';
-      delBtn.textContent='Delete this adjust layer';
-      delBtn.addEventListener('click',()=>{ deleteSelectedLayer(); renderAdjustSliders(); });
-      actions.appendChild(delBtn);
-    }
-    wrap.appendChild(actions);
   }
 
   // ---- Video quality ----
@@ -2441,27 +1442,13 @@
   // ================= CLIP TOOLBAR (contextual, shown when a clip is selected) =================
   const clipSheet=$('#clipSheet');
   function openClipSheet(panel){
-    // Never stack Animations/Effects under Speed — close other sheets first.
-    closeSheet();
-    if(typeof closeLayerSheet==='function') closeLayerSheet();
     clipSheet.classList.add('show');
-    document.querySelectorAll('#clipSheet .sheet-panel').forEach(p=>{
-      const on = p.dataset.cpanel===panel;
-      p.classList.toggle('active', on);
-      // Inline !important display so only the requested panel is visible.
-      p.style.setProperty('display', on ? 'block' : 'none', 'important');
-    });
+    document.querySelectorAll('#clipSheet .sheet-panel').forEach(p=>p.classList.toggle('active',p.dataset.cpanel===panel));
     const titles={volume:'Volume',animations:'Animations',clipeffects:'Effects',speed:'Speed',beats:'Beats'};
     $('#clipSheetTitle').textContent=titles[panel]||panel;
     refreshClipSheetPanel(panel);
   }
-  function closeClipSheet(){
-    clipSheet.classList.remove('show');
-    document.querySelectorAll('#clipSheet .sheet-panel').forEach(p=>{
-      p.classList.remove('active');
-      p.style.setProperty('display','none','important');
-    });
-  }
+  function closeClipSheet(){ clipSheet.classList.remove('show'); }
   $('#clipSheetDone').addEventListener('click',closeClipSheet);
   $('#clipBackBtn').addEventListener('click',()=>select(null,null));
   $('#clipSplitBtn').addEventListener('click',splitAtPlayhead);
@@ -2477,21 +1464,10 @@
       $('#cMuteToggle').classList.toggle('on',c.muted);
       $('#cVol').value=c.volume; $('#cVolVal').textContent=c.volume+'%';
     } else if(panel==='animations'){
-      // Prefer selected/covering anim layer so the sheet edits the non-destructive layer.
-      let src=c;
-      const L=selectedLayer();
-      if(L && L.type==='anim') src=L;
-      else {
-        const covering=animLayers().find(l=>
-          (!l.targetClipId || l.targetClipId===c.id) &&
-          state.playhead>=l.start && state.playhead<l.end
-        );
-        if(covering) src=covering;
-      }
-      buildAnimGrid('#animInGrid','animIn',src);
-      buildAnimGrid('#animOutGrid','animOut',src);
-      $('#animInDur').value=src.animInDur; $('#animInDurVal').textContent=src.animInDur.toFixed(1)+'s';
-      $('#animOutDur').value=src.animOutDur; $('#animOutDurVal').textContent=src.animOutDur.toFixed(1)+'s';
+      buildAnimGrid('#animInGrid','animIn',c);
+      buildAnimGrid('#animOutGrid','animOut',c);
+      $('#animInDur').value=c.animInDur; $('#animInDurVal').textContent=c.animInDur.toFixed(1)+'s';
+      $('#animOutDur').value=c.animOutDur; $('#animOutDurVal').textContent=c.animOutDur.toFixed(1)+'s';
     } else if(panel==='clipeffects'){
       $('#cFadeInToggle').classList.toggle('on',c.fadeIn);
       $('#cFadeOutToggle').classList.toggle('on',c.fadeOut);
@@ -2500,7 +1476,7 @@
       $('#cShakeToggle').classList.toggle('on',c.shake);
       $('#cFlashToggle').classList.toggle('on',c.flash);
     } else if(panel==='speed'){
-      refreshSpeedPanel(c);
+      $('#cSpeed').value=c.speed; $('#cSpeedVal').textContent=c.speed.toFixed(2)+'x';
     }
   }
   // volume
@@ -2513,448 +1489,48 @@
   $('#cFadeOutDur').addEventListener('input',e=>{ const c=selectedClip(); if(!c)return; c.fadeOutDur=Number(e.target.value); $('#cFadeOutVal').textContent=c.fadeOutDur.toFixed(1)+'s'; });
   $('#cShakeToggle').addEventListener('click',()=>{ const c=selectedClip(); if(!c)return; c.shake=!c.shake; refreshClipSheetPanel('clipeffects'); });
   $('#cFlashToggle').addEventListener('click',()=>{ const c=selectedClip(); if(!c)return; c.flash=!c.flash; refreshClipSheetPanel('clipeffects'); });
-
-  // ================= SPEED (CapCut-style: Normal / Curve / Velocity) =================
-  const SPEED_PRESETS = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 5, 10];
-  const CURVE_PRESETS = [
-    {id:'none', label:'None', points:[{t:0,s:1},{t:1,s:1}]},
-    {id:'custom', label:'Custom', points:null},
-    {id:'montage', label:'Montage', points:[{t:0,s:1},{t:0.15,s:2.5},{t:0.35,s:0.6},{t:0.55,s:2.2},{t:0.75,s:0.7},{t:1,s:1.2}]},
-    {id:'hero', label:'Hero', points:[{t:0,s:0.5},{t:0.3,s:0.4},{t:0.55,s:1.8},{t:0.75,s:2.5},{t:1,s:1}]},
-    {id:'bullet', label:'Bullet', points:[{t:0,s:1},{t:0.4,s:0.25},{t:0.55,s:0.2},{t:0.7,s:4},{t:1,s:1.5}]},
-    {id:'jump', label:'Jump Cut', points:[{t:0,s:3},{t:0.2,s:3},{t:0.25,s:0.4},{t:0.45,s:0.4},{t:0.5,s:2.5},{t:0.7,s:2.5},{t:0.75,s:0.5},{t:1,s:1}]},
-  ];
-  const VELOCITY_EFFECTS = [
-    {id:'none', label:'None', icon:'⊘'},
-    {id:'flash', label:'Flash', icon:'⚡'},
-    {id:'blur-shake', label:'Blur shake', icon:'🌀'},
-    {id:'fade-blur', label:'Fade blur', icon:'🌫'},
-    {id:'retro-zoom', label:'Retro zoom', icon:'📷'},
-    {id:'rainbow', label:'Rainbow', icon:'🌈'},
-  ];
-
-  function defaultCurve(){ return [{t:0,s:1},{t:1,s:1}]; }
-  function ensureClipSpeedFields(c){
-    if(c.speedCurve==null) c.speedCurve=defaultCurve();
-    if(c.speedMode==null) c.speedMode='normal';
-    if(c.velocityEffect==null) c.velocityEffect='none';
-    if(c.velocityIntensity==null) c.velocityIntensity=100;
-    if(c.smoothSlowmo==null) c.smoothSlowmo=false;
-    if(c.keepPitch==null) c.keepPitch=false;
-    if(c.curvePreset==null) c.curvePreset='none';
-  }
-  // Sample speed at normalized media progress 0..1 from the curve.
-  function sampleSpeedCurve(curve, t){
-    if(!curve || curve.length===0) return 1;
-    t=Math.max(0,Math.min(1,t));
-    if(t<=curve[0].t) return curve[0].s;
-    for(let i=1;i<curve.length;i++){
-      if(t<=curve[i].t){
-        const a=curve[i-1], b=curve[i];
-        const u=(t-a.t)/Math.max(1e-6,b.t-a.t);
-        return a.s+(b.s-a.s)*u;
-      }
-    }
-    return curve[curve.length-1].s;
-  }
-  // Approximate timeline duration under a speed curve by integrating dt = dMedia / speed.
-  function curveTimelineDuration(clip){
-    const mediaLen=Math.max(0.05, clip.trimEnd-clip.trimStart);
-    const curve=clip.speedCurve||defaultCurve();
-    const steps=40;
-    let acc=0;
-    for(let i=0;i<steps;i++){
-      const t0=i/steps, t1=(i+1)/steps;
-      const s=Math.max(0.05, sampleSpeedCurve(curve, (t0+t1)/2));
-      acc += (mediaLen*(t1-t0))/s;
-    }
-    return Math.max(0.05, acc);
-  }
-  function effectiveSpeedAtPlayhead(clip){
-    ensureClipSpeedFields(clip);
-    if(clip.speedMode==='curve' && clip.curvePreset!=='none' && clip.speedCurve){
-      const mediaLen=Math.max(0.05, clip.trimEnd-clip.trimStart);
-      const localMedia=mediaLocalTime(clip, state.playhead);
-      const t=Math.max(0,Math.min(1,(localMedia-clip.trimStart)/mediaLen));
-      return Math.max(0.05, sampleSpeedCurve(clip.speedCurve, t));
-    }
-    return clip.speed||1;
-  }
-
-  function setSpeedTab(tab){
-    document.querySelectorAll('.speed-tab').forEach(b=>b.classList.toggle('active', b.dataset.stab===tab));
-    document.querySelectorAll('.speed-pane').forEach(p=>p.classList.toggle('active', p.dataset.spane===tab));
-    const c=selectedClip();
-    if(c){ ensureClipSpeedFields(c); c.speedMode=tab==='velocity'?'velocity':tab; }
-    if(tab==='curve') drawSpeedCurveEditor();
-  }
-  document.querySelectorAll('.speed-tab').forEach(b=>{
-    b.addEventListener('click',()=>setSpeedTab(b.dataset.stab));
-  });
-
-  function refreshSpeedPanel(c){
-    if(!c) return;
-    ensureClipSpeedFields(c);
-    setSpeedTab(c.speedMode==='velocity'?'velocity':(c.speedMode==='curve'?'curve':'normal'));
-
-    // Normal pane
-    const mediaLen=Math.max(0.05, c.trimEnd-c.trimStart);
-    const baseDur=mediaLen/(c.speed||1);
-    const fromDur=mediaLen;
-    let toDur=baseDur;
-    if(c.speedMode==='curve' && c.curvePreset!=='none') toDur=curveTimelineDuration(c);
-    $('#speedDurFrom').textContent=fromDur.toFixed(1)+'s';
-    $('#speedDurTo').textContent=toDur.toFixed(1)+'s';
-    $('#cSpeed').value=c.speed;
-    $('#cSpeedVal').textContent=(c.speed||1).toFixed(2)+'x';
-    $('#cSmoothSlowmo').classList.toggle('on', !!c.smoothSlowmo);
-    $('#cPitchToggle').classList.toggle('on', !!c.keepPitch);
-
-    const grid=$('#speedPresetGrid'); grid.innerHTML='';
-    SPEED_PRESETS.forEach(v=>{
-      const b=document.createElement('button');
-      b.className='preset-btn'+(Math.abs(c.speed-v)<0.001?' active':'');
-      b.textContent=v>=1? (v%1===0?v+'x':v.toFixed(1)+'x') : v+'x';
-      b.addEventListener('click',()=>{
-        c.speed=v; c.speedMode='normal'; c.curvePreset='none';
-        refreshSpeedPanel(c); recalcTimelinePositions(); renderTimeline(); drawFrame();
-      });
-      grid.appendChild(b);
-    });
-
-    // Curve presets
-    const crow=$('#curvePresetRow'); crow.innerHTML='';
-    CURVE_PRESETS.forEach(p=>{
-      const el=document.createElement('button');
-      el.className='curve-preset'+(c.curvePreset===p.id?' active':'');
-      el.innerHTML=`<div class="cp-icon">${curveIconSvg(p.id)}</div><span>${p.label}</span>`;
-      el.addEventListener('click',()=>{
-        c.curvePreset=p.id;
-        c.speedMode='curve';
-        if(p.points) c.speedCurve=p.points.map(x=>({...x}));
-        else if(!c.speedCurve || c.speedCurve.length<2) c.speedCurve=defaultCurve();
-        // Approximate constant speed for timeline length from average of curve.
-        if(p.id!=='none'){
-          const avg=c.speedCurve.reduce((s,pt)=>s+pt.s,0)/c.speedCurve.length;
-          c.speed=Math.max(0.1, Math.min(10, avg));
-        }
-        refreshSpeedPanel(c); recalcTimelinePositions(); renderTimeline(); drawFrame();
-      });
-      crow.appendChild(el);
-    });
-
-    // Velocity
-    const vg=$('#velocityGrid'); vg.innerHTML='';
-    VELOCITY_EFFECTS.forEach(v=>{
-      const card=document.createElement('button');
-      card.className='velocity-card'+(c.velocityEffect===v.id?' active':'');
-      card.innerHTML=`<div class="vc-icon">${v.icon}</div><span>${v.label}</span>`;
-      card.addEventListener('click',()=>{
-        c.velocityEffect=v.id;
-        c.speedMode=v.id==='none'?'normal':'velocity';
-        refreshSpeedPanel(c); drawFrame();
-      });
-      vg.appendChild(card);
-    });
-    $('#velIntensity').value=c.velocityIntensity;
-    $('#velIntensityVal').textContent=c.velocityIntensity+'%';
-  }
-  function curveIconSvg(id){
-    // Tiny SVG glyphs approximating CapCut curve silhouettes.
-    const paths={
-      none:'M8 20h16',
-      custom:'M4 16c4-10 8 6 12-2 4-8 8 2 12 0',
-      montage:'M4 12c3-8 5 8 8 0s5 8 8 0 5-8 8 0',
-      hero:'M4 18c6-2 8-14 12-14s4 12 12 14',
-      bullet:'M4 12h8c0-8 4-8 4 0h8',
-      jump:'M4 8h4v8h4V8h4v12h4V4h4',
-    };
-    const d=paths[id]||paths.none;
-    return `<svg width="36" height="24" viewBox="0 0 32 24" fill="none" stroke="currentColor" stroke-width="2"><path d="${d}"/></svg>`;
-  }
-
+  // speed
   $('#cSpeed').addEventListener('input',e=>{
-    const c=selectedClip(); if(!c)return;
-    ensureClipSpeedFields(c);
-    c.speed=Number(e.target.value);
-    c.speedMode='normal';
-    $('#cSpeedVal').textContent=c.speed.toFixed(2)+'x';
-    const mediaLen=Math.max(0.05, c.trimEnd-c.trimStart);
-    $('#speedDurFrom').textContent=mediaLen.toFixed(1)+'s';
-    $('#speedDurTo').textContent=(mediaLen/c.speed).toFixed(1)+'s';
+    const c=selectedClip(); if(!c)return; c.speed=Number(e.target.value); $('#cSpeedVal').textContent=c.speed.toFixed(2)+'x';
     recalcTimelinePositions(); renderTimeline();
   });
-  $('#cSmoothSlowmo').addEventListener('click',()=>{
-    const c=selectedClip(); if(!c)return; ensureClipSpeedFields(c);
-    c.smoothSlowmo=!c.smoothSlowmo; $('#cSmoothSlowmo').classList.toggle('on',c.smoothSlowmo);
-  });
-  $('#cPitchToggle').addEventListener('click',()=>{
-    const c=selectedClip(); if(!c)return; ensureClipSpeedFields(c);
-    c.keepPitch=!c.keepPitch; $('#cPitchToggle').classList.toggle('on',c.keepPitch);
-  });
-  $('#velIntensity').addEventListener('input',e=>{
-    const c=selectedClip(); if(!c)return; ensureClipSpeedFields(c);
-    c.velocityIntensity=Number(e.target.value);
-    $('#velIntensityVal').textContent=e.target.value+'%';
-    drawFrame();
-  });
 
-  // ---- Curve editor ----
-  let curveDragIdx=-1;
-  function drawSpeedCurveEditor(){
-    const c=selectedClip(); if(!c) return;
-    ensureClipSpeedFields(c);
-    const canvas=$('#speedCurveCanvas'); if(!canvas) return;
-    const ctx=canvas.getContext('2d');
-    const W=canvas.width, H=canvas.height;
-    const curve=c.speedCurve||defaultCurve();
-    ctx.clearRect(0,0,W,H);
-    // grid
-    ctx.strokeStyle='#2a2a2e'; ctx.lineWidth=1;
-    for(let i=0;i<=4;i++){
-      const y=H*i/4; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
-      const x=W*i/4; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
-    }
-    // 1x reference
-    const y1=H-(1/10)*H;
-    ctx.strokeStyle='#3a3a42'; ctx.setLineDash([4,4]);
-    ctx.beginPath(); ctx.moveTo(0,y1); ctx.lineTo(W,y1); ctx.stroke();
-    ctx.setLineDash([]);
-    // curve path
-    ctx.strokeStyle='#00E5D6'; ctx.lineWidth=2;
-    ctx.beginPath();
-    curve.forEach((pt,i)=>{
-      const x=pt.t*W, y=H-(Math.min(10,Math.max(0.1,pt.s))/10)*H;
-      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-    });
-    ctx.stroke();
-    // points
-    curve.forEach((pt,i)=>{
-      const x=pt.t*W, y=H-(Math.min(10,Math.max(0.1,pt.s))/10)*H;
-      ctx.fillStyle=i===curveDragIdx?'#fff':'#00E5D6';
-      ctx.beginPath(); ctx.arc(x,y,6,0,Math.PI*2); ctx.fill();
-      ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.stroke();
-    });
-  }
-  function curveHitTest(clientX, clientY){
-    const c=selectedClip(); if(!c) return -1;
-    ensureClipSpeedFields(c);
-    const canvas=$('#speedCurveCanvas');
-    const rect=canvas.getBoundingClientRect();
-    const x=(clientX-rect.left)/rect.width;
-    const y=1-(clientY-rect.top)/rect.height;
-    const curve=c.speedCurve;
-    for(let i=0;i<curve.length;i++){
-      const px=curve[i].t, py=Math.min(10,Math.max(0.1,curve[i].s))/10;
-      if(Math.hypot(px-x, py-y)<0.08) return i;
-    }
-    return -1;
-  }
-  (function setupCurveCanvas(){
-    const canvas=$('#speedCurveCanvas'); if(!canvas) return;
-    const onDown=(clientX,clientY)=>{
-      const c=selectedClip(); if(!c) return;
-      ensureClipSpeedFields(c);
-      c.curvePreset='custom'; c.speedMode='curve';
-      let idx=curveHitTest(clientX, clientY);
-      if(idx<0){
-        // add point
-        const rect=canvas.getBoundingClientRect();
-        const t=Math.max(0.02,Math.min(0.98,(clientX-rect.left)/rect.width));
-        const s=Math.max(0.1,Math.min(10, (1-(clientY-rect.top)/rect.height)*10 ));
-        c.speedCurve.push({t,s});
-        c.speedCurve.sort((a,b)=>a.t-b.t);
-        idx=c.speedCurve.findIndex(p=>Math.abs(p.t-t)<1e-6 && Math.abs(p.s-s)<1e-6);
-      }
-      curveDragIdx=idx;
-      drawSpeedCurveEditor();
-    };
-    const onMove=(clientX,clientY)=>{
-      if(curveDragIdx<0) return;
-      const c=selectedClip(); if(!c) return;
-      const rect=canvas.getBoundingClientRect();
-      let t=(clientX-rect.left)/rect.width;
-      let s=(1-(clientY-rect.top)/rect.height)*10;
-      // endpoints stay pinned in time
-      if(curveDragIdx===0) t=0;
-      else if(curveDragIdx===c.speedCurve.length-1) t=1;
-      else t=Math.max(0.02,Math.min(0.98,t));
-      s=Math.max(0.1,Math.min(10,s));
-      c.speedCurve[curveDragIdx]={t,s};
-      drawSpeedCurveEditor();
-    };
-    const onUp=()=>{
-      if(curveDragIdx>=0){
-        const c=selectedClip();
-        if(c){
-          const avg=c.speedCurve.reduce((s,pt)=>s+pt.s,0)/c.speedCurve.length;
-          c.speed=Math.max(0.1,Math.min(10,avg));
-          recalcTimelinePositions(); renderTimeline();
-        }
-      }
-      curveDragIdx=-1; drawSpeedCurveEditor();
-    };
-    canvas.addEventListener('mousedown',e=>{ e.preventDefault(); onDown(e.clientX,e.clientY); });
-    window.addEventListener('mousemove',e=>{ if(curveDragIdx>=0) onMove(e.clientX,e.clientY); });
-    window.addEventListener('mouseup',onUp);
-    canvas.addEventListener('touchstart',e=>{ e.preventDefault(); const t=e.touches[0]; onDown(t.clientX,t.clientY); },{passive:false});
-    window.addEventListener('touchmove',e=>{ if(curveDragIdx>=0){ e.preventDefault(); const t=e.touches[0]; onMove(t.clientX,t.clientY);} },{passive:false});
-    window.addEventListener('touchend',onUp);
-  })();
-  $('#curveResetBtn').addEventListener('click',()=>{
-    const c=selectedClip(); if(!c)return;
-    ensureClipSpeedFields(c);
-    c.speedCurve=defaultCurve(); c.curvePreset='none'; c.speed=1;
-    refreshSpeedPanel(c); recalcTimelinePositions(); renderTimeline(); drawFrame();
-  });
-  $('#curveApplyBtn').addEventListener('click',()=>{
-    const c=selectedClip(); if(!c)return;
-    ensureClipSpeedFields(c);
-    c.speedMode='curve';
-    if(c.curvePreset==='none') c.curvePreset='custom';
-    const avg=c.speedCurve.reduce((s,pt)=>s+pt.s,0)/c.speedCurve.length;
-    c.speed=Math.max(0.1,Math.min(10,avg));
-    recalcTimelinePositions(); renderTimeline(); drawFrame();
-    refreshSpeedPanel(c);
-  });
-
-  // ---- Animations (non-destructive layers) ----
+  // ---- Animations ----
   const ANIM_PRESETS=['None','Fade','Slide L','Slide R','Zoom In','Zoom Out'];
   function animKey(label){ return {'None':'none','Fade':'fade','Slide L':'slideL','Slide R':'slideR','Zoom In':'zoomIn','Zoom Out':'zoomOut'}[label]; }
-  function buildAnimGrid(sel,field,source){
-    // source is either an anim layer or a legacy clip object with animIn/animOut fields.
+  function buildAnimGrid(sel,field,clip){
     const grid=$(sel); grid.innerHTML='';
     ANIM_PRESETS.forEach(label=>{
       const key=animKey(label);
-      const b=document.createElement('button'); b.className='preset-btn'+(source[field]===key?' active':''); b.textContent=label;
-      b.addEventListener('click',()=>{
-        // Prefer editing/creating an Animation layer rather than baking into the clip.
-        const clip=selectedClip() || activeClipAt(state.playhead) || state.clips[0];
-        let layer=selectedLayer();
-        if(!layer || layer.type!=='anim'){
-          layer=ensureAnimLayerForEdit(clip);
-        }
-        if(!layer){
-          // Fallback: legacy write to clip if somehow no target exists.
-          if(source) source[field]=key;
-        } else {
-          // Clear legacy clip animation for this field so the layer is the source of truth.
-          if(clip && (field==='animIn' || field==='animOut')){
-            clip[field]='none';
-          }
-          layer[field]=key;
-          layer.name=animLayerName(layer);
-          select('layer', layer.id);
-          renderTimeline();
-        }
-        // Rebuild both grids from the active source.
-        const active=selectedLayer() && selectedLayer().type==='anim' ? selectedLayer() : (clip||source);
-        if(active){
-          buildAnimGrid('#animInGrid','animIn',active);
-          buildAnimGrid('#animOutGrid','animOut',active);
-        }
-        drawFrame();
-      });
+      const b=document.createElement('button'); b.className='preset-btn'+(clip[field]===key?' active':''); b.textContent=label;
+      b.addEventListener('click',()=>{ clip[field]=key; buildAnimGrid(sel,field,clip); drawFrame(); });
       grid.appendChild(b);
     });
   }
-  $('#animInDur').addEventListener('input',e=>{
-    const layer=selectedLayer();
-    if(layer && layer.type==='anim'){
-      layer.animInDur=Number(e.target.value);
-      $('#animInDurVal').textContent=layer.animInDur.toFixed(1)+'s';
-      drawFrame();
-      return;
-    }
-    const c=selectedClip(); if(!c)return;
-    // Promote to layer on first duration edit if user is working non-destructively.
-    const L=ensureAnimLayerForEdit(c);
-    if(L){
-      L.animInDur=Number(e.target.value);
-      L.animIn=L.animIn||c.animIn||'none';
-      L.animOut=L.animOut||c.animOut||'none';
-      c.animIn='none'; c.animOut='none';
-      L.name=animLayerName(L);
-      $('#animInDurVal').textContent=L.animInDur.toFixed(1)+'s';
-      renderTimeline(); drawFrame();
-      return;
-    }
-    c.animInDur=Number(e.target.value); $('#animInDurVal').textContent=c.animInDur.toFixed(1)+'s';
-  });
-  $('#animOutDur').addEventListener('input',e=>{
-    const layer=selectedLayer();
-    if(layer && layer.type==='anim'){
-      layer.animOutDur=Number(e.target.value);
-      $('#animOutDurVal').textContent=layer.animOutDur.toFixed(1)+'s';
-      drawFrame();
-      return;
-    }
-    const c=selectedClip(); if(!c)return;
-    const L=ensureAnimLayerForEdit(c);
-    if(L){
-      L.animOutDur=Number(e.target.value);
-      L.animIn=L.animIn||c.animIn||'none';
-      L.animOut=L.animOut||c.animOut||'none';
-      c.animIn='none'; c.animOut='none';
-      L.name=animLayerName(L);
-      $('#animOutDurVal').textContent=L.animOutDur.toFixed(1)+'s';
-      renderTimeline(); drawFrame();
-      return;
-    }
-    c.animOutDur=Number(e.target.value); $('#animOutDurVal').textContent=c.animOutDur.toFixed(1)+'s';
-  });
+  $('#animInDur').addEventListener('input',e=>{ const c=selectedClip(); if(!c)return; c.animInDur=Number(e.target.value); $('#animInDurVal').textContent=c.animInDur.toFixed(1)+'s'; });
+  $('#animOutDur').addEventListener('input',e=>{ const c=selectedClip(); if(!c)return; c.animOutDur=Number(e.target.value); $('#animOutDurVal').textContent=c.animOutDur.toFixed(1)+'s'; });
 
-  // Applies one enter or exit animation key onto a transform state.
-  function applyAnimKey(kind, key, p, state){
-    // p is 0→1 progress through the effect (0 = start of anim, 1 = fully settled for "in";
-    // for "out" callers pass remaining-fraction so p=1 is fully visible and p=0 is gone).
-    if(!key || key==='none') return;
-    if(kind==='in'){
-      if(key==='fade') state.alpha=Math.min(state.alpha,p);
-      if(key==='slideL'){ state.tx+=(1-p)*-canvas.width*0.5; }
-      if(key==='slideR'){ state.tx+=(1-p)*canvas.width*0.5; }
-      if(key==='zoomIn'){ state.scale*=lerp(0.6,1,p); }
-      if(key==='zoomOut'){ state.scale*=lerp(1.4,1,p); }
-    } else {
-      if(key==='fade') state.alpha=Math.min(state.alpha,p);
-      if(key==='slideL'){ state.tx+=(1-p)*-canvas.width*0.5; }
-      if(key==='slideR'){ state.tx+=(1-p)*canvas.width*0.5; }
-      if(key==='zoomIn'){ state.scale*=lerp(1,1.4,1-p); }
-      if(key==='zoomOut'){ state.scale*=lerp(1,0.6,1-p); }
-    }
-  }
-  // Computes {alpha, scale, tx, ty} for the clip at local time.
-  // Sources: legacy clip.anim* properties + any visible Animation layers that cover the playhead.
+  // Computes {alpha, scale, tx, ty} for the clip's enter/exit animation at the given local time.
   function animTransform(clip, localT){
     let alpha=1, scale=1, tx=0, ty=0;
-    const st={alpha,scale,tx,ty};
-    // Legacy clip-baked animations (kept for backward compatibility).
     if(clip.animIn && clip.animIn!=='none' && localT<clip.animInDur){
-      applyAnimKey('in', clip.animIn, Math.max(0,localT/clip.animInDur), st);
+      const p=Math.max(0,localT/clip.animInDur);
+      if(clip.animIn==='fade') alpha=Math.min(alpha,p);
+      if(clip.animIn==='slideL'){ alpha=Math.min(alpha,1); tx=(1-p)*-canvas.width*0.5; }
+      if(clip.animIn==='slideR'){ alpha=Math.min(alpha,1); tx=(1-p)*canvas.width*0.5; }
+      if(clip.animIn==='zoomIn'){ scale=lerp(0.6,1,p); }
+      if(clip.animIn==='zoomOut'){ scale=lerp(1.4,1,p); }
     }
     const remain=clip.duration-localT;
     if(clip.animOut && clip.animOut!=='none' && remain<clip.animOutDur){
-      applyAnimKey('out', clip.animOut, Math.max(0,remain/clip.animOutDur), st);
+      const p=Math.max(0,remain/clip.animOutDur);
+      if(clip.animOut==='fade') alpha=Math.min(alpha,p);
+      if(clip.animOut==='slideL'){ tx=(1-p)*-canvas.width*0.5; }
+      if(clip.animOut==='slideR'){ tx=(1-p)*canvas.width*0.5; }
+      if(clip.animOut==='zoomIn'){ scale=Math.min(scale,lerp(1,1.4,1-p)); }
+      if(clip.animOut==='zoomOut'){ scale=Math.min(scale,lerp(1,0.6,1-p)); }
     }
-    // Non-destructive animation layers.
-    // Enter is driven by time since layer.start; exit by time until layer.end —
-    // so trimming the layer on the timeline moves/resizes the animation without touching the video.
-    const t=state.playhead;
-    animLayers().forEach(layer=>{
-      if(!layer.visible) return;
-      if(layer.targetClipId && layer.targetClipId!==clip.id) return;
-      if(t<layer.start || t>=layer.end) return;
-      const localFromLayer=t-layer.start;
-      const layerDur=Math.max(0.01, layer.end-layer.start);
-      if(layer.animIn && layer.animIn!=='none' && localFromLayer<layer.animInDur){
-        applyAnimKey('in', layer.animIn, Math.max(0, localFromLayer/layer.animInDur), st);
-      }
-      const layerRemain=layerDur-localFromLayer;
-      if(layer.animOut && layer.animOut!=='none' && layerRemain<layer.animOutDur){
-        applyAnimKey('out', layer.animOut, Math.max(0, layerRemain/layer.animOutDur), st);
-      }
-    });
-    return {alpha:st.alpha, scale:st.scale, tx:st.tx, ty:st.ty};
+    return {alpha,scale,tx,ty};
   }
 
   // ---- Beat detection ----
@@ -3035,9 +1611,6 @@
   function deleteSelectedClip(){
     const c=selectedClip(); if(!c) return;
     const idx=state.clips.indexOf(c);
-    // Remove any effect layers that specifically targeted this clip.
-    state.layers=state.layers.filter(l=>l.targetClipId!==c.id);
-    refreshEffectTracks();
     state.clips=state.clips.filter(x=>x.id!==c.id);
     if(state.transitions.length){
       const remIdx=Math.min(idx>0?idx-1:0, state.transitions.length-1);
@@ -3045,139 +1618,7 @@
     }
     recalcTimelinePositions(); select(null,null); renderAll();
   }
-  function deleteSelectedLayer(){
-    const layer=selectedLayer(); if(!layer) return;
-    state.layers=state.layers.filter(l=>l.id!==layer.id);
-    refreshEffectTracks();
-    closeLayerSheet();
-    select(null,null); renderAll();
-  }
-  function duplicateSelectedLayer(){
-    const layer=selectedLayer(); if(!layer) return;
-    const dup={...layer, id:newId(), name:(layer.name||'Layer')+' copy'};
-    if(layer.grade) dup.grade={...layer.grade};
-    // Slightly offset so the duplicate is visible as a separate block.
-    const dur=Math.max(0.2, layer.end-layer.start);
-    dup.start=layer.start+0.15;
-    dup.end=dup.start+dur;
-    const idx=state.layers.indexOf(layer);
-    state.layers.splice(idx+1, 0, dup);
-    select('layer', dup.id);
-    renderAll();
-  }
-  // ================= LAYER SHEET =================
-  const layerSheet=$('#layerSheet');
-  function openLayerSheet(){
-    const layer=selectedLayer(); if(!layer) return;
-    closeSheet(); closeClipSheet(); closeTransitionEditor && closeTransitionEditor();
-    layerSheet.classList.add('show');
-    refreshLayerSheet();
-  }
-  function closeLayerSheet(){ layerSheet.classList.remove('show'); }
-  function refreshLayerSheet(){
-    const layer=selectedLayer(); if(!layer){ closeLayerSheet(); return; }
-    const typeLabels={filter:'Filter Layer', adjust:'Color Adjust Layer', anim:'Animation Layer'};
-    $('#layerSheetTitle').textContent=typeLabels[layer.type]||'Layer';
-    $('#layerNameInput').value=layer.name||'';
-    $('#layerVisibleToggle').classList.toggle('on', !!layer.visible);
-    $('#layerLockToggle').classList.toggle('on', !!layer.locked);
-    $('#layerOpacity').value=layer.opacity!=null?layer.opacity:100;
-    $('#layerOpacityVal').textContent=(layer.opacity!=null?layer.opacity:100)+'%';
-    $('#layerBlendMode').value=layer.blendMode||'normal';
-    const dur=Math.max(60, totalDuration()+5);
-    $('#layerStart').max=dur; $('#layerEnd').max=dur;
-    $('#layerStart').value=layer.start; $('#layerStartVal').textContent=layer.start.toFixed(1)+'s';
-    $('#layerEnd').value=layer.end; $('#layerEndVal').textContent=layer.end.toFixed(1)+'s';
-    const hints={
-      filter:'This filter only affects the linked clip between its start and end. Split, trim, or hide it without changing the video.',
-      adjust:'Color adjustments on this layer stack with other adjust/filter layers. Values are additive deltas.',
-      anim:'Enter runs from the layer start; exit runs into the layer end. Trimming moves the animation independently of the clip.',
-    };
-    $('#layerTypeHint').textContent=hints[layer.type]||'';
-  }
-  $('#layerSheetDone').addEventListener('click',closeLayerSheet);
-  $('#layerNameInput').addEventListener('input',e=>{
-    const layer=selectedLayer(); if(!layer || layer.locked) return;
-    layer.name=e.target.value;
-    renderTimeline();
-  });
-  $('#layerVisibleToggle').addEventListener('click',()=>{
-    const layer=selectedLayer(); if(!layer) return;
-    layer.visible=!layer.visible;
-    $('#layerVisibleToggle').classList.toggle('on', layer.visible);
-    renderTimeline(); drawFrame();
-  });
-  $('#layerLockToggle').addEventListener('click',()=>{
-    const layer=selectedLayer(); if(!layer) return;
-    layer.locked=!layer.locked;
-    $('#layerLockToggle').classList.toggle('on', layer.locked);
-    renderTimeline();
-  });
-  $('#layerOpacity').addEventListener('input',e=>{
-    const layer=selectedLayer(); if(!layer || layer.locked) return;
-    layer.opacity=Number(e.target.value);
-    $('#layerOpacityVal').textContent=e.target.value+'%';
-    drawFrame();
-  });
-  $('#layerBlendMode').addEventListener('change',e=>{
-    const layer=selectedLayer(); if(!layer || layer.locked) return;
-    layer.blendMode=e.target.value;
-    drawFrame();
-  });
-  $('#layerStart').addEventListener('input',e=>{
-    const layer=selectedLayer(); if(!layer || layer.locked) return;
-    layer.start=Number(e.target.value);
-    if(layer.start>layer.end-0.1) layer.start=layer.end-0.1;
-    $('#layerStartVal').textContent=layer.start.toFixed(1)+'s';
-    renderTimeline(); drawFrame();
-  });
-  $('#layerEnd').addEventListener('input',e=>{
-    const layer=selectedLayer(); if(!layer || layer.locked) return;
-    layer.end=Number(e.target.value);
-    if(layer.end<layer.start+0.1) layer.end=layer.start+0.1;
-    $('#layerEndVal').textContent=layer.end.toFixed(1)+'s';
-    renderTimeline(); drawFrame();
-  });
-  $('#layerDuplicateBtn').addEventListener('click',duplicateSelectedLayer);
-  $('#layerSplitBtn').addEventListener('click',()=>{
-    const layer=selectedLayer(); if(layer) splitLayerAtPlayhead(layer);
-  });
-  $('#layerDeleteBtn').addEventListener('click',deleteSelectedLayer);
-  $('#layerEditTypeBtn').addEventListener('click',()=>{
-    const layer=selectedLayer(); if(!layer) return;
-    if(layer.type==='filter'){ closeLayerSheet(); openStudio('filters'); }
-    else if(layer.type==='adjust'){ closeLayerSheet(); openStudio('adjust'); }
-    else if(layer.type==='anim'){
-      const clip=state.clips.find(c=>c.id===layer.targetClipId) || activeClipAt(state.playhead) || state.clips[0];
-      if(clip){
-        closeLayerSheet();
-        select('clip', clip.id);
-        const btn=document.querySelector('#clipToolbar [data-cpanel="animations"]');
-        if(btn) btn.click();
-        setTimeout(()=>select('layer', layer.id), 0);
-      }
-    }
-  });
-  function splitLayerAtPlayhead(layer){
-    if(!layer || layer.locked) return;
-    const t=state.playhead;
-    if(t<=layer.start+0.1 || t>=layer.end-0.1) return;
-    const second={...layer, id:newId(), start:t};
-    if(layer.grade) second.grade={...layer.grade};
-    layer.end=t;
-    const idx=state.layers.indexOf(layer);
-    state.layers.splice(idx+1, 0, second);
-    select('layer', second.id);
-    renderAll();
-  }
   function splitAtPlayhead(){
-    // If a filter (or other effect) layer is selected, split ONLY that layer —
-    // the underlying video clip is left untouched.
-    const layer=selectedLayer();
-    if(layer){
-      splitLayerAtPlayhead(layer);
-      return;
-    }
     const clip=activeClipAt(state.playhead); if(!clip) return;
     const localT=clip.trimStart+(state.playhead-clip.timelineStart)*clip.speed;
     if(localT<=clip.trimStart+0.15 || localT>=clip.trimEnd-0.15) return;
@@ -3186,19 +1627,6 @@
     clip.trimEnd=localT;
     state.clips.splice(idx+1,0,secondClip);
     state.transitions.splice(idx,0,defaultTransition());
-    // Split any effect layers that spanned the cut and retarget the right half to the new clip.
-    const midT=secondClip.timelineStart;
-    const newLayers=[];
-    state.layers.forEach(l=>{
-      if(l.targetClipId!==clip.id) return;
-      if(l.start<midT && l.end>midT){
-        const right={...l, id:newId(), targetClipId:secondClip.id, start:midT};
-        if(l.grade) right.grade={...l.grade};
-        l.end=midT;
-        newLayers.push(right);
-      }
-    });
-    state.layers.push(...newLayers);
     recalcTimelinePositions(); renderAll();
   }
 
@@ -3251,7 +1679,7 @@
     const url=URL.createObjectURL(file);
     if(file.type.startsWith('video/')){
       const video=document.createElement('video');
-      video.src=url; video.muted=true; video.playsInline=true; /* no crossOrigin for blob URLs */
+      video.src=url; video.muted=true; video.playsInline=true; video.crossOrigin='anonymous';
       video.addEventListener('loadedmetadata',()=>{
         const start=state.playhead;
         const dur=Math.min(video.duration||3,10);
@@ -3360,6 +1788,136 @@
   });
   $('#transitionSheetDone').addEventListener('click',closeTransitionEditor);
 
+  // ================= EFFECT LAYER TIMELINE + EDITOR SHEET =================
+  function renderEffectLayerBlock(trackEl, layer, cls, icon){
+    const el=document.createElement('div');
+    let classes=cls+((state.selected.type===layer.type&&state.selected.id===layer.id)?' selected':'');
+    if(layer.visible===false) classes+=' hidden-layer';
+    if(layer.locked) classes+=' locked-layer';
+    el.className=classes;
+    el.style.left=(TRACK_PAD+layer.start*state.pxPerSec)+'px';
+    el.style.width=Math.max(20,(layer.end-layer.start)*state.pxPerSec)+'px';
+    const lockIcon=layer.locked?'<svg class="layer-lock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>':'';
+    el.innerHTML=`${lockIcon}<span>${icon} ${escapeHtml(layer.name)}</span><div class="clip-handle left"></div><div class="clip-handle right"></div>`;
+    el.addEventListener('click',ev=>{
+      if(ev.target.classList.contains('clip-handle')) return;
+      select(layer.type, layer.id);
+      openLayerSheet(layer);
+    });
+    setupRangeDrag(el, layer, 'start', 'end');
+    trackEl.appendChild(el);
+  }
+  $('#colorLabelBtn').addEventListener('click',()=>{
+    const l=state.effectLayers.find(l=>l.type==='color');
+    if(l){ select('color',l.id); openLayerSheet(l); } else openStudio('adjust');
+  });
+  $('#filterLabelBtn').addEventListener('click',()=>{
+    const l=state.effectLayers.find(l=>l.type==='filter');
+    if(l){ select('filter',l.id); openLayerSheet(l); } else openStudio('filters');
+  });
+
+  const layerSheetEl=$('#layerSheet');
+  const blendSelectEl=$('#layerBlendSelect');
+  BLEND_MODES.forEach(b=>{
+    const opt=document.createElement('option'); opt.value=b.id; opt.textContent=b.label;
+    blendSelectEl.appendChild(opt);
+  });
+  function openLayerSheet(layer){
+    layerSheetEl.classList.add('show');
+    refreshLayerSheet(layer);
+  }
+  function closeLayerSheet(){ layerSheetEl.classList.remove('show'); }
+  function refreshLayerSheet(layer){
+    layer = layer || selectedEffectLayer();
+    if(!layer){ closeLayerSheet(); return; }
+    $('#layerSheetTitle').textContent = layer.type==='color' ? 'Color Adjustment Layer' : 'Filter Layer';
+    $('#layerNameInput').value=layer.name;
+    const dur=totalDuration();
+    $('#layerStartSlider').max=Math.max(dur,layer.end); $('#layerStartSlider').value=layer.start;
+    $('#layerEndSlider').max=Math.max(dur,layer.end); $('#layerEndSlider').value=layer.end;
+    $('#layerStartVal').textContent=layer.start.toFixed(1)+'s';
+    $('#layerEndVal').textContent=layer.end.toFixed(1)+'s';
+    $('#layerOpacitySlider').value=layer.opacity;
+    $('#layerOpacityVal').textContent=layer.opacity+'%';
+    blendSelectEl.value=layer.blendMode;
+    $('#layerVisibilityBtn').textContent = layer.visible===false ? 'Show layer' : 'Hide layer';
+    $('#layerLockBtn').textContent = layer.locked ? 'Unlock layer' : 'Lock layer';
+    $('#layerEditContentBtn').textContent = layer.type==='color' ? 'Edit color values' : 'Edit filter';
+    const idx=state.effectLayers.indexOf(layer);
+    $('#layerMoveUpBtn').disabled = !!layer.locked || idx>=state.effectLayers.length-1;
+    $('#layerMoveDownBtn').disabled = !!layer.locked || idx<=0;
+    // Disable mutating controls while locked (unlock is always available).
+    const disable=!!layer.locked;
+    ['layerNameInput','layerStartSlider','layerEndSlider','layerOpacitySlider','layerBlendSelect'].forEach(id=>{ $('#'+id).disabled=disable; });
+    $('#layerDuplicateBtn').disabled=disable;
+    $('#layerSplitBtn2').disabled=disable;
+    $('#layerDeleteBtn').disabled=disable;
+  }
+  $('#layerNameInput').addEventListener('input',e=>{
+    const l=selectedEffectLayer(); if(!l||l.locked) return;
+    l.name=e.target.value||l.name; renderTimeline();
+  });
+  $('#layerStartSlider').addEventListener('input',e=>{
+    const l=selectedEffectLayer(); if(!l||l.locked) return;
+    l.start=Math.min(Number(e.target.value), l.end-0.1);
+    $('#layerStartVal').textContent=l.start.toFixed(1)+'s';
+    renderTimeline(); drawFrame();
+  });
+  $('#layerEndSlider').addEventListener('input',e=>{
+    const l=selectedEffectLayer(); if(!l||l.locked) return;
+    l.end=Math.max(Number(e.target.value), l.start+0.1);
+    $('#layerEndVal').textContent=l.end.toFixed(1)+'s';
+    renderTimeline(); drawFrame();
+  });
+  $('#layerOpacitySlider').addEventListener('input',e=>{
+    const l=selectedEffectLayer(); if(!l||l.locked) return;
+    l.opacity=Number(e.target.value); $('#layerOpacityVal').textContent=l.opacity+'%';
+    drawFrame();
+  });
+  blendSelectEl.addEventListener('change',e=>{
+    const l=selectedEffectLayer(); if(!l||l.locked) return;
+    l.blendMode=e.target.value; drawFrame();
+  });
+  $('#layerEditContentBtn').addEventListener('click',()=>{
+    const l=selectedEffectLayer(); if(!l) return;
+    openStudio(l.type==='color' ? 'adjust' : 'filters');
+  });
+  $('#layerMoveUpBtn').addEventListener('click',()=>{
+    const l=selectedEffectLayer(); if(!l) return;
+    moveEffectLayer(l,1); refreshLayerSheet(l); drawFrame();
+  });
+  $('#layerMoveDownBtn').addEventListener('click',()=>{
+    const l=selectedEffectLayer(); if(!l) return;
+    moveEffectLayer(l,-1); refreshLayerSheet(l); drawFrame();
+  });
+  $('#layerVisibilityBtn').addEventListener('click',()=>{
+    const l=selectedEffectLayer(); if(!l||l.locked) return;
+    l.visible = l.visible===false ? true : false;
+    refreshLayerSheet(l); renderTimeline(); drawFrame();
+  });
+  $('#layerLockBtn').addEventListener('click',()=>{
+    const l=selectedEffectLayer(); if(!l) return;
+    l.locked=!l.locked;
+    refreshLayerSheet(l); renderTimeline();
+  });
+  $('#layerDuplicateBtn').addEventListener('click',()=>{
+    const l=selectedEffectLayer(); if(!l) return;
+    const dup=duplicateEffectLayer(l); if(!dup) return;
+    select(dup.type, dup.id); refreshLayerSheet(dup); renderTimeline(); drawFrame();
+  });
+  $('#layerSplitBtn2').addEventListener('click',()=>{
+    const l=selectedEffectLayer(); if(!l) return;
+    const second=splitEffectLayerAtPlayhead(l); if(!second) return;
+    // keep editing the left half; the right half now exists as its own independent layer
+    refreshLayerSheet(l); renderTimeline(); drawFrame();
+  });
+  $('#layerDeleteBtn').addEventListener('click',()=>{
+    const l=selectedEffectLayer(); if(!l||l.locked) return;
+    deleteEffectLayer(l);
+    closeLayerSheet(); select(null,null); refreshEffectTrackVisibility(); renderTimeline(); drawFrame();
+  });
+  $('#layerSheetDone').addEventListener('click',closeLayerSheet);
+
   // ================= AUDIO TRACK =================
   const audioFileInput=$('#audioFileInput');
   $('#importAudioBtn').addEventListener('click',()=>audioFileInput.click());
@@ -3387,26 +1945,7 @@
     state.audioClips=state.audioClips.filter(a=>a.id!==state.selected.id);
     select(null,null); renderAll();
   });
-  $('#muteAllBtn').addEventListener('click',()=>openSheet('audio'));
-  $('#filterLabelBtn').addEventListener('click',()=>openStudio('filters'));
-  $('#adjustLabelBtn').addEventListener('click',()=>openStudio('adjust'));
-  $('#animLabelBtn').addEventListener('click',()=>{
-    // Focus the first anim layer (or the one under the playhead) and open its editor via the clip animations sheet.
-    const t=state.playhead;
-    const covering=animLayers().find(l=>t>=l.start && t<l.end) || animLayers()[0];
-    if(covering){
-      select('layer', covering.id);
-      const clip=state.clips.find(c=>c.id===covering.targetClipId) || activeClipAt(t) || state.clips[0];
-      if(clip){
-        // Temporarily select clip so the animations sheet can open, then re-select layer after UI is ready.
-        const layerId=covering.id;
-        select('clip', clip.id);
-        const btn=document.querySelector('#clipToolbar [data-cpanel="animations"]');
-        if(btn) btn.click();
-        setTimeout(()=>select('layer', layerId), 0);
-      }
-    }
-  });
+  $('#muteAllBtn').addEventListener('click',()=>openStudio('filters'));
   $('#audioLabelBtn').addEventListener('click',()=>openSheet('audio'));
   $('#textLabelBtn').addEventListener('click',()=>openSheet('text'));
   $('#overlayLabelBtn').addEventListener('click',()=>openSheet('overlay'));
@@ -3431,7 +1970,7 @@
     addBtn.className='clip-add-btn';
     addBtn.style.left=(TRACK_PAD+dur*state.pxPerSec+6)+'px';
     addBtn.textContent='+';
-    addBtn.addEventListener('click',()=>openVideoPicker('timelineAdd'));
+    addBtn.addEventListener('click',()=>fileInput.click());
     videoTrackEl.appendChild(addBtn);
 
     for(let i=0;i<state.clips.length-1;i++){
@@ -3452,48 +1991,6 @@
       btn.addEventListener('click',ev=>{ ev.stopPropagation(); openTransitionEditor(i); });
       videoTrackEl.appendChild(btn);
     }
-
-    // ---- Filter layers (independent effect track) ----
-    filterTrackEl.innerHTML='';
-    const flayers=filterLayers();
-    showFilterTrack(flayers.length>0);
-    function mountEffectLayerBlock(trackEl, layer, blockClass, icon){
-      const el=document.createElement('div');
-      el.className=blockClass
-        +(state.selected.type==='layer'&&state.selected.id===layer.id?' selected':'')
-        +(!layer.visible?' hidden-layer':'')
-        +(layer.locked?' locked':'');
-      el.style.left=(TRACK_PAD+layer.start*state.pxPerSec)+'px';
-      el.style.width=Math.max(20,(layer.end-layer.start)*state.pxPerSec)+'px';
-      const lockMark=layer.locked?'🔒 ':'';
-      el.innerHTML=`<span>${lockMark}${icon} ${escapeHtml(layer.name)}</span><div class="clip-handle left"></div><div class="clip-handle right"></div>`;
-      el.title=layer.name+(layer.visible?'':' (hidden)')+(layer.locked?' (locked)':'');
-      el.addEventListener('click',ev=>{
-        if(ev.target.classList.contains('clip-handle')) return;
-        select('layer', layer.id);
-      });
-      el.addEventListener('dblclick',()=>{
-        if(layer.locked) return;
-        layer.visible=!layer.visible;
-        renderTimeline(); drawFrame();
-        if(selectedLayer() && selectedLayer().id===layer.id) refreshLayerSheet();
-      });
-      setupRangeDrag(el, layer, 'start', 'end');
-      trackEl.appendChild(el);
-    }
-    flayers.forEach(layer=>mountEffectLayerBlock(filterTrackEl, layer, 'filter-block', '◈'));
-
-    // ---- Color adjust layers ----
-    adjustTrackEl.innerHTML='';
-    const alayers=adjustLayers();
-    showAdjustTrack(alayers.length>0);
-    alayers.forEach(layer=>mountEffectLayerBlock(adjustTrackEl, layer, 'adjust-block', '◐'));
-
-    // ---- Animation layers ----
-    animTrackEl.innerHTML='';
-    const anlayers=animLayers();
-    showAnimTrack(anlayers.length>0);
-    anlayers.forEach(layer=>mountEffectLayerBlock(animTrackEl, layer, 'anim-block', '✦'));
 
     audioTrackEl.innerHTML='';
     state.audioClips.forEach(a=>{
@@ -3538,6 +2035,11 @@
       overlayTrackEl.appendChild(el);
     });
 
+    colorTrackEl.innerHTML='';
+    state.effectLayers.filter(l=>l.type==='color').forEach(l=>renderEffectLayerBlock(colorTrackEl,l,'color-layer-block','🎨'));
+    filterTrackEl.innerHTML='';
+    state.effectLayers.filter(l=>l.type==='filter').forEach(l=>renderEffectLayerBlock(filterTrackEl,l,'filter-layer-block','◐'));
+
     const widthPx=Math.max(timelineScroll.clientWidth, TRACK_PAD*2+dur*state.pxPerSec+220);
     timelineInner.style.width=widthPx+'px';
     renderRuler(widthPx);
@@ -3563,7 +2065,7 @@
   }
 
   timelineInner.addEventListener('mousedown',e=>{
-    if(e.target.closest('.clip-block')||e.target.closest('.filter-block')||e.target.closest('.adjust-block')||e.target.closest('.anim-block')||e.target.closest('.text-block')||e.target.closest('.audio-block')||e.target.closest('.overlay-block')||e.target.closest('.clip-add-btn')||e.target.closest('.transition-btn')) return;
+    if(e.target.closest('.clip-block')||e.target.closest('.text-block')||e.target.closest('.audio-block')||e.target.closest('.overlay-block')||e.target.closest('.clip-add-btn')||e.target.closest('.transition-btn')||e.target.closest('.color-layer-block')||e.target.closest('.filter-layer-block')) return;
     seekFromClientX(e.clientX);
     const onMove=ev=>seekFromClientX(ev.clientX);
     const onUp=()=>{document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);};
@@ -3628,8 +2130,8 @@
   function setupRangeDrag(el,obj,startKey,endKey){
     const lh=el.querySelector('.clip-handle.left'), rh=el.querySelector('.clip-handle.right');
     el.addEventListener('mousedown',e=>{
-      if(e.target.classList.contains('clip-handle')) return;
       if(obj.locked) return;
+      if(e.target.classList.contains('clip-handle')) return;
       e.preventDefault();
       const startX=e.clientX, origStart=obj[startKey], dur=obj[endKey]-obj[startKey];
       const onMove=ev=>{
@@ -3642,16 +2144,16 @@
       document.addEventListener('mousemove',onMove); document.addEventListener('mouseup',onUp);
     });
     if(lh) lh.addEventListener('mousedown',e=>{
-      e.stopPropagation(); e.preventDefault();
       if(obj.locked) return;
+      e.stopPropagation(); e.preventDefault();
       const startX=e.clientX, orig=obj[startKey];
       const onMove=ev=>{ const dt=(ev.clientX-startX)/state.pxPerSec; obj[startKey]=Math.max(0,Math.min(orig+dt,obj[endKey]-0.2)); renderTimeline(); };
       const onUp=()=>{document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp); drawFrame();};
       document.addEventListener('mousemove',onMove); document.addEventListener('mouseup',onUp);
     });
     if(rh) rh.addEventListener('mousedown',e=>{
-      e.stopPropagation(); e.preventDefault();
       if(obj.locked) return;
+      e.stopPropagation(); e.preventDefault();
       const startX=e.clientX, orig=obj[endKey];
       const onMove=ev=>{ const dt=(ev.clientX-startX)/state.pxPerSec; obj[endKey]=Math.max(obj[startKey]+0.2,orig+dt); renderTimeline(); };
       const onUp=()=>{document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp); drawFrame();};
@@ -3680,129 +2182,41 @@
     if(layerCanvasB.width!==canvas.width||layerCanvasB.height!==canvas.height){ layerCanvasB.width=canvas.width; layerCanvasB.height=canvas.height; }
   }
 
-  // Track which clip each video element is covering for transition handoff.
-  let lastPrimaryClipId=null;
-  let lastSecondaryClipId=null;
-  let primarySeeking=false;
-  let primarySeekStartedAt=0;
-
-  function mediaLocalTime(clip, playhead){
-    return clip.trimStart+(playhead-clip.timelineStart)*clip.speed;
-  }
-  function markPrimarySeeking(){
-    primarySeeking=true;
-    primarySeekStartedAt=performance.now();
-  }
-  function clearPrimarySeeking(){
-    primarySeeking=false;
-    primarySeekStartedAt=0;
-  }
-  // Vivo / some Android Chromium builds never fire 'seeked' for in-buffer seeks.
-  // If we block softSeek forever on primarySeeking, the clock runs on a frozen frame.
-  function seekingBlocked(){
-    if(!primarySeeking) return false;
-    if(performance.now()-primarySeekStartedAt > 500){
-      clearPrimarySeeking();
-      return false;
-    }
-    return true;
-  }
-  function softSeek(videoEl, targetTime, force){
-    if(!isFinite(targetTime) || targetTime<0) return;
-    // Generous tolerance while playing — mobile Chrome stalls hard on redundant seeks,
-    // especially after a split where both clips share the same file.
-    const tol = (state.playing && !force) ? 0.75 : 0.1;
-    if(force || Math.abs(videoEl.currentTime-targetTime)>tol){
-      try{
-        if(videoEl===hiddenVideo) markPrimarySeeking();
-        videoEl.currentTime=targetTime;
-      }catch(e){ clearPrimarySeeking(); }
-    }
-  }
-
   function syncMediaToPlayhead(forceSeek){
     const layers=getPlaybackLayers(state.playhead);
     const clip=layers.primary;
     if(clip){
-      const localT=mediaLocalTime(clip, state.playhead);
-      const primaryChanged = lastPrimaryClipId!==clip.id;
-      const sameSource = state.activeClipUrl===clip.url;
-
-      if(!sameSource){
-        state.activeClipUrl=clip.url;
-        hiddenVideo.src=clip.url;
-        try{ hiddenVideo.currentTime=localT; markPrimarySeeking(); }catch(e){}
-      } else if(primaryChanged){
-        // Crossing a cut onto a clip that shares the same file (the common "split" case).
-        // currentTime is usually already continuous — only seek if we actually drifted.
-        const drift=Math.abs(hiddenVideo.currentTime-localT);
-        if(drift>0.3){
-          if(lastSecondaryClipId===clip.id && hiddenVideo2.readyState>=2){
-            const fromSecondary=hiddenVideo2.currentTime;
-            try{
-              hiddenVideo.currentTime = (isFinite(fromSecondary) && Math.abs(fromSecondary-localT)<1.5)
-                ? fromSecondary : localT;
-              markPrimarySeeking();
-            }catch(e){ softSeek(hiddenVideo, localT, true); }
-          } else {
-            softSeek(hiddenVideo, localT, true);
-          }
-        }
-        // Tiny drift: do nothing — native playback continues seamlessly across the split.
-      } else if(!seekingBlocked()){
-        softSeek(hiddenVideo, localT, forceSeek);
-      }
-
-      const liveSpeed=effectiveSpeedAtPlayhead(clip);
-      hiddenVideo.playbackRate=liveSpeed;
-      lastPrimaryClipId=clip.id;
+      const localT=clip.trimStart+(state.playhead-clip.timelineStart)*clip.speed;
+      if(state.activeClipUrl!==clip.url){ state.activeClipUrl=clip.url; hiddenVideo.src=clip.url; hiddenVideo.currentTime=seekSafeTime(localT); }
+      else if(forceSeek||Math.abs(hiddenVideo.currentTime-localT)>0.2){ hiddenVideo.currentTime=seekSafeTime(localT); }
+      hiddenVideo.playbackRate=clip.speed;
       if(videoGain) videoGain.gain.value = clip.muted?0:(clip.volume/100);
 
-      if(state.playing){
-        if(hiddenVideo.paused){
-          const p=hiddenVideo.play();
-          if(p && p.catch) p.catch(()=>{});
-        }
-      } else if(!hiddenVideo.paused){
-        hiddenVideo.pause();
-      }
-
-      // ---- Preload upcoming clip (different source or transition only). ----
-      // Same-source splits: loading the same blob into a second element fights the
-      // primary decoder on low-end phones and is a major cause of freezes after split.
+      // ---- Preload the upcoming clip ahead of its transition so there's never a black/empty
+      // frame waiting on a fresh video src to load, seek and become ready. ----
       const idx=state.clips.indexOf(clip);
       const next=state.clips[idx+1];
       const tr=state.transitions[idx];
-      const hasTransition = !!(next && tr && tr.type!=='none' && tr.appliedOverlap>0);
-      const timeToNext = next ? (next.timelineStart - state.playhead) : 999;
-      const preloadWindow = hasTransition ? Math.max(2.5, tr.appliedOverlap+1.5) : 2.0;
-      const nextIsDifferentSource = next && next.url!==clip.url;
-      const wantsPreload = next && timeToNext < preloadWindow && timeToNext > -0.05
-        && (hasTransition || nextIsDifferentSource);
-
+      const wantsPreload = next && tr && tr.type!=='none' && tr.appliedOverlap>0
+        && (next.timelineStart-state.playhead) < Math.max(1.0, tr.appliedOverlap+0.6);
       if(wantsPreload){
-        const nextLocal = (hasTransition && layers.secondary===next)
-          ? mediaLocalTime(next, state.playhead)
-          : next.trimStart;
         if(state.secondaryUrl!==next.url){
           state.secondaryUrl=next.url;
           hiddenVideo2.src=next.url;
-          try{ hiddenVideo2.currentTime=next.trimStart; }catch(e){}
-          hiddenVideo2.playbackRate=next.speed||1;
-          lastSecondaryClipId=next.id;
-        } else if(hasTransition){
-          softSeek(hiddenVideo2, nextLocal, forceSeek);
-          hiddenVideo2.playbackRate=next.speed||1;
-          lastSecondaryClipId=next.id;
+          hiddenVideo2.currentTime=seekSafeTime(next.trimStart);
+          hiddenVideo2.playbackRate=next.speed;
         }
         if(layers.secondary===next){
+          const localT2=next.trimStart+(state.playhead-next.timelineStart)*next.speed;
+          if(forceSeek||Math.abs(hiddenVideo2.currentTime-localT2)>0.2){ hiddenVideo2.currentTime=seekSafeTime(localT2); }
+          hiddenVideo2.playbackRate=next.speed;
           if(state.playing){ if(hiddenVideo2.paused) hiddenVideo2.play().catch(()=>{}); }
           else if(!hiddenVideo2.paused){ hiddenVideo2.pause(); }
         } else if(!hiddenVideo2.paused){
           hiddenVideo2.pause();
         }
-      } else if(state.secondaryUrl && timeToNext > preloadWindow){
-        if(!hiddenVideo2.paused) hiddenVideo2.pause();
+      } else if(state.secondaryUrl){
+        hiddenVideo2.pause(); state.secondaryUrl=null;
       }
     }
     const aclip=activeAudioAt(state.playhead);
@@ -3821,7 +2235,7 @@
       const active=state.playhead>=o.start && state.playhead<o.end;
       if(active){
         const localT=state.playhead-o.start;
-        if(forceSeek||Math.abs(o.video.currentTime-localT)>0.2){ o.video.currentTime=localT; }
+        if(forceSeek||Math.abs(o.video.currentTime-localT)>0.2){ o.video.currentTime=seekSafeTime(localT); }
         if(state.playing){ if(o.video.paused) o.video.play().catch(()=>{}); }
         else if(!o.video.paused){ o.video.pause(); }
       } else if(!o.video.paused){
@@ -3833,7 +2247,10 @@
   // Draws a single clip's current frame onto targetCtx (either the main canvas or one of the
   // offscreen transition layers). `opts` carries the extra per-transition transform: dx/dy
   // (translate), rotate, scaleMul, blurPx and an alpha multiplier — all on top of the clip's
-  // own fade/animation/shake/grade/flash, which stay fully intact.
+  // own fade/animation/shake, which stay fully intact. NOTE: this intentionally draws the RAW
+  // clip only — no color grade or filter is baked in here anymore. Those are independent
+  // effect layers composited afterward by applyEffectLayerStack(), so a clip's own pixels are
+  // never permanently modified.
   function drawClipFrame(targetCtx, clip, videoEl, localT, opts){
     opts=opts||{};
     const W=targetCtx.canvas.width, H=targetCtx.canvas.height;
@@ -3847,31 +2264,13 @@
     let shakeX=0, shakeY=0;
     if(clip.shake){ shakeX=(Math.sin(localT*40)+Math.sin(localT*17))*3; shakeY=(Math.cos(localT*33)+Math.sin(localT*11))*3; }
 
-    // Velocity effects — pulse based on how far speed is from 1x (or a time oscillator).
-    let velBlur=0, velScale=1, velFlash=0;
-    const vel=clip.velocityEffect||'none';
-    const velAmt=(clip.velocityIntensity!=null?clip.velocityIntensity:100)/100;
-    if(vel && vel!=='none'){
-      const spd=effectiveSpeedAtPlayhead(clip);
-      const energy=Math.min(1, Math.abs(Math.log2(Math.max(0.1,spd)))) * velAmt; // 0 at 1x, up as speed diverges
-      const pulse=0.5+0.5*Math.sin(localT*8);
-      if(vel==='flash'){ velFlash=energy*pulse*0.7; }
-      else if(vel==='blur-shake'){ velBlur=energy*8; shakeX+=(Math.sin(localT*50)+Math.sin(localT*23))*energy*6; shakeY+=(Math.cos(localT*41))*energy*6; }
-      else if(vel==='fade-blur'){ velBlur=energy*10*pulse; alpha*=1-energy*0.25*pulse; }
-      else if(vel==='retro-zoom'){ velScale=1+energy*0.18*pulse; }
-      else if(vel==='rainbow'){ /* handled after draw as color cycle */ }
-    }
-
-    const grade=effectiveGrade(clip);
-
     targetCtx.save();
     targetCtx.translate(W/2+anim.tx+shakeX+(opts.dx||0), H/2+anim.ty+shakeY+(opts.dy||0));
     if(opts.rotate) targetCtx.rotate(opts.rotate);
-    const scaleMul=(opts.scaleMul!==undefined?opts.scaleMul:1)*velScale;
+    const scaleMul=opts.scaleMul!==undefined?opts.scaleMul:1;
     targetCtx.scale(anim.scale*scaleMul, anim.scale*scaleMul);
     targetCtx.translate(-W/2, -H/2);
-    const blurPx=(opts.blurPx||0)+velBlur;
-    targetCtx.filter = blurPx>0.1 ? `${gradeFilterString(grade)} blur(${blurPx.toFixed(1)}px)` : gradeFilterString(grade);
+    targetCtx.filter = opts.blurPx ? `blur(${opts.blurPx.toFixed(1)}px)` : 'none';
     targetCtx.globalAlpha=Math.max(0,alpha);
     const vw=videoEl.videoWidth||1280, vh=videoEl.videoHeight||720;
     const fitScale = clip.frameMode==='fit' ? Math.min(W/vw,H/vh) : Math.max(W/vw,H/vh);
@@ -3879,27 +2278,11 @@
     try{ targetCtx.drawImage(videoEl,dx,dy,dw,dh); }catch(e){}
     targetCtx.restore();
 
-    targetCtx.filter='none'; targetCtx.globalAlpha=Math.max(0,alpha);
-    applyGradePostPass(targetCtx, W, H, grade);
-    targetCtx.globalAlpha=1; targetCtx.globalCompositeOperation='source-over';
+    targetCtx.filter='none'; targetCtx.globalAlpha=1; targetCtx.globalCompositeOperation='source-over';
 
     if(clip.flash && localT>=0 && localT<0.15){
       targetCtx.save(); targetCtx.globalAlpha=Math.max(0,1-localT/0.15)*0.85*layerAlpha;
       targetCtx.fillStyle='#fff'; targetCtx.fillRect(0,0,W,H); targetCtx.restore();
-    }
-    if(velFlash>0.02){
-      targetCtx.save(); targetCtx.globalAlpha=velFlash*layerAlpha;
-      targetCtx.fillStyle='#fff'; targetCtx.fillRect(0,0,W,H); targetCtx.restore();
-    }
-    if(vel==='rainbow'){
-      const hue=(localT*120)%360;
-      targetCtx.save();
-      targetCtx.globalAlpha=0.2*velAmt*layerAlpha;
-      targetCtx.globalCompositeOperation='overlay';
-      targetCtx.fillStyle=`hsl(${hue},90%,55%)`;
-      targetCtx.fillRect(0,0,W,H);
-      targetCtx.restore();
-      targetCtx.globalCompositeOperation='source-over';
     }
   }
 
@@ -4034,33 +2417,32 @@
       }
     } else {
       noMediaOverlay.style.display='none';
-      // readyState >= 2 (HAVE_CURRENT_DATA) is enough to paint. Also accept a matching
-      // src even if the activeClipUrl flag is briefly stale after a split/handoff.
-      const srcOk = state.activeClipUrl===clipA.url
-        || (hiddenVideo.src && clipA.url && hiddenVideo.src.indexOf(clipA.url)!==-1);
-      const readyA = hiddenVideo.readyState>=2 && srcOk && hiddenVideo.videoWidth>0;
+      const readyA = hiddenVideo.readyState>=2 && state.activeClipUrl===clipA.url;
       if(readyA){
-        if(state.activeClipUrl!==clipA.url) state.activeClipUrl=clipA.url;
         const localTA=state.playhead-clipA.timelineStart;
         const clipB=layers.secondary, tr=layers.transition;
-        const readyB = clipB && tr && hiddenVideo2.readyState>=2 && state.secondaryUrl===clipB.url
-          && hiddenVideo2.videoWidth>0;
+        const readyB = clipB && tr && hiddenVideo2.readyState>=2 && state.secondaryUrl===clipB.url;
         if(clipB && tr && readyB){
           const localTB=state.playhead-clipB.timelineStart;
           renderTransitionFrame(tr, layers.progress, clipA, hiddenVideo, localTA, clipB, hiddenVideo2, localTB);
         } else {
-          if(clipB && tr && state.secondaryUrl!==clipB.url){
-            state.secondaryUrl=clipB.url;
-            hiddenVideo2.src=clipB.url;
-            try{ hiddenVideo2.currentTime=clipB.trimStart; }catch(e){}
-            lastSecondaryClipId=clipB.id;
-          }
+          // Either no transition here, or the incoming clip hasn't finished preloading yet —
+          // either way we still have a fully ready primary frame, so just show that (no cut
+          // to black while we wait for the next clip to become ready).
           ctx.fillStyle='#000'; ctx.fillRect(0,0,canvas.width,canvas.height);
           drawClipFrame(ctx, clipA, hiddenVideo, localTA, {});
           ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.filter='none';
         }
+        // Non-destructive color/filter layers composite on top of whichever clip (or
+        // transition blend) just got drawn — this is the only place grading happens now, so
+        // it applies identically whether we're mid-transition or on a plain cut, and identically
+        // between live preview and export since both call this same drawFrame().
+        applyEffectLayerStack(ctx, canvas.width, canvas.height, state.playhead);
       }
-      // Not ready yet — hold the last painted frame (do not clear to black).
+      // If the primary clip itself isn't ready yet (src just switched, still loading) we
+      // intentionally touch nothing — the previous frame stays on screen until 'loadeddata'
+      // / 'seeked' / 'canplay' fires and calls drawFrame() again. This is what eliminates the
+      // black-flash-on-cut/split problem.
     }
 
     state.overlays.forEach(o=>{
@@ -4106,18 +2488,49 @@
   }
   function play(){
     ensureAudioGraph();
-    if(audioCtx && audioCtx.state==='suspended') audioCtx.resume();
+    if(audioCtx.state==='suspended') audioCtx.resume();
     if(state.clips.length===0) return;
     if(state.playhead>=totalDuration()) state.playhead=0;
-    state.playing=true; clearPrimarySeeking();
-    $('#playIcon').innerHTML='<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
+    state.playing=true; $('#playIcon').innerHTML='<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
     syncMediaToPlayhead(true);
-    const p=hiddenVideo.play();
-    if(p && p.catch) p.catch(()=>{});
+    startHiddenVideoWhenReady();
     requestAnimationFrame(loop);
+  }
+  // Calling hiddenVideo.play() in the same tick as setting hiddenVideo.src (which
+  // syncMediaToPlayhead just did above, on a freshly-added or freshly-selected clip) races the
+  // browser's internal load-reset: Chrome will frequently reject that play() call with
+  // "interrupted by a new load request", and since it's caught silently, nothing visibly
+  // happens — the classic "have to click play / re-upload a second time before it works"
+  // symptom. Waiting for the video to actually have a frame ready (readyState >= 2) before
+  // calling play() removes the race entirely.
+  let pendingPlayListener=null;
+  function startHiddenVideoWhenReady(){
+    if(pendingPlayCleanup){ pendingPlayCleanup(); pendingPlayCleanup=null; }
+    if(hiddenVideo.readyState>=2){
+      hiddenVideo.play().catch(()=>{});
+    } else {
+      // 'loadeddata' only fires once per resource *load* — it will never fire again for a
+      // seek on an already-loaded resource (readyState just briefly dips and comes back via
+      // 'seeked'/'canplay' instead). Race all three so we're not stuck waiting on an event
+      // that may never come.
+      const attempt=()=>{
+        pendingPlayCleanup();
+        pendingPlayCleanup=null;
+        if(state.playing) hiddenVideo.play().catch(()=>{});
+      };
+      hiddenVideo.addEventListener('loadeddata', attempt, {once:true});
+      hiddenVideo.addEventListener('seeked', attempt, {once:true});
+      hiddenVideo.addEventListener('canplay', attempt, {once:true});
+      pendingPlayCleanup=()=>{
+        hiddenVideo.removeEventListener('loadeddata', attempt);
+        hiddenVideo.removeEventListener('seeked', attempt);
+        hiddenVideo.removeEventListener('canplay', attempt);
+      };
+    }
   }
   function pause(){
     state.playing=false; $('#playIcon').innerHTML='<path d="M8 5v14l11-7z"/>'; hiddenVideo.pause(); hiddenAudio.pause();
+    if(pendingPlayListener){ hiddenVideo.removeEventListener('loadeddata', pendingPlayListener); pendingPlayListener=null; }
     if(!hiddenVideo2.paused) hiddenVideo2.pause();
     state.overlays.forEach(o=>{ if(o.type==='video' && o.video && !o.video.paused) o.video.pause(); });
   }
@@ -4129,10 +2542,9 @@
   // switch or a seek appears immediately — this is what lets us safely skip drawing (rather
   // than clearing to black) while a clip is still loading.
   hiddenVideo.addEventListener('timeupdate',()=>{ if(!state.playing) drawFrame(); });
-  hiddenVideo.addEventListener('loadeddata',()=>{ clearPrimarySeeking(); drawFrame(); });
-  hiddenVideo.addEventListener('seeked',()=>{ clearPrimarySeeking(); drawFrame(); });
-  hiddenVideo.addEventListener('canplay',()=>{ clearPrimarySeeking(); drawFrame(); });
-  hiddenVideo.addEventListener('playing',()=>{ clearPrimarySeeking(); drawFrame(); });
+  hiddenVideo.addEventListener('loadeddata',()=>drawFrame());
+  hiddenVideo.addEventListener('seeked',()=>drawFrame());
+  hiddenVideo.addEventListener('canplay',()=>drawFrame());
   hiddenVideo2.addEventListener('loadeddata',()=>drawFrame());
   hiddenVideo2.addEventListener('seeked',()=>drawFrame());
   hiddenVideo2.addEventListener('canplay',()=>drawFrame());
@@ -4140,10 +2552,10 @@
   $('#splitBtn').addEventListener('click',splitAtPlayhead);
   $('#deleteBtn').addEventListener('click',()=>{
     if(state.selected.type==='clip') deleteSelectedClip();
-    else if(state.selected.type==='layer') deleteSelectedLayer();
     else if(state.selected.type==='text') $('#deleteTextBtn').click();
     else if(state.selected.type==='audio') $('#deleteAudioBtn').click();
     else if(state.selected.type==='overlay') $('#deleteOverlayBtn').click();
+    else if(state.selected.type==='color' || state.selected.type==='filter') $('#layerDeleteBtn').click();
   });
   $('#fullscreenBtn').addEventListener('click',()=>{
     const el=$('#previewArea');
@@ -4153,30 +2565,24 @@
     if(confirm('Clear the current project?')){
       state.overlays.forEach(o=>{ if(o.type==='video' && o.video) o.video.pause(); });
       hiddenVideo2.pause(); state.secondaryUrl=null;
-      lastPrimaryClipId=null; lastSecondaryClipId=null; clearPrimarySeeking();
-      state.clips=[]; state.texts=[]; state.audioClips=[]; state.overlays=[]; state.library=[]; state.transitions=[];
-      state.layers=[]; refreshEffectTracks();
+      state.clips=[]; state.texts=[]; state.audioClips=[]; state.overlays=[]; state.library=[]; state.transitions=[]; state.effectLayers=[];
       select(null,null); state.playhead=0; renderAll(); noMediaOverlay.style.display='block';
+      refreshEffectTrackVisibility();
     }
   });
   $('#undoBtn').addEventListener('click',()=>{ /* lightweight editor: undo not tracked */ });
 
   // ================= BOTTOM SHEET NAV =================
   function openSheet(panel){
-    closeClipSheet();
-    if(typeof closeLayerSheet==='function') closeLayerSheet();
     $('#bottomSheet').classList.add('show');
-    // Only toggle panels inside #bottomSheet — never touch #clipSheet panels.
-    document.querySelectorAll('#bottomSheet .sheet-panel').forEach(p=>{
-      p.classList.toggle('active', p.dataset.panel===panel);
-    });
-    document.querySelectorAll('#bottomNav .nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.panel===panel));
+    document.querySelectorAll('.sheet-panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===panel));
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.panel===panel));
     const titles={edit:'Edit',audio:'Audio',text:'Text',effects:'Effects',overlay:'Overlay',captions:'Captions',filters:'Filters',adjust:'Adjust'};
     $('#sheetTitle').textContent=titles[panel]||panel;
   }
   function closeSheet(){
     $('#bottomSheet').classList.remove('show');
-    document.querySelectorAll('#bottomNav .nav-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   }
   document.querySelectorAll('.nav-btn').forEach(b=>{
     b.addEventListener('click',()=>{
@@ -4223,6 +2629,7 @@
 
     recorder.start(200);
     state.playing=true; lastTick=null;
+    startHiddenVideoWhenReady();
 
     function exportTick(ts){
       if(lastTick===null) lastTick=ts;
@@ -4239,7 +2646,6 @@
       fill.style.width=p+'%'; pct.textContent=Math.round(p)+'%';
       requestAnimationFrame(exportTick);
     }
-    hiddenVideo.play().catch(()=>{});
     requestAnimationFrame(exportTick);
 
     await finished;
@@ -4256,9 +2662,6 @@
   }
 
   renderAll();
-  showContextWarningIfNeeded();
-  const _cwd=$('#contextWarnDismiss');
-  if(_cwd) _cwd.addEventListener('click',()=>{ const w=$('#contextWarn'); if(w) w.classList.remove('show'); });
 })();
 </script>
 </body>
