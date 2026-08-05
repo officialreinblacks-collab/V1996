@@ -967,6 +967,99 @@
   $('#importVideoBtn').addEventListener('click',()=>fileInput.click());
   fileInput.addEventListener('change',e=>{ handleFiles(e.target.files); fileInput.value=''; });
 
+  // Reads an MP4/MOV container's box structure to find the actual video codec identifier
+  // (e.g. 'avc1'=H.264, 'hvc1'/'hev1'=HEVC) — no decoding involved, just parsing box headers,
+  // so this works even for files the browser itself can't play. Only ever reads the small
+  // 'moov' metadata box in full; the (often huge) 'mdat' video data is skipped via its declared
+  // size, so this stays fast regardless of file size.
+  function parseMp4Boxes(view, start, end){
+    const boxes=[]; let p=start;
+    while(p+8<=end){
+      let size=view.getUint32(p);
+      const type=String.fromCharCode(view.getUint8(p+4),view.getUint8(p+5),view.getUint8(p+6),view.getUint8(p+7));
+      let headerSize=8;
+      if(size===1){
+        if(p+16>end) break;
+        size=view.getUint32(p+8)*4294967296+view.getUint32(p+12); headerSize=16;
+      } else if(size===0){ size=end-p; }
+      if(size<headerSize) break;
+      boxes.push({type, start:p, end:p+size, bodyStart:p+headerSize});
+      p+=size;
+    }
+    return boxes;
+  }
+  async function probeMp4VideoCodec(file){
+    try{
+      let offset=0, moovInfo=null, guard=0;
+      while(offset<file.size && guard<10000){
+        guard++;
+        const head=await file.slice(offset, offset+16).arrayBuffer();
+        if(head.byteLength<8) break;
+        const dv=new DataView(head);
+        let size=dv.getUint32(0);
+        const type=String.fromCharCode(dv.getUint8(4),dv.getUint8(5),dv.getUint8(6),dv.getUint8(7));
+        let headerSize=8;
+        if(size===1){ if(head.byteLength<16) break; size=dv.getUint32(8)*4294967296+dv.getUint32(12); headerSize=16; }
+        else if(size===0){ size=file.size-offset; }
+        if(size<headerSize) break;
+        if(type==='moov'){ moovInfo={offset,size,headerSize}; break; }
+        offset+=size;
+      }
+      if(!moovInfo || moovInfo.size>50*1024*1024) return null; // not an MP4-family box layout, or implausible
+      const moovBuf=await file.slice(moovInfo.offset, moovInfo.offset+moovInfo.size).arrayBuffer();
+      const mv=new DataView(moovBuf);
+      // moovBuf includes moov's own box header (size+type) at the start — walk its children
+      // starting from moovInfo.headerSize, not 0, or the first "child" found is just moov itself.
+      const moovBoxes=parseMp4Boxes(mv,moovInfo.headerSize,moovBuf.byteLength);
+      for(const trak of moovBoxes.filter(b=>b.type==='trak')){
+        const mdia=parseMp4Boxes(mv,trak.bodyStart,trak.end).find(b=>b.type==='mdia'); if(!mdia) continue;
+        const mdiaBoxes=parseMp4Boxes(mv,mdia.bodyStart,mdia.end);
+        const hdlr=mdiaBoxes.find(b=>b.type==='hdlr'); if(!hdlr) continue;
+        // handler_type: version(1)+flags(3)+pre_defined(4) then a 4-char code — 'vide' for video tracks
+        const handlerType=String.fromCharCode(mv.getUint8(hdlr.bodyStart+8),mv.getUint8(hdlr.bodyStart+9),mv.getUint8(hdlr.bodyStart+10),mv.getUint8(hdlr.bodyStart+11));
+        if(handlerType!=='vide') continue;
+        const minf=mdiaBoxes.find(b=>b.type==='minf'); if(!minf) continue;
+        const stbl=parseMp4Boxes(mv,minf.bodyStart,minf.end).find(b=>b.type==='stbl'); if(!stbl) continue;
+        const stsd=parseMp4Boxes(mv,stbl.bodyStart,stbl.end).find(b=>b.type==='stsd'); if(!stsd) continue;
+        // stsd body: version(1)+flags(3)+entry_count(4)=8 bytes, then the first sample entry's own FourCC
+        const entryStart=stsd.bodyStart+8;
+        if(entryStart+8>stsd.end) continue;
+        return String.fromCharCode(mv.getUint8(entryStart+4),mv.getUint8(entryStart+5),mv.getUint8(entryStart+6),mv.getUint8(entryStart+7));
+      }
+      return null;
+    } catch(e){ return null; }
+  }
+  function codecFourCCLabel(fourcc){
+    const map={avc1:'H.264',avc3:'H.264',hvc1:'HEVC (H.265)',hev1:'HEVC (H.265)',av01:'AV1',vp09:'VP9',vp08:'VP8',mp4v:'MPEG-4 Part 2',mjpg:'Motion JPEG'};
+    return map[fourcc] || fourcc;
+  }
+  // Turns the browser's native MediaError into a specific, actionable message instead of a
+  // generic guess. When the file is MP4-family, we also read its actual codec FourCC directly
+  // from the container (see probeMp4VideoCodec) so we can say exactly what's wrong rather than
+  // hedge — code 4 (SRC_NOT_SUPPORTED) is overwhelmingly HEVC/H.265 in practice, since most
+  // Android phones (Samsung especially, via "High Efficiency Video") default their camera to it.
+  function describeVideoLoadError(fileName, mediaError, codecFourCC){
+    const code = mediaError && mediaError.code;
+    if(code === 4){
+      if(codecFourCC){
+        const label=codecFourCCLabel(codecFourCC);
+        const isHevc = codecFourCC==='hvc1' || codecFourCC==='hev1';
+        return `Chrome can't decode "${fileName}" — its video track is encoded as ${label} (codec tag "${codecFourCC}").`
+          + (isHevc
+            ? ` HEVC/H.265 is the default camera format on most Android phones — check your Camera app's video settings and switch it to "High Compatibility"/H.264, or convert this file with a tool like HandBrake (choose H.264) before uploading.`
+            : ` Chrome's browser video pipeline reliably supports H.264 and VP9/AV1 — try converting this file to H.264 (e.g. with HandBrake) before uploading.`);
+      }
+      return `Chrome can't decode "${fileName}" — this almost always means it's recorded in HEVC/H.265, which is the default camera format on most Android phones (look for "High Efficiency Video" in your Camera app's video settings and switch it to "High Compatibility"/H.264). A video shared through WhatsApp, Instagram, or similar usually gets re-encoded to H.264 too, so those tend to work fine. You can also convert the file with a tool like HandBrake (choose H.264) before uploading.`;
+    }
+    if(code === 3){
+      return `"${fileName}" loaded partway but the video data itself appears damaged (decode error) — try re-exporting or re-transferring the file, it may have been corrupted in transit.`;
+    }
+    if(code === 2){
+      return `"${fileName}" failed to load due to a read error — try selecting the file again.`;
+    }
+    return `Couldn't load "${fileName}" — the file may be corrupt or in a format this browser can't decode (try MP4/H.264 or WebM).`;
+  }
+
   function handleFiles(fileList){
     const videoFiles=[...fileList].filter(f=>f.type.startsWith('video/'));
     if(videoFiles.length===0) return;
@@ -996,14 +1089,15 @@
         if(settled) return;
         settleOnce();
         URL.revokeObjectURL(url);
-        alert(`"${file.name}" is taking too long to load and may be in a format this browser can't decode (try MP4/H.264 or WebM).`);
+        alert(`"${file.name}" is taking too long to load. This can happen with very large 4K/HEVC recordings, or if it's in a format Chrome can't decode (many Android phones default to HEVC/H.265 — check your Camera app's video format setting). Try a smaller or H.264-encoded file to compare.`);
       }, 15000);
       // If metadata never loads (unsupported codec/container, corrupt file), the app used to
       // just sit there forever with zero feedback — indistinguishable from a broken upload.
-      v.addEventListener('error',()=>{
+      v.addEventListener('error',async ()=>{
         URL.revokeObjectURL(url);
         settleOnce();
-        alert(`Couldn't load "${file.name}" — the file may be corrupt or in a format this browser can't decode (try MP4/H.264 or WebM).`);
+        const codecFourCC=await probeMp4VideoCodec(file);
+        alert(describeVideoLoadError(file.name, v.error, codecFourCC));
       });
       v.addEventListener('loadedmetadata',async ()=>{
         const item={id:newId(),name:file.name,url,duration:v.duration,filmstrip:null,width:v.videoWidth,height:v.videoHeight};
