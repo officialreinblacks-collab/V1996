@@ -952,7 +952,34 @@
   const fileInput=$('#fileInput');
   $('#searchBtn').addEventListener('click',()=>fileInput.click());
   $('#importVideoBtn').addEventListener('click',()=>fileInput.click());
-  fileInput.addEventListener('change',e=>handleFiles(e.target.files));
+  fileInput.addEventListener('change',e=>{ handleFiles(e.target.files); fileInput.value=''; });
+
+  // ---- Whole-page drag-and-drop for video files (second import path, independent of the
+  // file picker). Only reacts to real OS file drags (dataTransfer.types includes 'Files'),
+  // so it never interferes with the internal clip-reorder drag on the timeline. ----
+  let dropDepth=0;
+  const dropOverlay=document.createElement('div');
+  dropOverlay.id='fileDropOverlay';
+  dropOverlay.textContent='Drop video to import';
+  dropOverlay.style.cssText='display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.75);color:var(--cyan);font-size:18px;font-weight:700;align-items:center;justify-content:center;pointer-events:none;border:3px dashed var(--cyan);';
+  document.body.appendChild(dropOverlay);
+  function isFileDrag(e){ return e.dataTransfer && [...e.dataTransfer.types].includes('Files'); }
+  window.addEventListener('dragenter',e=>{
+    if(!isFileDrag(e)) return;
+    e.preventDefault(); dropDepth++;
+    dropOverlay.style.display='flex';
+  });
+  window.addEventListener('dragover',e=>{ if(isFileDrag(e)) e.preventDefault(); });
+  window.addEventListener('dragleave',e=>{
+    if(!isFileDrag(e)) return;
+    dropDepth=Math.max(0,dropDepth-1);
+    if(dropDepth===0) dropOverlay.style.display='none';
+  });
+  window.addEventListener('drop',e=>{
+    if(!isFileDrag(e)) return;
+    e.preventDefault(); dropDepth=0; dropOverlay.style.display='none';
+    handleFiles(e.dataTransfer.files);
+  });
 
   function handleFiles(fileList){
     [...fileList].forEach(file=>{
@@ -976,12 +1003,18 @@
       const frames=6, tw=64, th=36;
       const strip=document.createElement('canvas'); strip.width=tw*frames; strip.height=th;
       const sctx=strip.getContext('2d'); let i=0;
+      videoEl.preload='auto';
       function grab(){
         if(i>=frames){ resolve(strip.toDataURL('image/jpeg',0.6)); return; }
-        const t=(duration*(i+0.5))/frames;
+        const t=Math.min((duration*(i+0.5))/frames, duration-0.05);
         const onSeek=()=>{ videoEl.removeEventListener('seeked',onSeek); try{sctx.drawImage(videoEl,i*tw,0,tw,th);}catch(e){} i++; grab(); };
         videoEl.addEventListener('seeked',onSeek);
-        videoEl.currentTime=Math.min(t,duration-0.05);
+        // Safety timeout in case 'seeked' never fires (happens on some mobile browsers
+        // with blob-sourced video) — skip the frame instead of hanging the import forever.
+        setTimeout(()=>{
+          if(Math.abs(videoEl.currentTime-t)>0.05){ videoEl.removeEventListener('seeked',onSeek); i++; grab(); }
+        },1500);
+        videoEl.currentTime=t;
       }
       grab();
     });
