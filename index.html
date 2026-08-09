@@ -950,6 +950,10 @@
 
   // ================= MEDIA IMPORT =================
   const fileInput=$('#fileInput');
+  hiddenVideo.addEventListener('error',()=>{
+    const err=hiddenVideo.error;
+    if(err) alert('Video load error (code '+err.code+'): '+(err.message||'unknown — likely unsupported format/codec'));
+  });
   $('#searchBtn').addEventListener('click',()=>fileInput.click());
   $('#importVideoBtn').addEventListener('click',()=>fileInput.click());
   fileInput.addEventListener('change',e=>{ handleFiles(e.target.files); fileInput.value=''; });
@@ -2475,7 +2479,10 @@
     if(state.playhead>=totalDuration()) state.playhead=0;
     state.playing=true; $('#playIcon').innerHTML='<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
     syncMediaToPlayhead(true);
-    hiddenVideo.play().catch(()=>{});
+    hiddenVideo.play().catch(err=>{
+      console.error('hiddenVideo.play() failed:', err);
+      alert('Video play failed: '+err.name+' — '+err.message);
+    });
     requestAnimationFrame(loop);
   }
   function pause(){
