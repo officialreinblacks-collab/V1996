@@ -988,6 +988,7 @@
   function handleFiles(fileList){
     [...fileList].forEach(file=>{
       if(!file.type.startsWith('video/')) return;
+      alert('Uploaded: '+file.name+'\nReported type: '+(file.type||'(empty — browser could not identify it)'));
       const url=URL.createObjectURL(file);
       const v=document.createElement('video');
       v.src=url; v.muted=true; v.playsInline=true;
