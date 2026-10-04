@@ -1,5 +1,5 @@
-// MarketPro View service worker: lets the app open with no connection.
-const CACHE = 'marketpro-shell-v1';
+// MarketPlus View service worker: lets the app open with no connection.
+const CACHE = 'marketplus-shell-v1';
 const LIB = 'https://cdnjs.cloudflare.com/ajax/libs/lightweight-charts/4.1.3/lightweight-charts.standalone.production.js';
 const STATIC_HOSTS = ['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'unpkg.com', 'fonts.googleapis.com', 'fonts.gstatic.com', 'res.cloudinary.com'];
 

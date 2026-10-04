@@ -1,7 +1,7 @@
 {
-  "name": "MarketPro View",
-  "short_name": "MarketPro View",
-  "description": "MarketPro View - live crypto charts, indicators, alerts and tools",
+  "name": "MarketPlus View",
+  "short_name": "MarketPlus View",
+  "description": "MarketPlus View - live crypto charts, indicators, alerts and tools",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
