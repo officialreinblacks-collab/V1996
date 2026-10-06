@@ -1,12 +1,12 @@
 // MarketPlusView service worker: lets the app open with no connection.
-const CACHE = 'marketplusview-shell-v2';
+const CACHE = 'marketplusview-shell-v3';
 const LIB = 'https://cdnjs.cloudflare.com/ajax/libs/lightweight-charts/4.1.3/lightweight-charts.standalone.production.js';
 const STATIC_HOSTS = ['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'unpkg.com', 'fonts.googleapis.com', 'fonts.gstatic.com', 'res.cloudinary.com'];
 
 self.addEventListener('install', e => {
   e.waitUntil((async () => {
     const c = await caches.open(CACHE);
-    await Promise.all(['./', './index.html', 'manifest.json'].map(u => c.add(u).catch(() => {})));
+    await Promise.all(['./', './index.html', 'manifest.json'].map(async u => { try { await c.put(u, await fetch(new Request(u, { cache: 'reload' }))); } catch (err) {} }));
     try { await c.put(LIB, await fetch(new Request(LIB, { mode: 'no-cors' }))); } catch (err) {}
     self.skipWaiting();
   })());
