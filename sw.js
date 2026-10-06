@@ -61,3 +61,12 @@ self.addEventListener('notificationclick', e => {
     return clients.openWindow('./');
   })());
 });
+
+// Background push: the push server sends BUY / SELL / TP / SL signals even when the app is closed.
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (x) { d = { body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'MarketPlusView signal', {
+    body: d.body || '', tag: d.tag, renotify: true, vibrate: [200, 100, 200], data: { url: d.url || './' }
+  }));
+});
