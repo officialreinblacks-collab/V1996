@@ -8,13 +8,22 @@
   var S = { email: '', plan: '', exp: null, admin: false, trialUsed: false };
   var PLANS = {
     trial: { n: 'Free trial', p: '7 days free', d: ['Full access for 7 days', 'One time per person', 'Required before any paid plan'] },
-    starter: { n: 'Starter', p: '$50 / month', d: ['Live charts and core indicators', 'Price alerts and watchlist', 'Limited tools'] },
-    pro: { n: 'Pro', p: '$100 / month', d: ['Everything in Starter', 'Buy / sell signals and Market Scanner', 'AI market analysis', 'All indicators, strategies and drawings', 'Order book and position calculator', 'Priority support'] }
+    starter: { n: 'Starter', p: '$50 / month', d: ['Live charts and 25+ indicators', 'Drawing tools and price alerts', 'Watchlist and chart types', 'Pro tools are not included'] },
+    pro: { n: 'Pro', p: '$100 / month', d: ['Everything in Starter', 'Buy / sell signal strategies', 'Order book and position size calculator', 'Bar replay, compare markets, market mood', 'Second chart and backups', 'AI market analysis (coming soon)', 'Priority support'] }
   };
 
   var st = document.createElement('style');
   st.textContent =
     'html:root{--acc:#3b82f6;--acc2:#ef4444}' +
+    'html #tour{background:radial-gradient(700px 400px at 20% 0%,rgba(37,99,235,.45),transparent 60%),radial-gradient(600px 400px at 100% 100%,rgba(239,68,68,.3),transparent 60%),rgba(4,8,20,.78);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}' +
+    'html #tour .tcard{background:linear-gradient(160deg,rgba(96,165,250,.22),rgba(255,255,255,.06) 45%,rgba(239,68,68,.12));border:1px solid rgba(147,180,255,.35);-webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.35),0 0 60px rgba(59,130,246,.25)}' +
+    'html #tour .tcard h2{color:#fff}html #tour .tcard p{color:#cdd8f2}' +
+    'html #tour .tic{background:linear-gradient(135deg,rgba(96,165,250,.35),rgba(239,68,68,.25));border:1px solid rgba(255,255,255,.3);box-shadow:0 0 30px rgba(96,165,250,.45)}' +
+    'html #tour .tk span{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#e6edff;border-radius:12px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}' +
+    'html #tour .tdots i.on{background:linear-gradient(90deg,#3b82f6,#ef4444)}' +
+    'html #tour .tbtn button{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);color:#fff;border-radius:999px;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}' +
+    'html #tour .tbtn button.pri{background:linear-gradient(135deg,#ef4444,#b91c1c);border-color:transparent;box-shadow:0 8px 24px rgba(239,68,68,.4)}' +
+    'html #tour .tbtn button:empty{visibility:hidden}' +
     '#mpv-auth{position:fixed;inset:0;z-index:2147483000;overflow:auto;-webkit-overflow-scrolling:touch;padding:calc(env(safe-area-inset-top,0px) + 20px) 16px calc(env(safe-area-inset-bottom,0px) + 24px);color:#fff;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:radial-gradient(900px 520px at 10% -10%,rgba(37,99,235,.55),transparent 60%),radial-gradient(700px 480px at 100% 105%,rgba(239,68,68,.35),transparent 60%),#050a18}' +
     '#mpv-auth *{box-sizing:border-box}' +
     '.mpv-wrap{width:min(100%,420px);margin:0 auto;min-height:100%;display:flex;flex-direction:column;justify-content:center;gap:16px}' +
@@ -215,6 +224,26 @@
       $('mpvGo').onclick = check;
     }
   }
+
+  // Starter plan: Pro-only tools show an upgrade prompt instead of opening
+  var LOCK_IDS = { bStrat: 'Strategies and buy / sell signals', bBook: 'The order book', bCalc: 'The position size calculator' };
+  var LOCK_TXT = [['Bar replay', 'Bar replay'], ['Compare with', 'Compare markets'], ['Long / Short', 'The long / short position tool'], ['Market mood', 'Market mood'], ['econd chart', 'The second chart'], ['Backup & restore', 'Backup and restore']];
+  function upsell(name) {
+    var d = document.createElement('div');
+    d.style.cssText = 'position:fixed;inset:0;z-index:2147482000;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;background:rgba(5,10,24,.7);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);font-family:Inter,system-ui,sans-serif;color:#fff';
+    d.innerHTML = '<div class="mpv-card" style="width:min(100%,360px);text-align:center"><h1 style="margin:0 0 8px;font-size:22px">Pro feature</h1><p class="mpv-sub">' + name + ' is included in the Pro plan ($100 / month).</p><button class="mpv-btn" id="mpvUp">Upgrade to Pro</button><button class="mpv-btn ghost" id="mpvNo">Not now</button></div>';
+    root.appendChild(d);
+    d.querySelector('#mpvNo').onclick = function () { d.remove(); };
+    d.querySelector('#mpvUp').onclick = function () { d.remove(); S.trialUsed = true; payView('pro'); };
+  }
+  document.addEventListener('click', function (e) {
+    if (S.admin || S.plan !== 'starter' || !S.exp || ov.style.display !== 'none') return;
+    var t = e.target, el = t && t.closest ? (t.closest('button') || t) : null, name = null;
+    if (!el) return;
+    if (LOCK_IDS[el.id]) name = LOCK_IDS[el.id];
+    else { var tx = (el.textContent || '').trim(); if (tx.length < 90) LOCK_TXT.forEach(function (x) { if (tx.indexOf(x[0]) > -1) name = x[1]; }); }
+    if (name) { e.stopPropagation(); e.preventDefault(); upsell(name); }
+  }, true);
 
   function start() {
     sb = window.supabase.createClient(SB_URL, SB_KEY);
