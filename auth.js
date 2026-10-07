@@ -109,10 +109,18 @@
     ov.style.display = 'none';
     if (!pill) {
       pill = document.createElement('div'); pill.id = 'mpv-pill';
-      pill.onclick = function () { if (confirm('Sign out of MarketPlusView?')) signOut(); };
+      pill.onclick = function () {
+        if (pill.dataset.admin === '1') {
+          if (confirm('Open the admin page to make codes?')) { location.href = 'admin.html'; return; }
+          if (confirm('Sign out instead?')) signOut();
+          return;
+        }
+        if (confirm('Sign out of MarketPlusView?')) signOut();
+      };
       root.appendChild(pill);
     }
     pill.style.display = 'block';
+    pill.dataset.admin = admin ? '1' : '';
     pill.textContent = admin ? 'Admin' : Math.max(0, Math.ceil((exp - Date.now()) / 864e5)) + 'd left';
     clearInterval(timer);
     timer = setInterval(check, 60000);
