@@ -9,24 +9,7 @@ webpush.setVapidDetails(process.env.VAPID_SUBJECT||'mailto:admin@example.com',va
 let subs=load('subs.json',{});   // endpoint -> {sub, watches:[{symbol,interval,opts}], seen:{key:1}}
 const engines={}, eng=iv=>engines[iv]||(engines[iv]=mkEngine(iv)), BASES=['https://api.binance.com','https://data-api.binance.vision'];
 const num=v=>v==null||isNaN(v)?'-':v<1?v.toFixed(5):v<100?v.toFixed(3):v.toFixed(2);
-// ---- Forex via Twelve Data (set env TWELVE_KEY). Candles are cached so one key serves the chart, scanner and every phone. ----
-const CCY=new Set('EUR USD GBP JPY CHF AUD NZD CAD SEK NOK DKK PLN HUF CZK TRY ZAR MXN BRL CLP COP INR CNH HKD SGD THB IDR KRW TWD PHP ILS SAR AED EGP XAU XAG XPT XPD'.split(' '));
-const FXS={has:s=>/^[A-Z]{6}$/.test(s)&&CCY.has(s.slice(0,3))&&CCY.has(s.slice(3))};
-let fxList=null, fxListT=0;
-async function fxSearch(q){ q=String(q||'').toUpperCase().replace(/[\s\/]/g,''); if(q.length<2) return [];
-  if(!fxList||Date.now()-fxListT>12*3600e3){ try{ const j=await (await fetch('https://api.twelvedata.com/forex_pairs?apikey='+(process.env.TWELVE_KEY||'demo'))).json();
-    if(j&&Array.isArray(j.data)){ fxList=j.data.map(x=>({symbol:String(x.symbol).replace('/',''),name:x.symbol+' ('+(x.currency_base||'')+' / '+(x.currency_quote||'')+')'})).filter(x=>FXS.has(x.symbol)); fxListT=Date.now(); } }catch(e){} }
-  return (fxList||[]).filter(x=>x.symbol.includes(q)).slice(0,30); }
-const TD_IV={'1m':'1min','5m':'5min','15m':'15min','30m':'30min','1h':'1h','2h':'2h','4h':'4h','8h':'8h','1d':'1day','1w':'1week','1M':'1month'}, fxCache={};
-async function fxRows(sym,iv,limit,end){ const tdi=TD_IV[iv]; if(!process.env.TWELVE_KEY) throw new Error('TWELVE_KEY not set on the server'); if(!tdi) throw new Error('interval '+iv+' not supported for forex');
-  const key=[sym,iv,limit,end||''].join('|'), ttl=limit>10?60000:15000, hit=fxCache[key]; if(hit&&Date.now()-hit.t<ttl) return hit.v;
-  let url=`https://api.twelvedata.com/time_series?symbol=${sym.slice(0,3)}/${sym.slice(3)}&interval=${tdi}&outputsize=${Math.min(limit,1000)}&order=asc&timezone=UTC&apikey=${process.env.TWELVE_KEY}`;
-  if(end) url+='&end_date='+new Date(+end).toISOString().slice(0,19).replace('T',' ');
-  const j=await (await fetch(url)).json(); if(!j||j.status==='error'||!Array.isArray(j.values)) throw new Error((j&&j.message)||'no data');
-  const v=j.values.map(x=>{ const t=Date.parse(String(x.datetime).replace(' ','T')+(x.datetime.length>10?'Z':'T00:00:00Z')); return [t,x.open,x.high,x.low,x.close,x.volume||'0',t+1,'0',0,'0','0','0']; });
-  fxCache[key]={t:Date.now(),v}; return v; }
-async function klines(sym,iv){ if(FXS.has(sym)){ try{ return (await fxRows(sym,iv,500)).map(x=>({time:Math.floor(x[0]/1000),open:+x[1],high:+x[2],low:+x[3],close:+x[4],volume:+x[5]})); }catch(e){ console.error('fx',sym,e.message); return null; } }
-  for(const b of BASES){ try{ const r=await fetch(`${b}/api/v3/klines?symbol=${sym}&interval=${iv}&limit=500`); if(!r.ok) continue; const k=await r.json();
+async function klines(sym,iv){ for(const b of BASES){ try{ const r=await fetch(`${b}/api/v3/klines?symbol=${sym}&interval=${iv}&limit=500`); if(!r.ok) continue; const k=await r.json();
   if(Array.isArray(k)&&k.length>60) return k.map(x=>({time:Math.floor(x[0]/1000),open:+x[1],high:+x[2],low:+x[3],close:+x[4],volume:+x[5]})); }catch(e){} } return null; }
 function events(sym,iv,c,r){ const last=c.length-1, ev=[], tag=sym+' '+iv, t=c[last].time;
   const a=r.pos&&r.pos.i0===last?r.pos:(r.pend&&r.pend.i0===last?r.pend:null);
@@ -50,10 +33,6 @@ const clean=w=>(Array.isArray(w)?w:[]).slice(0,MAX_WATCH).filter(x=>x&&/^[A-Z0-9
 http.createServer((req,res)=>{ if(req.method==='OPTIONS') return send(res,204,{});
   if(req.url==='/vapid') return send(res,200,{publicKey:vapid.publicKey});
   if(req.url==='/health') return send(res,200,{ok:true,subscribers:Object.keys(subs).length});
-  if(req.method==='GET'&&req.url.startsWith('/fx/search')){ const q=new URL(req.url,'http://x').searchParams.get('q'); return fxSearch(q).then(v=>send(res,200,v)).catch(()=>send(res,200,[])); }
-  if(req.method==='GET'&&req.url.startsWith('/fx/klines')){ const q=new URL(req.url,'http://x').searchParams, sy=q.get('symbol');
-    if(!FXS.has(sy)) return send(res,400,{error:'unknown forex symbol'});
-    return fxRows(sy,q.get('interval')||'1h',+q.get('limit')||500,q.get('endTime')).then(v=>send(res,200,v)).catch(e=>send(res,502,{error:e.message})); }
   if(req.method!=='POST') return send(res,404,{error:'not found'});
   let raw=''; req.on('data',d=>{ raw+=d; if(raw.length>1e5) req.destroy(); });
   req.on('end',async()=>{ let b; try{ b=JSON.parse(raw||'{}'); }catch(e){ return send(res,400,{error:'bad json'}); }
