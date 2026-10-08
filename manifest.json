@@ -32,5 +32,20 @@
   "lang": "en",
   "categories": [
     "finance"
+  ],
+  "shortcuts": [
+    {
+      "name": "Search markets",
+      "short_name": "Search",
+      "description": "Open the market search screen",
+      "url": "./?search=1",
+      "icons": [
+        {
+          "src": "https://res.cloudinary.com/wfypjzyt/image/upload/c_fit,w_79,h_79/c_pad,w_192,h_192,b_rgb:0b0e14/v1791143890/file_00000000b0e882118146e28bda6201fd.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
   ]
 }
