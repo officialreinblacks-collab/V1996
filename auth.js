@@ -5,7 +5,9 @@
   var SUPPORT = 'marketplusview@gmail.com';            // support email shown to clients
   var PAY = { starter: '', pro: '' };                   // paste your card payment link (e.g. Stripe Payment Link) for each plan
   var LS = 'mpvAccess', root = document.documentElement, sb, pill, timer;
-  var S = { email: '', plan: '', exp: null, admin: false, trialUsed: false };
+  var S = { email: '', plan: '', exp: null, admin: false, trialUsed: false, guest: false }, triedTrial = false;
+  var getMode = function () { try { return localStorage.getItem('mpvMode'); } catch (e) { return null; } };
+  var setMode = function (m) { try { localStorage.setItem('mpvMode', m); } catch (e) {} };
   var PLANS = {
     trial: { n: 'Free trial', p: '7 days free', d: ['Full access for 7 days', 'One time per person', 'Required before any paid plan'] },
     starter: { n: 'Starter', p: '$50 / month', d: ['Live charts and 25+ indicators', 'Drawing tools and price alerts', 'Watchlist and chart types', 'Pro tools are not included'] },
@@ -87,6 +89,34 @@
   function busy(b, on, label) { b.disabled = on; b.textContent = on ? 'Please wait…' : label; }
   function close() { ov.style.display = 'none'; if (pill) pill.style.display = 'block'; }
 
+  function welcomeView() {
+    card('<h1>Welcome</h1><p class="mpv-sub">Choose how to start. You get 7 days free either way. This choice is final.</p><div class="mpv-msg" id="mpvM"></div>' +
+      '<button class="mpv-btn ghost" id="mpvGu">Continue as guest</button><button class="mpv-btn" id="mpvEm">Sign in with your email<br><span style="font-weight:400;font-size:13px">7 days free trial</span></button>', true, false);
+    $('mpvEm').onclick = function () { setMode('email'); loginView('up'); };
+    $('mpvGu').onclick = async function () {
+      var b = $('mpvGu'); busy(b, true); msg('');
+      var r = await sb.auth.signInAnonymously();
+      if (r.error) { msg(r.error.message); busy(b, false, 'Continue as guest'); return; }
+      setMode('guest'); check();
+    };
+  }
+
+  function guestLockView(m) {
+    card('<h1>Guest trial ended</h1><p class="mpv-sub">' + esc(m || '') + ' Create your account with your email, then enter your access code to continue.</p>' +
+      '<input id="mpvE" type="email" inputmode="email" autocomplete="email" placeholder="Email"><input id="mpvP" type="password" autocomplete="new-password" placeholder="Password (8+ characters)">' +
+      '<div class="mpv-msg" id="mpvM"></div><button class="mpv-btn" id="mpvGo">Create account</button><div class="mpv-links"><a id="mpvSw">I already have an account</a></div>', true, false);
+    $('mpvSw').onclick = function () { loginView('in'); };
+    $('mpvGo').onclick = async function () {
+      var e = $('mpvE').value.trim(), p = $('mpvP').value, b = $('mpvGo');
+      if (!e || !p) return msg('Enter your email and password.');
+      if (p.length < 8) return msg('Use a password with at least 8 characters.');
+      busy(b, true); msg('');
+      var r = await sb.auth.updateUser({ email: e, password: p }, { emailRedirectTo: back() });
+      if (r.error) { msg(r.error.message); busy(b, false, 'Create account'); return; }
+      setMode('email'); loginView('in', 'Check your email to confirm it, then sign in and enter your code.', true);
+    };
+  }
+
   function loginView(mode, m, ok) {
     var up = mode === 'up', label = up ? 'Create account' : 'Sign in';
     card('<h1>' + label + '</h1><p class="mpv-sub">' + (up ? 'Create your account, then start your free 7-day trial.' : 'Sign in with your email to open the charts.') + '</p>' +
@@ -150,6 +180,10 @@
 
   function accountView(m, ok) {
     var days = S.exp ? Math.max(0, Math.ceil((S.exp - Date.now()) / 864e5)) : 0;
+    if (S.guest) {
+      card('<h1>Account</h1><p class="mpv-sub">Guest · ' + days + ' days left</p><button class="mpv-btn ghost" id="mpvHp">Need help? Email us</button><div class="mpv-links"><a id="mpvCl">Close</a></div>');
+      $('mpvHp').onclick = function () { location.href = 'mailto:' + SUPPORT; }; $('mpvCl').onclick = close; return;
+    }
     card('<h1>Account</h1><p class="mpv-sub">' + esc(S.email) + '<br>' + (S.admin ? 'Admin' : (PLANS[S.plan] ? PLANS[S.plan].n : '') + ' · ' + days + ' days left') + '</p><div class="mpv-msg" id="mpvM"></div>' +
       '<button class="mpv-btn blue" id="mpvCp">Change password</button><button class="mpv-btn ghost" id="mpvNc">Enter a new code</button>' + (S.admin ? '<button class="mpv-btn ghost" id="mpvAd">Admin page</button>' : '') +
       '<button class="mpv-btn ghost" id="mpvHp">Need help? Email us</button><button class="mpv-btn ghost" id="mpvSo">Sign out</button><div class="mpv-links"><a id="mpvCl">Close</a></div>');
@@ -201,8 +235,8 @@
 
   async function check() {
     var sess = (await sb.auth.getSession()).data.session;
-    if (!sess) return loginView('in');
-    S.email = sess.user.email;
+    if (!sess) return getMode() === 'email' ? loginView('in') : welcomeView();
+    S.guest = !!sess.user.is_anonymous; S.email = sess.user.email || ''; setMode(S.guest ? 'guest' : 'email');
     try {
       var a = await sb.rpc('is_admin');
       if (a.error) throw a.error;
@@ -210,12 +244,19 @@
       var r = await sb.from('memberships').select('expires_at,plan,trial_used').eq('user_id', sess.user.id).maybeSingle();
       if (r.error) throw r.error;
       S.trialUsed = !!(r.data && r.data.trial_used); S.plan = r.data ? r.data.plan : '';
+      if (!r.data && !triedTrial) {
+        triedTrial = true;
+        var t = await sb.rpc('start_trial');
+        if (t.error) { triedTrial = false; card('<h1>Trial not started</h1><p class="mpv-sub">' + esc(t.error.message) + '</p><button class="mpv-btn" id="mpvGo">Try again</button>'); $('mpvGo').onclick = check; return; }
+        return check();
+      }
       if (r.data && new Date(r.data.expires_at) > new Date()) {
         try { localStorage.setItem(LS, JSON.stringify({ uid: sess.user.id, exp: new Date(r.data.expires_at).getTime() })); } catch (e) {}
         return unlock(new Date(r.data.expires_at));
       }
       try { localStorage.removeItem(LS); } catch (e) {}
       clearInterval(timer);
+      if (S.guest) return guestLockView(r.data ? 'Your access ended on ' + new Date(r.data.expires_at).toLocaleDateString() + '.' : '');
       codeView(S.email, r.data ? 'Your access ended on ' + new Date(r.data.expires_at).toLocaleDateString() + '. Enter a new code to continue.' : 'Start with your free 7-day trial code.');
     } catch (e) {
       var c = null; try { c = JSON.parse(localStorage.getItem(LS)); } catch (x) {}
@@ -250,7 +291,7 @@
     window.mpvAuth = { signOut: signOut, recheck: check, state: S };   // S.plan is 'trial', 'starter' or 'pro'
     sb.auth.onAuthStateChange(function (ev) {
       if (ev === 'PASSWORD_RECOVERY') recoveryView();
-      else if (ev === 'SIGNED_OUT') loginView('in');
+      else if (ev === 'SIGNED_OUT') (getMode() === 'email' ? loginView('in') : welcomeView());
     });
     check();
   }
