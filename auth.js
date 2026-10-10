@@ -89,18 +89,6 @@
   function busy(b, on, label) { b.disabled = on; b.textContent = on ? 'Please wait…' : label; }
   function close() { ov.style.display = 'none'; if (pill) pill.style.display = 'block'; }
 
-  function welcomeView() {
-    card('<h1>Welcome</h1><p class="mpv-sub">Choose how to start. You get 7 days free either way. This choice is final.</p><div class="mpv-msg" id="mpvM"></div>' +
-      '<button class="mpv-btn ghost" id="mpvGu">Continue as guest</button><button class="mpv-btn" id="mpvEm">Sign in with your email<br><span style="font-weight:400;font-size:13px">7 days free trial</span></button>', true, false);
-    $('mpvEm').onclick = function () { setMode('email'); loginView('up'); };
-    $('mpvGu').onclick = async function () {
-      var b = $('mpvGu'); busy(b, true); msg('');
-      var r = await sb.auth.signInAnonymously();
-      if (r.error) { msg(r.error.message); busy(b, false, 'Continue as guest'); return; }
-      setMode('guest'); check();
-    };
-  }
-
   function guestLockView(m) {
     card('<h1>Guest trial ended</h1><p class="mpv-sub">' + esc(m || '') + ' Create your account with your email, then enter your access code to continue.</p>' +
       '<input id="mpvE" type="email" inputmode="email" autocomplete="email" placeholder="Email"><input id="mpvP" type="password" autocomplete="new-password" placeholder="Password (8+ characters)">' +
@@ -235,7 +223,7 @@
 
   async function check() {
     var sess = (await sb.auth.getSession()).data.session;
-    if (!sess) return getMode() === 'email' ? loginView('in') : welcomeView();
+    if (!sess) return getMode() === 'email' ? loginView('in') : loginView('up');
     S.guest = !!sess.user.is_anonymous; S.email = sess.user.email || ''; setMode(S.guest ? 'guest' : 'email');
     try {
       var a = await sb.rpc('is_admin');
@@ -291,7 +279,7 @@
     window.mpvAuth = { signOut: signOut, recheck: check, state: S };   // S.plan is 'trial', 'starter' or 'pro'
     sb.auth.onAuthStateChange(function (ev) {
       if (ev === 'PASSWORD_RECOVERY') recoveryView();
-      else if (ev === 'SIGNED_OUT') (getMode() === 'email' ? loginView('in') : welcomeView());
+      else if (ev === 'SIGNED_OUT') (getMode() === 'email' ? loginView('in') : loginView('up'));
     });
     check();
   }
