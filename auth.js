@@ -228,4 +228,76 @@
     timer = setInterval(function () { if (ov.style.display === 'none') check(); }, 60000);
   }
 
+    async function check() {
+    var sess = (await sb.auth.getSession()).data.session;
+    if (!sess) return getMode() === 'email' ? loginView('in') : loginView('up');
+    if (/access_token|[?&]code=|error_description/.test(location.hash + location.search)) { try { history.replaceState(null, '', location.pathname); } catch (e) {} }
+    S.guest = !!sess.user.is_anonymous; S.email = sess.user.email || ''; setMode(S.guest ? 'guest' : 'email');
+    try {
+      var a = await sb.rpc('is_admin');
+      if (a.error) throw a.error;
+      if (a.data === true) return unlock(null, true);
+      var r = await sb.from('memberships').select('expires_at,plan,trial_used').eq('user_id', sess.user.id).maybeSingle();
+      if (r.error) throw r.error;
+      S.trialUsed = !!(r.data && r.data.trial_used); S.plan = r.data ? r.data.plan : '';
+      if (!r.data && !triedTrial) {
+        triedTrial = true;
+        var t = await sb.rpc('start_trial');
+        if (t.error) { triedTrial = false; card('<h1>Trial not started</h1><p class="mpv-sub">' + esc(t.error.message) + '</p><button class="mpv-btn" id="mpvGo">Try again</button>'); $('mpvGo').onclick = check; return; }
+        return check();
+      }
+      if (r.data && new Date(r.data.expires_at) > new Date()) {
+        try { localStorage.setItem(LS, JSON.stringify({ uid: sess.user.id, exp: new Date(r.data.expires_at).getTime() })); } catch (e) {}
+        return unlock(new Date(r.data.expires_at));
+      }
+      try { localStorage.removeItem(LS); } catch (e) {}
+      clearInterval(timer);
+      if (S.guest) return guestLockView(r.data ? 'Your access ended on ' + new Date(r.data.expires_at).toLocaleDateString() + '.' : '');
+      codeView(S.email, r.data ? 'Your access ended on ' + new Date(r.data.expires_at).toLocaleDateString() + '. Enter a new code to continue.' : 'Start with your free 7-day trial code.');
+    } catch (e) {
+      var c = null; try { c = JSON.parse(localStorage.getItem(LS)); } catch (x) {}
+      if (c && c.uid === sess.user.id && c.exp > Date.now()) return unlock(new Date(c.exp)); // offline: use last known access
+      card('<h1>Can\'t connect</h1><p class="mpv-sub">Check your internet connection and try again.</p><button class="mpv-btn" id="mpvGo">Try again</button>');
+      $('mpvGo').onclick = check;
+    }
+  }
+
+  // Starter plan: Pro-only tools show an upgrade prompt instead of opening
+  var LOCK_IDS = { bStrat: 'Strategies and buy / sell signals', bBook: 'The order book', bCalc: 'The position size calculator' };
+  var LOCK_TXT = [['Bar replay', 'Bar replay'], ['Compare with', 'Compare markets'], ['Long / Short', 'The long / short position tool'], ['Market mood', 'Market mood'], ['econd chart', 'The second chart'], ['Backup & restore', 'Backup and restore']];
+  function upsell(name) {
+    var d = document.createElement('div');
+    d.style.cssText = 'position:fixed;inset:0;z-index:2147482000;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;background:rgba(5,10,24,.7);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);font-family:Inter,system-ui,sans-serif;color:#fff';
+    d.innerHTML = '<div class="mpv-card" style="width:min(100%,360px);text-align:center"><h1 style="margin:0 0 8px;font-size:22px">Pro feature</h1><p class="mpv-sub">' + name + ' is included in the Pro plan ($100 / month).</p><button class="mpv-btn" id="mpvUp">Upgrade to Pro</button><button class="mpv-btn ghost" id="mpvNo">Not now</button></div>';
+    root.appendChild(d);
+    d.querySelector('#mpvNo').onclick = function () { d.remove(); };
+    d.querySelector('#mpvUp').onclick = function () { d.remove(); S.trialUsed = true; payView('pro'); };
+  }
+  document.addEventListener('click', function (e) {
+    if (S.admin || S.plan !== 'starter' || !S.exp || ov.style.display !== 'none') return;
+    var t = e.target, el = t && t.closest ? (t.closest('button') || t) : null, name = null;
+    if (!el) return;
+    if (LOCK_IDS[el.id]) name = LOCK_IDS[el.id];
+    else { var tx = (el.textContent || '').trim(); if (tx.length < 90) LOCK_TXT.forEach(function (x) { if (tx.indexOf(x[0]) > -1) name = x[1]; }); }
+    if (name) { e.stopPropagation(); e.preventDefault(); upsell(name); }
+  }, true);
+
+  function start() {
+    sb = window.supabase.createClient(SB_URL, SB_KEY);
+    window.mpvAuth = { signOut: signOut, recheck: check, state: S };   // S.plan is 'trial', 'starter' or 'pro'
+    sb.auth.onAuthStateChange(function (ev) {
+      if (ev === 'PASSWORD_RECOVERY') recoveryView();
+      else if (ev === 'SIGNED_OUT') (getMode() === 'email' ? loginView('in') : loginView('up'));
+    });
+    check();
+  }
+
+  var SRC = ['https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js', 'https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js'];
+  (function load(i) {
+    if (i >= SRC.length) { ov.innerHTML = '<div class="mpv-wrap"><div class="mpv-card"><h1>Can\'t load</h1><p class="mpv-sub">Turn off data saver or your ad blocker, then reload.</p></div></div>'; return; }
+    var s = document.createElement('script'); s.src = SRC[i]; s.onload = start; s.onerror = function () { load(i + 1); };
+    (document.head || root).appendChild(s);
+  })(0);
+})();
+
   
