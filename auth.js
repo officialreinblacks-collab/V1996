@@ -145,3 +145,87 @@
       } catch (err) { msg(err.message || 'Something went wrong. Try again.'); busy(b, false, label); }
     };
   }
+
+    function codeView(email, m, closable) {
+    card('<h1>Enter access code</h1><p class="mpv-sub">Signed in as ' + esc(email) + '. Enter your code to unlock MarketPlusView.</p>' +
+      '<input id="mpvC" type="text" autocapitalize="characters" autocomplete="off" placeholder="MPV-XXXX-XXXX">' +
+      '<div class="mpv-msg" id="mpvM"></div><button class="mpv-btn" id="mpvGo">Unlock</button>' +
+      '<div class="mpv-links"><a id="mpvOut">Sign out</a>' + (closable ? '<a id="mpvBk">Back</a>' : '') + '</div>', true, true);
+    msg(m);
+    $('mpvOut').onclick = signOut;
+    if (closable) $('mpvBk').onclick = function () { accountView(); };
+    $('mpvGo').onclick = async function () {
+      var c = $('mpvC').value.trim(), b = $('mpvGo');
+      if (!c) return msg('Enter your code.');
+      busy(b, true); msg('');
+      var r = await sb.rpc('redeem_code', { p_code: c });
+      if (r.error) { msg(r.error.message); busy(b, false, 'Unlock'); return; }
+      check();
+    };
+  }
+
+  function payView(k) {
+    var p = PLANS[k], url = PAY[k];
+    if (url) { location.href = url + (url.indexOf('?') < 0 ? '?' : '&') + 'prefilled_email=' + enc(S.email); return; }
+    card('<h1>Pay by card</h1><p class="mpv-sub">' + p.n + ' plan · ' + p.p + '<br>Visa · Mastercard</p><p class="mpv-sub">We will email you a secure card payment link. After payment is confirmed, we send your access code.</p>' +
+      '<button class="mpv-btn" id="mpvMail">Request payment link</button><div class="mpv-links"><a id="mpvBk">Back</a></div>');
+    $('mpvBk').onclick = function () { check(); };
+    $('mpvMail').onclick = function () { location.href = 'mailto:' + SUPPORT + '?subject=' + enc('MarketPlusView ' + p.n + ' plan') + '&body=' + enc('Hello, I would like the ' + p.n + ' plan (' + p.p + '). My account email: ' + S.email); };
+  }
+
+  function accountView(m, ok) {
+    var days = S.exp ? Math.max(0, Math.ceil((S.exp - Date.now()) / 864e5)) : 0;
+    if (S.guest) {
+      card('<h1>Account</h1><p class="mpv-sub">Guest · ' + days + ' days left</p><button class="mpv-btn ghost" id="mpvHp">Need help? Email us</button><div class="mpv-links"><a id="mpvCl">Close</a></div>');
+      $('mpvHp').onclick = function () { location.href = 'mailto:' + SUPPORT; }; $('mpvCl').onclick = close; return;
+    }
+    card('<h1>Account</h1><p class="mpv-sub">' + esc(S.email) + '<br>' + (S.admin ? 'Admin' : (PLANS[S.plan] ? PLANS[S.plan].n : '') + ' · ' + days + ' days left') + '</p><div class="mpv-msg" id="mpvM"></div>' +
+      '<button class="mpv-btn blue" id="mpvCp">Change password</button><button class="mpv-btn ghost" id="mpvNc">Enter a new code</button>' + (S.admin ? '<button class="mpv-btn ghost" id="mpvAd">Admin page</button>' : '') +
+      '<button class="mpv-btn ghost" id="mpvHp">Need help? Email us</button><button class="mpv-btn ghost" id="mpvSo">Sign out</button><div class="mpv-links"><a id="mpvCl">Close</a></div>');
+    msg(m, ok);
+    $('mpvCp').onclick = changePwView; $('mpvSo').onclick = signOut; $('mpvCl').onclick = close;
+    $('mpvNc').onclick = function () { codeView(S.email, '', true); };
+    $('mpvHp').onclick = function () { location.href = 'mailto:' + SUPPORT; };
+    if (S.admin) $('mpvAd').onclick = function () { location.href = 'admin.html'; };
+  }
+
+  function changePwView() {
+    card('<h1>Change password</h1><p class="mpv-sub">Choose a new password (8+ characters).</p>' +
+      '<input id="mpvP" type="password" autocomplete="new-password" placeholder="New password"><input id="mpvP2" type="password" autocomplete="new-password" placeholder="Repeat new password">' +
+      '<div class="mpv-msg" id="mpvM"></div><button class="mpv-btn" id="mpvGo">Save password</button><div class="mpv-links"><a id="mpvBk">Back</a></div>');
+    $('mpvBk').onclick = function () { accountView(); };
+    $('mpvGo').onclick = async function () {
+      var p = $('mpvP').value, b = $('mpvGo');
+      if (p.length < 8) return msg('Use a password with at least 8 characters.');
+      if (p !== $('mpvP2').value) return msg('The two passwords do not match.');
+      busy(b, true); msg('');
+      var r = await sb.auth.updateUser({ password: p });
+      if (r.error) { msg(r.error.message); busy(b, false, 'Save password'); return; }
+      accountView('Password changed.', true);
+    };
+  }
+
+  function recoveryView() {
+    card('<h1>New password</h1><p class="mpv-sub">Choose a new password for your account.</p><input id="mpvP" type="password" autocomplete="new-password" placeholder="New password (8+ characters)"><div class="mpv-msg" id="mpvM"></div><button class="mpv-btn" id="mpvGo">Save password</button>');
+    $('mpvGo').onclick = async function () {
+      var p = $('mpvP').value;
+      if (p.length < 8) return msg('Use a password with at least 8 characters.');
+      var r = await sb.auth.updateUser({ password: p });
+      if (r.error) return msg(r.error.message);
+      check();
+    };
+  }
+
+  async function signOut() { try { await sb.auth.signOut(); } catch (e) {} try { localStorage.removeItem(LS); } catch (e) {} location.reload(); }
+
+  function unlock(exp, admin) {
+    S.exp = exp; S.admin = !!admin;
+    ov.style.display = 'none';
+    if (!pill) { pill = document.createElement('div'); pill.id = 'mpv-pill'; pill.onclick = function () { accountView(); }; root.appendChild(pill); }
+    pill.style.display = 'block';
+    pill.textContent = admin ? 'Admin' : Math.max(0, Math.ceil((exp - Date.now()) / 864e5)) + 'd left';
+    clearInterval(timer);
+    timer = setInterval(function () { if (ov.style.display === 'none') check(); }, 60000);
+  }
+
+  
