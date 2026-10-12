@@ -65,3 +65,83 @@
   var GOOGLE_BTN = '<div class="mpv-or">or</div><button class="mpv-btn ghost" id="mpvGg"><svg width="18" height="18" viewBox="0 0 48 48" style="vertical-align:-3px;margin-right:8px"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.5 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.5-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>Continue with Google</button>';
   function googleGo() { var b = $('mpvGg'); if (b) { b.disabled = true; b.textContent = 'Opening Google…'; } sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: back() } }).then(function (r) { if (r && r.error) { msg(r.error.message); if (b) { b.disabled = false; b.textContent = 'Continue with Google'; } } }); }
   var BRAND = '<div class="mpv-logo">Market<span style="color:#ef4444">Plus</span><span style="color:#60a5fa">View</span></div>';
+
+    function plansHtml(buy) {
+    var h = '<div class="mpv-plans">';
+    ['trial', 'starter', 'pro'].forEach(function (k) {
+      var p = PLANS[k];
+      h += '<div class="mpv-plan ' + k + '"><div class="top"><b>' + p.n + '</b><span>' + p.p + '</span></div>' + p.d.map(function (x) { return '<div class="li">✓ ' + x + '</div>'; }).join('');
+      if (buy && k === 'trial' && !S.trialUsed) h += '<button class="mpv-btn" id="mpvTr">Get your free trial code</button>';
+      if (buy && k !== 'trial') h += '<button class="mpv-btn blue pay" data-plan="' + k + '"' + (S.trialUsed ? '' : ' disabled') + '>' + (S.trialUsed ? 'Pay by card' : 'Available after your free trial') + '</button>';
+      h += '</div>';
+    });
+    return h + '</div><div class="mpv-pay">Everyone starts with the free 7-day trial.<br>Pay by card: <b>Visa</b> · <b>Mastercard</b></div>';
+  }
+  function extra(buy) {
+    return '<p class="mpv-about">A fast trading view tool that helps traders and investors analyse the market with live crypto charts, indicators, buy / sell signals, alerts and more.</p>' + plansHtml(buy) +
+      '<p class="mpv-legal">MarketPlusView provides trading analysis tools only. We are not a broker, we do not hold, manage or send money, and nothing here is financial advice. Our aim is to help you experience different markets.</p>' +
+      '<p class="mpv-legal">Need help? <a href="mailto:' + SUPPORT + '">' + SUPPORT + '</a></p>';
+  }
+  function card(inner, more, buy) {
+    ov.style.display = 'block'; if (pill) pill.style.display = 'none';
+    ov.innerHTML = '<div class="mpv-wrap"><div class="mpv-card">' + BRAND + inner + '</div>' + (more ? extra(buy) : '') + '</div>';
+    ov.scrollTop = 0;
+    document.querySelectorAll('.pay').forEach(function (b) { b.onclick = function () { payView(b.dataset.plan); }; });
+    if ($('mpvTr')) $('mpvTr').onclick = function () { location.href = 'mailto:' + SUPPORT + '?subject=' + enc('Free 7-day trial code') + '&body=' + enc('Hello, please send me my free 7-day trial code. My account email: ' + S.email); };
+  }
+  function msg(t, ok) { var m = $('mpvM'); if (m) { m.textContent = t || ''; m.className = 'mpv-msg' + (ok ? ' ok' : ''); } }
+  function busy(b, on, label) { b.disabled = on; b.textContent = on ? 'Please wait…' : label; }
+  function close() { ov.style.display = 'none'; if (pill) pill.style.display = 'block'; }
+
+  function guestLockView(m) {
+    card('<h1>Guest trial ended</h1><p class="mpv-sub">' + esc(m || '') + ' Create your account with your email, then enter your access code to continue.</p>' +
+      '<input id="mpvE" type="email" inputmode="email" autocomplete="email" placeholder="Email"><input id="mpvP" type="password" autocomplete="new-password" placeholder="Password (8+ characters)">' +
+      '<div class="mpv-msg" id="mpvM"></div><button class="mpv-btn" id="mpvGo">Create account</button>' + GOOGLE_BTN + '<div class="mpv-links"><a id="mpvSw">I already have an account</a></div>', true, false);
+    $('mpvGg').onclick = googleGo;
+    $('mpvSw').onclick = function () { loginView('in'); };
+    $('mpvGo').onclick = async function () {
+      var e = $('mpvE').value.trim(), p = $('mpvP').value, b = $('mpvGo');
+      if (!e || !p) return msg('Enter your email and password.');
+      if (p.length < 8) return msg('Use a password with at least 8 characters.');
+      busy(b, true); msg('');
+      var r = await sb.auth.updateUser({ email: e, password: p }, { emailRedirectTo: back() });
+      if (r.error) { msg(r.error.message); busy(b, false, 'Create account'); return; }
+      setMode('email'); loginView('in', 'Check your email to confirm it, then sign in and enter your code.', true);
+    };
+  }
+
+  function loginView(mode, m, ok) {
+    var up = mode === 'up', label = up ? 'Create account' : 'Sign in';
+    card('<h1>' + label + '</h1><p class="mpv-sub">' + (up ? 'Create your account, then start your free 7-day trial.' : 'Sign in with your email to open the charts.') + '</p>' +
+      '<input id="mpvE" type="email" inputmode="email" autocomplete="email" placeholder="Email">' +
+      '<input id="mpvP" type="password" autocomplete="' + (up ? 'new-password' : 'current-password') + '" placeholder="Password' + (up ? ' (8+ characters)' : '') + '">' +
+      '<div class="mpv-msg" id="mpvM"></div><button class="mpv-btn" id="mpvGo">' + label + '</button>' + GOOGLE_BTN +
+      '<div class="mpv-links"><a id="mpvSw">' + (up ? 'I already have an account' : 'Create an account') + '</a>' + (up ? '' : '<a id="mpvFg">Forgot password</a>') + '</div>', true, false);
+    if (!m && URLERR) { m = URLERR; ok = false; URLERR = ''; }
+    msg(m, ok);
+    $('mpvGg').onclick = googleGo;
+    $('mpvSw').onclick = function () { loginView(up ? 'in' : 'up'); };
+    if (!up) $('mpvFg').onclick = async function () {
+      var e = $('mpvE').value.trim();
+      if (!e) return msg('Enter your email first, then tap Forgot password.');
+      var r = await sb.auth.resetPasswordForEmail(e, { redirectTo: back() });
+      msg(r.error ? r.error.message : 'Reset link sent. Check your email.', !r.error);
+    };
+    $('mpvGo').onclick = async function () {
+      var e = $('mpvE').value.trim(), p = $('mpvP').value, b = $('mpvGo');
+      if (!e || !p) return msg('Enter your email and password.');
+      if (up && p.length < 8) return msg('Use a password with at least 8 characters.');
+      busy(b, true); msg('');
+      try {
+        if (up) {
+          var r = await sb.auth.signUp({ email: e, password: p, options: { emailRedirectTo: back() } });
+          if (r.error) throw r.error;
+          if (r.data.session) return check();
+          return loginView('in', 'Account created. Check your email to confirm it, then sign in.', true);
+        }
+        var s = await sb.auth.signInWithPassword({ email: e, password: p });
+        if (s.error) throw s.error;
+        check();
+      } catch (err) { msg(err.message || 'Something went wrong. Try again.'); busy(b, false, label); }
+    };
+  }
