@@ -30,7 +30,12 @@ async function scan(){ if(busy) return; busy=true; try{
   save('subs.json',subs); }catch(e){ console.error('scan error',e.message); } busy=false; }
 const send=(res,code,obj)=>{ res.writeHead(code,{'Content-Type':'application/json','Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'Content-Type','Access-Control-Allow-Methods':'GET,POST,OPTIONS'}); res.end(JSON.stringify(obj)); };
 const clean=w=>(Array.isArray(w)?w:[]).slice(0,MAX_WATCH).filter(x=>x&&/^[A-Z0-9]{5,20}$/.test(x.symbol)&&/^\d+[mhdwM]$/.test(x.interval)).map(x=>({symbol:x.symbol,interval:x.interval,opts:x.opts&&typeof x.opts==='object'?x.opts:{}}));
+let cal={t:0,j:null};   // Forex Factory weekly calendar, cached so phones don't hit the feed's rate limit
+async function calendar(){ if(cal.j&&Date.now()-cal.t<15*60e3) return cal.j;
+  try{ const r=await fetch('https://nfs.faireconomy.media/ff_calendar_thisweek.json',{headers:{'User-Agent':'Mozilla/5.0'}}); if(r.ok){ const j=await r.json(); if(Array.isArray(j)&&j.length){ cal={t:Date.now(),j}; return j; } } }catch(e){ console.error('calendar fetch failed',e.message); }
+  return cal.j; }
 http.createServer((req,res)=>{ if(req.method==='OPTIONS') return send(res,204,{});
+  if(req.method==='GET'&&req.url.split('?')[0]==='/calendar') return calendar().then(j=>j?send(res,200,j):send(res,502,{error:'feed unavailable'}));
   if(req.url==='/vapid') return send(res,200,{publicKey:vapid.publicKey});
   if(req.url==='/health') return send(res,200,{ok:true,subscribers:Object.keys(subs).length});
   if(req.method!=='POST') return send(res,404,{error:'not found'});
