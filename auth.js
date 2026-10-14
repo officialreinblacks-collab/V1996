@@ -3,16 +3,26 @@
   var SB_URL = 'https://ssukfrvtknfsccqxqkjh.supabase.co';
   var SB_KEY = 'sb_publishable_qjmaCvag0XhnMlipWFHCeA_fwt3CqST';
   var SUPPORT = 'marketplusview@gmail.com';            // support email shown to clients
-  var PAY = { starter: '', pro: '' };                   // paste your card payment link (e.g. Stripe Payment Link) for each plan
+  var PAY = { silver: '', gold: '', metal: '' };                   // paste your card payment link (e.g. Stripe Payment Link) for each plan
   var LS = 'mpvAccess', root = document.documentElement, sb, pill, timer;
   var S = { email: '', plan: '', exp: null, admin: false, trialUsed: false, guest: false }, triedTrial = false;
   var getMode = function () { try { return localStorage.getItem('mpvMode'); } catch (e) { return null; } };
   var setMode = function (m) { try { localStorage.setItem('mpvMode', m); } catch (e) {} };
   var PLANS = {
-    trial: { n: 'Free trial', p: '7 days free', d: ['Full access for 7 days', 'One time per person', 'Required before any paid plan'] },
-    starter: { n: 'Starter', p: '$50 / month', d: ['Live charts and 25+ indicators', 'Drawing tools and price alerts', 'Watchlist and chart types', 'Pro tools are not included'] },
-    pro: { n: 'Pro', p: '$100 / month', d: ['Everything in Starter', 'Buy / sell signal strategies', 'Order book and position size calculator', 'Bar replay, compare markets, market mood', 'Second chart and backups', 'AI market analysis (coming soon)', 'Priority support'] }
+    silver: { n: 'Silver', p: 'KSh 650 / $5 per month', t: 'For beginners and budget-conscious traders', d: ['Live charts and standard indicators', 'Drawing tools, price alerts and watchlist', 'Limited premium tools: Supply Demand Legs & Entry Zones', 'Limited strategies: selected buy / sell strategies', '7-day free trial (one per person)'] },
+    gold: { n: 'Gold', p: 'KSh 1,300 / $10 per month', t: 'For active traders who need more analysis tools', d: ['Everything in Silver', 'Selected premium tools: Reversal Probability Profile', 'More buy / sell signal strategies', 'Order book', 'Position size calculator', 'Bar replay', 'Compare markets'] },
+    metal: { n: 'Metal', p: 'KSh 2,600 / $20 per month', t: 'For serious traders who want the full toolkit', d: ['Everything in Gold', 'All premium tools and strategies', 'Market mood', 'Second chart', 'Backups', 'Exclusive Metal-only tools and future premium releases', 'Priority support', 'AI market analysis when launched'] }
   };
+  // Plan names stored in Supabase -> tier. The free trial is Silver access. Old plans: starter = Silver, pro = Metal (so nobody loses access).
+  var ALIAS = { trial: 'silver', starter: 'silver', silver: 'silver', gold: 'gold', pro: 'metal', metal: 'metal' };
+  var RANK = { silver: 1, gold: 2, metal: 3 };
+  var tierOf = function (plan) { return ALIAS[plan] || ''; };
+  var planName = function (plan) { return plan === 'trial' ? 'Free trial (Silver)' : (PLANS[tierOf(plan)] ? PLANS[tierOf(plan)].n : ''); };
+  var can = function (need) { return !!(S.admin || (S.exp && +S.exp > Date.now() && RANK[tierOf(S.plan)] >= RANK[need])); };
+  // EDIT THESE: which strategies / premium tools belong to which tier. Anything not listed here is Metal-only.
+  var SILVER_STRATS = ['sdx', 'ccz', 'tts', 'sbk'];
+  var GOLD_STRATS = ['rvp', 'pgs', 'bbs', 'hrm', 'lpo', 'ssm', 'po3', 'fpc'];   // Gold also gets all of Silver's
+  var stratTier = function (k) { return SILVER_STRATS.indexOf(k) > -1 ? 'silver' : GOLD_STRATS.indexOf(k) > -1 ? 'gold' : 'metal'; };
 
   var st = document.createElement('style');
   st.textContent =
@@ -31,7 +41,7 @@
     '.mpv-wrap{width:min(100%,420px);margin:0 auto;min-height:100%;display:flex;flex-direction:column;justify-content:center;gap:16px}' +
     '.mpv-card,.mpv-plan{background:rgba(255,255,255,.07);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.16);border-radius:22px;box-shadow:0 20px 60px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.12)}' +
     '.mpv-card{padding:24px 20px}.mpv-plan{padding:16px;border-radius:18px}' +
-    '.mpv-plan.pro{border-color:rgba(239,68,68,.6)}.mpv-plan.starter{border-color:rgba(96,165,250,.5)}' +
+    '.mpv-plan.metal{border-color:rgba(239,68,68,.6)}.mpv-plan.gold{border-color:rgba(250,204,21,.55)}.mpv-plan.silver{border-color:rgba(96,165,250,.5)}' +
     '.mpv-plan .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;font-size:17px}.mpv-plan .top span{color:#93b4ff;font-weight:600;font-size:15px}' +
     '.mpv-plan .li{font-size:14px;color:#cdd7ee;padding:3px 0}' +
     '.mpv-logo{font-weight:800;font-size:17px;margin-bottom:16px;letter-spacing:-.01em}' +
@@ -66,20 +76,20 @@
   function googleGo() { var b = $('mpvGg'); if (b) { b.disabled = true; b.textContent = 'Opening Google…'; } sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: back() } }).then(function (r) { if (r && r.error) { msg(r.error.message); if (b) { b.disabled = false; b.textContent = 'Continue with Google'; } } }); }
   var BRAND = '<div class="mpv-logo">Market<span style="color:#ef4444">Plus</span><span style="color:#60a5fa">View</span></div>';
 
-    function plansHtml(buy) {
+  function plansHtml(buy) {
     var h = '<div class="mpv-plans">';
-    ['trial', 'starter', 'pro'].forEach(function (k) {
+    ['silver', 'gold', 'metal'].forEach(function (k) {
       var p = PLANS[k];
-      h += '<div class="mpv-plan ' + k + '"><div class="top"><b>' + p.n + '</b><span>' + p.p + '</span></div>' + p.d.map(function (x) { return '<div class="li">✓ ' + x + '</div>'; }).join('');
-      if (buy && k === 'trial' && !S.trialUsed) h += '<button class="mpv-btn" id="mpvTr">Get your free trial code</button>';
-      if (buy && k !== 'trial') h += '<button class="mpv-btn blue pay" data-plan="' + k + '"' + (S.trialUsed ? '' : ' disabled') + '>' + (S.trialUsed ? 'Pay by card' : 'Available after your free trial') + '</button>';
+      h += '<div class="mpv-plan ' + k + '"><div class="top"><b>' + p.n + '</b><span>' + p.p + '</span></div><div class="mpv-sub" style="margin:0 0 6px;font-size:13px">' + p.t + '</div>' + p.d.map(function (x) { return '<div class="li">✓ ' + x + '</div>'; }).join('');
+      if (buy && k === 'silver' && !S.trialUsed) h += '<button class="mpv-btn" id="mpvTr">Get your free trial code</button>';
+      if (buy) h += '<button class="mpv-btn blue pay" data-plan="' + k + '">Get ' + p.n + '</button>';
       h += '</div>';
     });
-    return h + '</div><div class="mpv-pay">Everyone starts with the free 7-day trial.<br>Pay by card: <b>Visa</b> · <b>Mastercard</b></div>';
+    return h + '</div><div class="mpv-pay">One free 7-day Silver trial per person.<br>Gold and Metal require a paid subscription.</div>';
   }
   function extra(buy) {
     return '<p class="mpv-about">A fast trading view tool that helps traders and investors analyse the market with live crypto charts, indicators, buy / sell signals, alerts and more.</p>' + plansHtml(buy) +
-      '<p class="mpv-legal">MarketPlusView provides trading analysis tools only. We are not a broker, we do not hold, manage or send money, and nothing here is financial advice. Our aim is to help you experience different markets.</p>' +
+      '<p class="mpv-legal">MarketPlusView provides trading analysis tools only. We are not a broker, we do not hold, manage or send money, and nothing here is financial advice. Trading involves risk; no tool guarantees profits. Our aim is to help you experience different markets.</p>' +
       '<p class="mpv-legal">Need help? <a href="mailto:' + SUPPORT + '">' + SUPPORT + '</a></p>';
   }
   function card(inner, more, buy) {
@@ -167,8 +177,8 @@
   function payView(k) {
     var p = PLANS[k], url = PAY[k];
     if (url) { location.href = url + (url.indexOf('?') < 0 ? '?' : '&') + 'prefilled_email=' + enc(S.email); return; }
-    card('<h1>Pay by card</h1><p class="mpv-sub">' + p.n + ' plan · ' + p.p + '<br>Visa · Mastercard</p><p class="mpv-sub">We will email you a secure card payment link. After payment is confirmed, we send your access code.</p>' +
-      '<button class="mpv-btn" id="mpvMail">Request payment link</button><div class="mpv-links"><a id="mpvBk">Back</a></div>');
+    card('<h1>Get ' + p.n + '</h1><p class="mpv-sub">' + p.n + ' plan · ' + p.p + '</p><p class="mpv-sub">We will email you the payment details. After payment is confirmed, we send your access code.</p>' +
+      '<button class="mpv-btn" id="mpvMail">Request payment details</button><div class="mpv-links"><a id="mpvBk">Back</a></div>');
     $('mpvBk').onclick = function () { check(); };
     $('mpvMail').onclick = function () { location.href = 'mailto:' + SUPPORT + '?subject=' + enc('MarketPlusView ' + p.n + ' plan') + '&body=' + enc('Hello, I would like the ' + p.n + ' plan (' + p.p + '). My account email: ' + S.email); };
   }
@@ -179,7 +189,7 @@
       card('<h1>Account</h1><p class="mpv-sub">Guest · ' + days + ' days left</p><button class="mpv-btn ghost" id="mpvHp">Need help? Email us</button><div class="mpv-links"><a id="mpvCl">Close</a></div>');
       $('mpvHp').onclick = function () { location.href = 'mailto:' + SUPPORT; }; $('mpvCl').onclick = close; return;
     }
-    card('<h1>Account</h1><p class="mpv-sub">' + esc(S.email) + '<br>' + (S.admin ? 'Admin' : (PLANS[S.plan] ? PLANS[S.plan].n : '') + ' · ' + days + ' days left') + '</p><div class="mpv-msg" id="mpvM"></div>' +
+    card('<h1>Account</h1><p class="mpv-sub">' + esc(S.email) + '<br>' + (S.admin ? 'Admin' : planName(S.plan) + ' · ' + days + ' days left') + '</p><div class="mpv-msg" id="mpvM"></div>' +
       '<button class="mpv-btn blue" id="mpvCp">Change password</button><button class="mpv-btn ghost" id="mpvNc">Enter a new code</button>' + (S.admin ? '<button class="mpv-btn ghost" id="mpvAd">Admin page</button>' : '') +
       '<button class="mpv-btn ghost" id="mpvHp">Need help? Email us</button><button class="mpv-btn ghost" id="mpvSo">Sign out</button><div class="mpv-links"><a id="mpvCl">Close</a></div>');
     msg(m, ok);
@@ -226,6 +236,7 @@
     pill.textContent = admin ? 'Admin' : Math.max(0, Math.ceil((exp - Date.now()) / 864e5)) + 'd left';
     clearInterval(timer);
     timer = setInterval(function () { if (ov.style.display === 'none') check(); }, 60000);
+    try { if (!admin && tierOf(S.plan) !== 'metal' && window.mpvRecheckStrats) window.mpvRecheckStrats(); } catch (e) {}   // drop any strategy the plan does not include
   }
 
     async function check() {
@@ -262,29 +273,38 @@
     }
   }
 
-  // Starter plan: Pro-only tools show an upgrade prompt instead of opening
-  var LOCK_IDS = { bStrat: 'Strategies and buy / sell signals', bBook: 'The order book', bCalc: 'The position size calculator' };
-  var LOCK_TXT = [['Bar replay', 'Bar replay'], ['Compare with', 'Compare markets'], ['Long / Short', 'The long / short position tool'], ['Market mood', 'Market mood'], ['econd chart', 'The second chart'], ['Backup & restore', 'Backup and restore']];
-  function upsell(name) {
-    var d = document.createElement('div');
+  // Locked tools show an upgrade prompt instead of opening. Each entry needs a tier: gold or metal.
+  // (Strategies are locked inside index.html through mpvAuth.lockStrat; the buttons below are matched by id or by their text.)
+  var LOCK_IDS = { bBook: ['The order book', 'gold'], bCalc: ['The position size calculator', 'gold'] };
+  var LOCK_TXT = [['Bar replay', 'Bar replay', 'gold'], ['Compare with', 'Compare markets', 'gold'], ['Long / Short', 'The long / short position tool', 'gold'], ['Market mood', 'Market mood', 'metal'], ['econd chart', 'The second chart', 'metal'], ['Backup & restore', 'Backup and restore', 'metal']];
+  function upsell(name, need) {
+    var T = PLANS[need] || PLANS.gold, d = document.createElement('div');
     d.style.cssText = 'position:fixed;inset:0;z-index:2147482000;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;background:rgba(5,10,24,.7);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);font-family:Inter,system-ui,sans-serif;color:#fff';
-    d.innerHTML = '<div class="mpv-card" style="width:min(100%,360px);text-align:center"><h1 style="margin:0 0 8px;font-size:22px">Pro feature</h1><p class="mpv-sub">' + name + ' is included in the Pro plan ($100 / month).</p><button class="mpv-btn" id="mpvUp">Upgrade to Pro</button><button class="mpv-btn ghost" id="mpvNo">Not now</button></div>';
+    d.innerHTML = '<div class="mpv-card" style="width:min(100%,360px);text-align:center"><h1 style="margin:0 0 8px;font-size:22px">' + T.n + ' feature</h1><p class="mpv-sub">' + esc(name) + ' is included in the ' + T.n + ' plan (' + T.p + ').</p><button class="mpv-btn" id="mpvUp">Upgrade to ' + T.n + '</button><button class="mpv-btn ghost" id="mpvNo">Not now</button></div>';
     root.appendChild(d);
     d.querySelector('#mpvNo').onclick = function () { d.remove(); };
-    d.querySelector('#mpvUp').onclick = function () { d.remove(); S.trialUsed = true; payView('pro'); };
+    d.querySelector('#mpvUp').onclick = function () { d.remove(); payView(PLANS[need] ? need : 'gold'); };
+  }
+  // true when this user's plan does not include strategy k (shows the upgrade prompt unless silent)
+  function lockStrat(k, silent, label) {
+    if (S.admin || !S.exp) return false;
+    var need = stratTier(k);
+    if (can(need)) return false;
+    if (!silent) upsell(label || 'This strategy', need);
+    return true;
   }
   document.addEventListener('click', function (e) {
-    if (S.admin || S.plan !== 'starter' || !S.exp || ov.style.display !== 'none') return;
-    var t = e.target, el = t && t.closest ? (t.closest('button') || t) : null, name = null;
+    if (S.admin || !S.exp || ov.style.display !== 'none') return;
+    var t = e.target, el = t && t.closest ? (t.closest('button') || t) : null, name = null, need = null;
     if (!el) return;
-    if (LOCK_IDS[el.id]) name = LOCK_IDS[el.id];
-    else { var tx = (el.textContent || '').trim(); if (tx.length < 90) LOCK_TXT.forEach(function (x) { if (tx.indexOf(x[0]) > -1) name = x[1]; }); }
-    if (name) { e.stopPropagation(); e.preventDefault(); upsell(name); }
+    if (LOCK_IDS[el.id]) { name = LOCK_IDS[el.id][0]; need = LOCK_IDS[el.id][1]; }
+    else { var tx = (el.textContent || '').trim(); if (tx.length < 90) LOCK_TXT.forEach(function (x) { if (tx.indexOf(x[0]) > -1) { name = x[1]; need = x[2]; } }); }
+    if (name && !can(need)) { e.stopPropagation(); e.preventDefault(); upsell(name, need); }
   }, true);
 
   function start() {
     sb = window.supabase.createClient(SB_URL, SB_KEY);
-    window.mpvAuth = { signOut: signOut, recheck: check, state: S, token: async function () { var r = (await sb.auth.getSession()).data.session; return r ? r.access_token : ''; } };   // S.plan is 'trial', 'starter' or 'pro'
+    window.mpvAuth = { signOut: signOut, recheck: check, state: S, lockStrat: lockStrat, token: async function () { var r = (await sb.auth.getSession()).data.session; return r ? r.access_token : ''; } };   // S.plan is 'trial' (Silver access), 'silver', 'gold' or 'metal' (old: 'starter', 'pro')
     sb.auth.onAuthStateChange(function (ev) {
       if (ev === 'PASSWORD_RECOVERY') recoveryView();
       else if (ev === 'SIGNED_OUT') (getMode() === 'email' ? loginView('in') : loginView('up'));

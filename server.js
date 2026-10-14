@@ -5,7 +5,7 @@ const PORT=+process.env.PORT||8787, DIR=process.env.DATA_DIR||__dirname, EVERY=(
 // ---- Plan enforcement (server side) ----
 // The phone sends its Supabase login token; we ask Supabase who it is and what plan it has. Nothing the browser says about its plan is trusted.
 const SB_URL=process.env.SB_URL||'https://ssukfrvtknfsccqxqkjh.supabase.co', SB_KEY=process.env.SB_KEY||'sb_publishable_qjmaCvag0XhnMlipWFHCeA_fwt3CqST';
-const PUSH_PLANS={trial:1,pro:1};   // plans allowed to receive Buy/Sell strategy push signals. Add new plan names here.
+const PUSH_PLANS={gold:1,metal:1,pro:1};   // plans allowed to receive Buy/Sell strategy push signals (pro = old plan, treated as Metal). Silver and the free trial are not included.
 async function entitlement(token){
   if(!token||typeof token!=='string'||token.length>4096) return {code:401,error:'sign in required'};
   const H={apikey:SB_KEY,Authorization:'Bearer '+token,'Content-Type':'application/json'};
@@ -16,10 +16,10 @@ async function entitlement(token){
     if(a.ok&&(await a.json())===true) return {ok:true,uid:user.id,plan:'admin',exp:null};
     const m=await fetch(SB_URL+'/rest/v1/memberships?select=plan,expires_at&user_id=eq.'+encodeURIComponent(user.id)+'&limit=1',{headers:H});
     if(!m.ok) return {code:503,error:'membership lookup failed'};
-    const row=(await m.json())[0]; if(!row) return {code:403,error:'no active plan',needs:'pro'};
+    const row=(await m.json())[0]; if(!row) return {code:403,error:'no active plan',needs:'silver'};
     const exp=new Date(row.expires_at).getTime();
     if(!(exp>Date.now())) return {code:403,error:'plan expired',needs:'renew'};          // checked on the server clock
-    if(!PUSH_PLANS[row.plan]) return {code:403,error:'plan does not include signals',needs:'pro'};
+    if(!PUSH_PLANS[row.plan]) return {code:403,error:'plan does not include signals',needs:'gold'};
     return {ok:true,uid:user.id,plan:row.plan,exp};
   }catch(e){ return {code:503,error:'auth unavailable'}; } }
 const live=s=>!!s.uid&&(s.exp===null||s.exp>Date.now());   // old subscriptions with no verified user stay dormant until the app re-registers them
