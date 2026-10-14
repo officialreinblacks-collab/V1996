@@ -177,6 +177,7 @@
   function payView(k) {
     var p = PLANS[k], url = PAY[k];
     if (url) { location.href = url + (url.indexOf('?') < 0 ? '?' : '&') + 'prefilled_email=' + enc(S.email); return; }
+    if (typeof window.mpvOpenUnlock === 'function') { try { window.mpvOpenUnlock(p.n); return; } catch (e) {} }   // M-Pesa form, opens with this plan selected
     card('<h1>Get ' + p.n + '</h1><p class="mpv-sub">' + p.n + ' plan · ' + p.p + '</p><p class="mpv-sub">We will email you the payment details. After payment is confirmed, we send your access code.</p>' +
       '<button class="mpv-btn" id="mpvMail">Request payment details</button><div class="mpv-links"><a id="mpvBk">Back</a></div>');
     $('mpvBk').onclick = function () { check(); };
