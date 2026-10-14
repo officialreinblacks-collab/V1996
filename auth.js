@@ -9,9 +9,9 @@
   var getMode = function () { try { return localStorage.getItem('mpvMode'); } catch (e) { return null; } };
   var setMode = function (m) { try { localStorage.setItem('mpvMode', m); } catch (e) {} };
   var PLANS = {
-    silver: { n: 'Silver', p: 'KSh 650 / $5 per month', t: 'For beginners and budget-conscious traders', d: ['Live charts and standard indicators', 'Drawing tools, price alerts and watchlist', 'Limited premium tools: Supply Demand Legs & Entry Zones', 'Limited strategies: selected buy / sell strategies', '7-day free trial (one per person)'] },
-    gold: { n: 'Gold', p: 'KSh 1,300 / $10 per month', t: 'For active traders who need more analysis tools', d: ['Everything in Silver', 'Selected premium tools: Reversal Probability Profile', 'More buy / sell signal strategies', 'Order book', 'Position size calculator', 'Bar replay', 'Compare markets'] },
-    metal: { n: 'Metal', p: 'KSh 2,600 / $20 per month', t: 'For serious traders who want the full toolkit', d: ['Everything in Gold', 'All premium tools and strategies', 'Market mood', 'Second chart', 'Backups', 'Exclusive Metal-only tools and future premium releases', 'Priority support', 'AI market analysis when launched'] }
+    silver: { n: 'Silver', p: 'KSh 650 / $5 per month', t: 'For beginners and budget-conscious traders', d: ['Live charts and standard indicators', 'Drawing tools, price alerts and watchlist', 'Limited premium tools: Supply Demand Legs & Entry Zones', 'Limited strategies: selected buy / sell strategies', 'Order book, position size calculator and market mood', '7-day free trial (one per person)'] },
+    gold: { n: 'Gold', p: 'KSh 1,300 / $10 per month', t: 'For active traders who need more analysis tools', d: ['Everything in Silver', 'Selected premium tools: Reversal Probability Profile', 'More buy / sell signal strategies', 'Bar replay', 'Compare markets'] },
+    metal: { n: 'Metal', p: 'KSh 2,600 / $20 per month', t: 'For serious traders who want the full toolkit', d: ['Everything in Gold', 'All premium tools and strategies', 'Second chart', 'Backups', 'Exclusive Metal-only tools and future premium releases', 'Priority support', 'AI market analysis when launched'] }
   };
   // Plan names stored in Supabase -> tier. The free trial is Silver access. Old plans: starter = Silver, pro = Metal (so nobody loses access).
   var ALIAS = { trial: 'silver', starter: 'silver', silver: 'silver', gold: 'gold', pro: 'metal', metal: 'metal' };
@@ -85,7 +85,7 @@
       if (buy) h += '<button class="mpv-btn blue pay" data-plan="' + k + '">Get ' + p.n + '</button>';
       h += '</div>';
     });
-    return h + '</div><div class="mpv-pay">One free 7-day Silver trial per person.<br>Gold and Metal require a paid subscription.</div>';
+    return h + '</div><div class="mpv-pay">One free 7-day Silver trial per person.<br>Gold and Metal require a paid subscription.<br>Pay with M-Pesa. Visa / Mastercard coming soon.</div>';
   }
   function extra(buy) {
     return '<p class="mpv-about">A fast trading view tool that helps traders and investors analyse the market with live crypto charts, indicators, buy / sell signals, alerts and more.</p>' + plansHtml(buy) +
@@ -276,8 +276,8 @@
 
   // Locked tools show an upgrade prompt instead of opening. Each entry needs a tier: gold or metal.
   // (Strategies are locked inside index.html through mpvAuth.lockStrat; the buttons below are matched by id or by their text.)
-  var LOCK_IDS = { bBook: ['The order book', 'gold'], bCalc: ['The position size calculator', 'gold'] };
-  var LOCK_TXT = [['Bar replay', 'Bar replay', 'gold'], ['Compare with', 'Compare markets', 'gold'], ['Long / Short', 'The long / short position tool', 'gold'], ['Market mood', 'Market mood', 'metal'], ['econd chart', 'The second chart', 'metal'], ['Backup & restore', 'Backup and restore', 'metal']];
+  var LOCK_IDS = {};   // buttons locked by id, e.g. bBook: ['The order book', 'gold']. Empty: order book and position calculator are free for every plan
+  var LOCK_TXT = [['Bar replay', 'Bar replay', 'gold'], ['Compare with', 'Compare markets', 'gold'], ['Long / Short', 'The long / short position tool', 'gold'], ['econd chart', 'The second chart', 'metal'], ['Backup & restore', 'Backup and restore', 'metal']];
   function upsell(name, need) {
     var T = PLANS[need] || PLANS.gold, d = document.createElement('div');
     d.style.cssText = 'position:fixed;inset:0;z-index:2147482000;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;background:rgba(5,10,24,.7);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);font-family:Inter,system-ui,sans-serif;color:#fff';
