@@ -492,7 +492,7 @@
 
   function start() {
     sb = window.supabase.createClient(SB_URL, SB_KEY);
-    window.mpvAuth = { signOut: signOut, recheck: check, state: S, lockStrat: lockStrat, token: async function () { var r = (await sb.auth.getSession()).data.session; return r ? r.access_token : ''; } };   // S.plan is 'trial' (Silver access), 'silver', 'gold' or 'metal' (old: 'starter', 'pro')
+    window.mpvAuth = { signOut: signOut, recheck: check, state: S, can: can, lockStrat: lockStrat, token: async function () { var r = (await sb.auth.getSession()).data.session; return r ? r.access_token : ''; } };   // S.plan is 'trial' (Silver access), 'silver', 'gold' or 'metal' (old: 'starter', 'pro')
     sb.auth.onAuthStateChange(function (ev) {
       if (ev === 'PASSWORD_RECOVERY') recoveryView();
       else if (ev === 'SIGNED_OUT') (getMode() === 'email' ? loginView('in') : loginView('up'));
