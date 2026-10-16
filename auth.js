@@ -84,7 +84,7 @@
     '#bar #mpvMenuBtn:active{color:#fff}#bar #bFull{right:40px!important}';
   st.textContent +=
     '.mpv-ld{text-align:center;padding:36px 20px 30px;animation:mpvIn .5s ease both}' +
-    '.mpv-ldlogo{font-weight:800;font-size:24px;letter-spacing:-.02em;margin-bottom:26px;animation:mpvPulse 2.2s ease-in-out infinite}' +
+    '.mpv-ldlogo{font-weight:800;font-size:24px;letter-spacing:-.02em;margin-bottom:22px;animation:mpvPulse 2.2s ease-in-out infinite}.mpv-ldlogo img{display:block;margin:0 auto;max-width:70%;max-height:110px;width:auto;height:auto;object-fit:contain}' +
     '.mpv-ring{position:relative;width:64px;height:64px;margin:0 auto 22px}' +
     '.mpv-ring i{position:absolute;inset:0;border-radius:50%;border:3px solid transparent}' +
     '.mpv-ring i:nth-child(1){border-top-color:#3b82f6;border-right-color:rgba(59,130,246,.35);animation:mpvSpin 1s linear infinite;filter:drop-shadow(0 0 6px rgba(59,130,246,.7))}' +
@@ -100,10 +100,11 @@
     '@keyframes mpvIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}' +
     '@media (prefers-reduced-motion:reduce){.mpv-ld *,.mpv-ld{animation-duration:3s!important}}';
   (document.head || root).appendChild(st);
+  try { var pl = document.createElement('link'); pl.rel = 'preload'; pl.as = 'image'; pl.href = 'https://res.cloudinary.com/wfypjzyt/image/upload/v1791143890/file_00000000b0e882118146e28bda6201fd.png?v=2'; (document.head || root).appendChild(pl); } catch (e) {}
 
   var ov = document.createElement('div');
   ov.id = 'mpv-auth';
-  ov.innerHTML = '<div class="mpv-wrap"><div class="mpv-card mpv-ld"><div class="mpv-ldlogo">Market<span style="color:#ef4444">Plus</span><span style="color:#60a5fa">View</span></div><div class="mpv-ring"><i></i><i></i></div><p class="mpv-ldtxt">Loading your charts<span class="mpv-dots"><b>.</b><b>.</b><b>.</b></span></p><div class="mpv-bar"><i></i></div></div></div>';
+  ov.innerHTML = '<div class="mpv-wrap"><div class="mpv-card mpv-ld"><div class="mpv-ldlogo"><img src="https://res.cloudinary.com/wfypjzyt/image/upload/v1791143890/file_00000000b0e882118146e28bda6201fd.png?v=2" alt="" onerror="this.parentNode.innerHTML=\'Market<span style=&quot;color:#ef4444&quot;>Plus</span><span style=&quot;color:#60a5fa&quot;>View</span>\'"></div><div class="mpv-ring"><i></i><i></i></div><p class="mpv-ldtxt">Loading your charts<span class="mpv-dots"><b>.</b><b>.</b><b>.</b></span></p><div class="mpv-bar"><i></i></div></div></div>';
   root.appendChild(ov);
 
   var $ = function (id) { return document.getElementById(id); };
