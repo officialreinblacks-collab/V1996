@@ -82,11 +82,28 @@
     '.mpv-info .k{color:#93b4ff;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin:14px 0 2px}' +
     '#bar #mpvMenuBtn{flex:none;order:200;position:sticky;right:0;z-index:5;box-sizing:border-box;width:40px;min-width:40px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--bg,#0b0e14);color:#c9d0e0;box-shadow:-10px 0 8px var(--bg,#0b0e14);cursor:pointer;-webkit-tap-highlight-color:transparent}' +
     '#bar #mpvMenuBtn:active{color:#fff}#bar #bFull{right:40px!important}';
+  st.textContent +=
+    '.mpv-ld{text-align:center;padding:36px 20px 30px;animation:mpvIn .5s ease both}' +
+    '.mpv-ldlogo{font-weight:800;font-size:24px;letter-spacing:-.02em;margin-bottom:26px;animation:mpvPulse 2.2s ease-in-out infinite}' +
+    '.mpv-ring{position:relative;width:64px;height:64px;margin:0 auto 22px}' +
+    '.mpv-ring i{position:absolute;inset:0;border-radius:50%;border:3px solid transparent}' +
+    '.mpv-ring i:nth-child(1){border-top-color:#3b82f6;border-right-color:rgba(59,130,246,.35);animation:mpvSpin 1s linear infinite;filter:drop-shadow(0 0 6px rgba(59,130,246,.7))}' +
+    '.mpv-ring i:nth-child(2){inset:10px;border-bottom-color:#ef4444;border-left-color:rgba(239,68,68,.35);animation:mpvSpin 1.4s linear infinite reverse;filter:drop-shadow(0 0 6px rgba(239,68,68,.6))}' +
+    '.mpv-ldtxt{margin:0 0 20px;color:#aebbd8;font-size:15px;font-weight:500}' +
+    '.mpv-dots b{display:inline-block;animation:mpvDot 1.2s ease-in-out infinite}.mpv-dots b:nth-child(2){animation-delay:.2s}.mpv-dots b:nth-child(3){animation-delay:.4s}' +
+    '.mpv-bar{height:4px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden;width:70%;margin:0 auto}' +
+    '.mpv-bar i{display:block;height:100%;width:40%;border-radius:4px;background:linear-gradient(90deg,#3b82f6,#ef4444);animation:mpvBar 1.5s ease-in-out infinite}' +
+    '@keyframes mpvSpin{to{transform:rotate(360deg)}}' +
+    '@keyframes mpvDot{0%,80%,100%{opacity:.2;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}' +
+    '@keyframes mpvBar{0%{transform:translateX(-110%)}100%{transform:translateX(260%)}}' +
+    '@keyframes mpvPulse{0%,100%{opacity:.85}50%{opacity:1;text-shadow:0 0 18px rgba(96,165,250,.55)}}' +
+    '@keyframes mpvIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}' +
+    '@media (prefers-reduced-motion:reduce){.mpv-ld *,.mpv-ld{animation-duration:3s!important}}';
   (document.head || root).appendChild(st);
 
   var ov = document.createElement('div');
   ov.id = 'mpv-auth';
-  ov.innerHTML = '<div class="mpv-wrap"><div class="mpv-card"><p class="mpv-sub">Loading…</p></div></div>';
+  ov.innerHTML = '<div class="mpv-wrap"><div class="mpv-card mpv-ld"><div class="mpv-ldlogo">Market<span style="color:#ef4444">Plus</span><span style="color:#60a5fa">View</span></div><div class="mpv-ring"><i></i><i></i></div><p class="mpv-ldtxt">Loading your charts<span class="mpv-dots"><b>.</b><b>.</b><b>.</b></span></p><div class="mpv-bar"><i></i></div></div></div>';
   root.appendChild(ov);
 
   var $ = function (id) { return document.getElementById(id); };
