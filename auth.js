@@ -107,6 +107,38 @@
   ov.innerHTML = '<div class="mpv-wrap"><div class="mpv-card mpv-ld"><div class="mpv-ldlogo"><img src="https://res.cloudinary.com/wfypjzyt/image/upload/v1791143890/file_00000000b0e882118146e28bda6201fd.png?v=2" alt="" onerror="this.parentNode.innerHTML=\'Market<span style=&quot;color:#ef4444&quot;>Plus</span><span style=&quot;color:#60a5fa&quot;>View</span>\'"></div><div class="mpv-ring"><i></i><i></i></div><p class="mpv-ldtxt">Loading your charts<span class="mpv-dots"><b>.</b><b>.</b><b>.</b></span></p><div class="mpv-bar"><i></i></div></div></div>';
   root.appendChild(ov);
 
+  // Show / hide password: an eye button inside every password box on the sign-in screens.
+  (function () {
+    var EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+    var OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.9 10.9 0 0 1 12 19C5 19 1 12 1 12a19.7 19.7 0 0 1 5.06-5.94M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 8 11 8a19.8 19.8 0 0 1-3.17 4.19M14.12 14.12A3 3 0 1 1 9.88 9.88"/><path d="M1 1l22 22"/></svg>';
+    var s2 = document.createElement('style');
+    s2.textContent = '.mpv-pw{position:relative;display:block}.mpv-card .mpv-pw input{padding-right:52px}' +
+      '.mpv-eye{position:absolute;right:6px;top:0;height:calc(100% - 10px);width:40px;border:0;background:transparent;color:rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;border-radius:10px;-webkit-tap-highlight-color:transparent}' +
+      '.mpv-eye.on{color:#2dd4a7}.mpv-eye svg{width:20px;height:20px;display:block;pointer-events:none}';
+    (document.head || root).appendChild(s2);
+    function wrap() {
+      var n = ov.querySelectorAll('input[type="password"]');
+      for (var k = 0; k < n.length; k++) {
+        var i = n[k], p = i.parentNode;
+        if (!p || (p.classList && p.classList.contains('mpv-pw'))) continue;
+        var had = document.activeElement === i, w = document.createElement('span'); w.className = 'mpv-pw';
+        p.insertBefore(w, i); w.appendChild(i);
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'mpv-eye'; b.tabIndex = -1; b.setAttribute('aria-label', 'Show password'); b.innerHTML = EYE; w.appendChild(b);
+        (function (i, b) {
+          b.onmousedown = function (e) { e.preventDefault(); };
+          b.onclick = function (e) {
+            e.preventDefault(); e.stopPropagation();
+            var sh = i.type === 'password'; i.type = sh ? 'text' : 'password';
+            b.innerHTML = sh ? OFF : EYE; b.className = 'mpv-eye' + (sh ? ' on' : ''); b.setAttribute('aria-label', sh ? 'Hide password' : 'Show password');
+            try { i.focus(); } catch (x) {}
+          };
+        })(i, b);
+        if (had) { try { i.focus(); } catch (x) {} }
+      }
+    }
+    new MutationObserver(wrap).observe(ov, { childList: true, subtree: true });
+  })();
+
   var $ = function (id) { return document.getElementById(id); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var SITE = '';   // optional: paste your live site address here, e.g. 'https://yourname.github.io/repo/' or your domain. It must also be added in Supabase > Authentication > URL Configuration.
