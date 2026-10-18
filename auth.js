@@ -3,15 +3,19 @@
   var SB_URL = 'https://ssukfrvtknfsccqxqkjh.supabase.co';
   var SB_KEY = 'sb_publishable_qjmaCvag0XhnMlipWFHCeA_fwt3CqST';
   var SUPPORT = 'marketplusview@gmail.com';            // support email shown to clients
+  // NOWPayments (crypto) pay links, one per plan. Leave a plan empty until its own NOWPayments invoice exists.
+  var NOWPAY = { silver: 'https://nowpayments.io/payment/?iid=4645727622&source=button', gold: 'https://nowpayments.io/payment/?iid=4317860823&source=button', metal: 'https://nowpayments.io/payment/?iid=5561351398&source=button' };
+  window.mpvPayLinks = NOWPAY;   // the activation form in index.html reads the same links
+  var NOW_IMG = 'https://nowpayments.io/images/embeds/payments-button-white.svg';
   var PAY = { silver: '', gold: '', metal: '' };                   // paste your card payment link (e.g. Stripe Payment Link) for each plan
   var LS = 'mpvAccess', root = document.documentElement, sb, pill, timer;
   var S = { email: '', plan: '', exp: null, admin: false, trialUsed: false, guest: false }, triedTrial = false;
   var getMode = function () { try { return localStorage.getItem('mpvMode'); } catch (e) { return null; } };
   var setMode = function (m) { try { localStorage.setItem('mpvMode', m); } catch (e) {} };
   var PLANS = {
-    silver: { n: 'Silver', p: 'KSh 650 / $5 per month', t: 'For beginners and budget-conscious traders', d: ['Live charts and standard indicators', 'Drawing tools, price alerts and watchlist', 'Limited premium tools: Supply Demand Legs & Entry Zones', 'Limited strategies: selected buy / sell strategies', 'Order book, position size calculator and market mood', '7-day free trial (one per person)'] },
-    gold: { n: 'Gold', p: 'KSh 1,300 / $10 per month', t: 'For active traders who need more analysis tools', d: ['Everything in Silver', 'Selected premium tools: Reversal Probability Profile', 'More buy / sell signal strategies', 'Bar replay', 'Compare markets'] },
-    metal: { n: 'Metal', p: 'KSh 2,600 / $20 per month', t: 'For serious traders who want the full toolkit', d: ['Everything in Gold', 'All premium tools and strategies', 'Second chart', 'Backups', 'Exclusive Metal-only tools and future premium releases', 'Priority support', 'AI market analysis when launched'] }
+    silver: { n: 'Silver', p: '$20 per month', t: 'For beginners and budget-conscious traders', d: ['Live charts and standard indicators', 'Drawing tools, price alerts and watchlist', 'Limited premium tools: Supply Demand Legs & Entry Zones', 'Limited strategies: selected buy / sell strategies', 'Order book, position size calculator and market mood', '7-day free trial (one per person)'] },
+    gold: { n: 'Gold', p: '$40 per month', t: 'For active traders who need more analysis tools', d: ['Everything in Silver', 'Selected premium tools: Reversal Probability Profile', 'More buy / sell signal strategies', 'Bar replay', 'Compare markets'] },
+    metal: { n: 'Metal', p: '$80 per month', t: 'For serious traders who want the full toolkit', d: ['Everything in Gold', 'All premium tools and strategies', 'Second chart', 'Backups', 'Exclusive Metal-only tools and future premium releases', 'Priority support', 'AI market analysis when launched'] }
   };
   // Plan names stored in Supabase -> tier. The free trial is Silver access. Old plans: starter = Silver, pro = Metal (so nobody loses access).
   var ALIAS = { trial: 'silver', starter: 'silver', silver: 'silver', gold: 'gold', pro: 'metal', metal: 'metal' };
@@ -61,6 +65,7 @@
     '.mpv-legal{font-size:12.5px;line-height:1.5;color:#8d9bbd;text-align:center;margin:0 6px}' +
     '#mpv-pill{position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);right:8px;z-index:9998;background:rgba(10,20,50,.75);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#dbe4f7;border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:4px 10px;font:600 12px Inter,system-ui,sans-serif}';
   st.textContent +=
+    '.mpv-now{display:block;margin-top:8px;text-align:center}.mpv-now img{display:inline-block;max-width:100%;height:auto;border-radius:12px}' +
     '.mpv-top{display:flex;align-items:center;justify-content:space-between}' +
     '.mpv-brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:17px;letter-spacing:-.01em}' +
     '.mpv-lg{width:34px;height:34px;border-radius:9px;object-fit:contain;background:#0b1224;border:1px solid rgba(255,255,255,.18)}' +
@@ -154,10 +159,11 @@
       var p = PLANS[k];
       h += '<div class="mpv-plan ' + k + '"><div class="top"><b>' + p.n + '</b><span>' + p.p + '</span></div><div class="mpv-sub" style="margin:0 0 6px;font-size:13px">' + p.t + '</div>' + p.d.map(function (x) { return '<div class="li">✓ ' + x + '</div>'; }).join('');
       if (buy && k === 'silver' && !S.trialUsed) h += '<button class="mpv-btn" id="mpvTr">Get your free trial code</button>';
-      if (buy) h += '<button class="mpv-btn blue pay" data-plan="' + k + '">Get ' + p.n + '</button>';
+      if (buy && NOWPAY[k]) h += '<a class="mpv-now" href="' + NOWPAY[k] + '" target="_blank" rel="noreferrer noopener"><img src="' + NOW_IMG + '" alt="Cryptocurrency &amp; Bitcoin payment button by NOWPayments"></a><button class="mpv-btn ghost pay" data-plan="' + k + '">Already paid? Get your code</button>';
+      else if (buy) h += '<button class="mpv-btn blue pay" data-plan="' + k + '">Get ' + p.n + '</button>';
       h += '</div>';
     });
-    return h + '</div><div class="mpv-pay">One free 7-day Silver trial per person.<br>Gold and Metal require a paid subscription.<br>Pay with M-Pesa. Visa / Mastercard coming soon.</div>';
+    return h + '</div><div class="mpv-pay">One free 7-day Silver trial per person.<br>Gold and Metal require a paid subscription.<br>Payments are currently accepted in cryptocurrency only, processed securely by NOWPayments.</div>';
   }
   function extra(buy) {
     return '<p class="mpv-about">A fast trading view tool that helps traders and investors analyse the market with live crypto charts, indicators, buy / sell signals, alerts and more.</p>' + plansHtml(buy) +
@@ -249,7 +255,7 @@
   function payView(k) {
     var p = PLANS[k], url = PAY[k];
     if (url) { location.href = url + (url.indexOf('?') < 0 ? '?' : '&') + 'prefilled_email=' + enc(S.email); return; }
-    if (typeof window.mpvOpenUnlock === 'function') { try { window.mpvOpenUnlock(p.n); return; } catch (e) {} }   // M-Pesa form, opens with this plan selected
+    if (typeof window.mpvOpenUnlock === 'function') { try { window.mpvOpenUnlock(p.n); return; } catch (e) {} }   // activation form, opens with this plan selected
     card('<h1>Get ' + p.n + '</h1><p class="mpv-sub">' + p.n + ' plan · ' + p.p + '</p><p class="mpv-sub">We will email you the payment details. After payment is confirmed, we send your access code.</p>' +
       '<button class="mpv-btn" id="mpvMail">Request payment details</button><div class="mpv-links"><a id="mpvBk">Back</a></div>');
     $('mpvBk').onclick = function () { check(); };
