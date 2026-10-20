@@ -64,11 +64,17 @@
     '.mpv-ct{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:4px 0 10px}.mpv-ct b{font-size:14px;color:#fff;word-break:break-all}' +
     '.mpv-cb{display:flex;gap:8px}.mpv-cb a,.mpv-cb button{border:0;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;color:#fff;background:rgba(255,255,255,.12);text-decoration:none;cursor:pointer;font-family:inherit}.mpv-cb .go{background:linear-gradient(135deg,#ef4444,#b91c1c)}' +
     '.mpv-help{margin-top:14px;padding:14px 16px;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:rgba(255,255,255,.04);font-size:13px;line-height:1.6;color:#dbe4f7}.mpv-help h2{margin:0 0 6px;font-size:15px;color:#fff}.mpv-help p{margin:0 0 6px}.mpv-help a{color:#93b4ff;text-decoration:none;font-weight:600}' +
-    '#mpvChat{position:fixed;right:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);z-index:5;display:flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:11px 16px;font-size:14px;font-weight:700;color:#fff;background:linear-gradient(135deg,#ef4444,#b91c1c);box-shadow:0 6px 18px rgba(239,68,68,.45);cursor:pointer}' +
     '.mpv-or{text-align:center;color:#7f8fb3;font-size:13px;margin:12px 0 2px}.mpv-plans{display:grid;gap:12px}.mpv-pay{text-align:center;color:#aebbd8;font-size:13px}' +
+    '.mpv-pick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}' +
+    '.mpv-pk{font:inherit;color:#fff;text-align:center;cursor:pointer;padding:10px 4px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);min-width:0;-webkit-tap-highlight-color:transparent}' +
+    '.mpv-pk b{display:block;font-size:15px}.mpv-pk .pr{display:block;margin-top:2px;font-size:15px;font-weight:700;color:#93b4ff}.mpv-pk .pr small{font-size:11px;font-weight:600;color:#7f8fb3}.mpv-pk .sh{display:block;margin-top:3px;font-size:11px;line-height:1.25;color:#aebbd8}' +
+    '.mpv-pk.silver{border-color:rgba(96,165,250,.5)}.mpv-pk.gold{border-color:rgba(250,204,21,.55)}.mpv-pk.metal{border-color:rgba(239,68,68,.6)}' +
+    '.mpv-pk.sel{background:rgba(255,255,255,.17);box-shadow:0 0 0 2px rgba(255,255,255,.5)}' +
+    '.mpv-hint{text-align:center;color:#7f8fb3;font-size:12px;margin:-4px 0 0}' +
+    '.mpv-plans .mpv-plan{display:none}.mpv-plans .mpv-plan.sel{display:block}' +
     '.mpv-about{font-size:15px;line-height:1.55;color:#dbe4f7;text-align:center;margin:4px 4px 0}' +
     '.mpv-pic{display:block;width:100%;height:auto;border-radius:18px;margin:14px 0 0;border:1px solid rgba(255,255,255,.16);box-shadow:0 14px 40px rgba(0,0,0,.45)}' +
-    '.mpv-msg{margin:16px 4px 0;text-align:center;color:#dbe4f7;font-size:15px;line-height:1.6}.mpv-msg h2{margin:0 0 10px;font-size:19px;line-height:1.3;color:#fff}.mpv-msg h2 b{color:#ef4444}.mpv-msg p{margin:0 0 12px}.mpv-msg .mpv-site{font-weight:700;color:#fff;margin:14px 0 2px}.mpv-msg .mpv-tag{color:#60a5fa;font-weight:600;margin:0}' +
+    '.mpv-note{margin:16px 4px 0;text-align:center;color:#dbe4f7;font-size:15px;line-height:1.6}.mpv-note h2{margin:0 0 10px;font-size:19px;line-height:1.3;color:#fff}.mpv-note h2 b{color:#ef4444}.mpv-note p{margin:0 0 12px}.mpv-note .mpv-site{font-weight:700;color:#fff;margin:14px 0 2px}.mpv-note .mpv-tag{color:#60a5fa;font-weight:600;margin:0}' +
     '.mpv-legal{font-size:12.5px;line-height:1.5;color:#8d9bbd;text-align:center;margin:0 6px}' +
     '#mpv-pill{position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);right:8px;z-index:9998;background:rgba(10,20,50,.75);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#dbe4f7;border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:4px 10px;font:600 12px Inter,system-ui,sans-serif}';
   st.textContent +=
@@ -127,6 +133,7 @@
       '.mpv-acct .mpv-item{cursor:pointer}.mpv-acct .mpv-item:hover,.mpv-tile:hover{background:rgba(255,255,255,.07)}' +
       '.mpv-btn,.mpv-tile,.mpv-x{cursor:pointer}' +
     '}' +
+    '@media (min-width:900px){.mpv-pick,.mpv-hint{display:none}.mpv-plans .mpv-plan{display:block}}' +
     '@media (min-width:1180px){.mpv-wide .mpv-colb .mpv-plans{grid-template-columns:repeat(3,minmax(0,1fr))}.mpv-wide .mpv-plan{display:flex;flex-direction:column}.mpv-wide .mpv-plan .li{flex:none}}' +
     '@media (min-width:900px) and (max-height:700px){.mpv-wide .mpv-cola{position:static}.mpv-acct .mpv-c2{position:static}}';
   (document.head || root).appendChild(st);
@@ -179,10 +186,16 @@
   var BRAND = '<div class="mpv-logo">Market<span style="color:#ef4444">Plus</span><span style="color:#60a5fa">View</span></div>';
 
   function plansHtml(buy) {
-    var h = '<div class="mpv-plans">';
-    ['silver', 'gold', 'metal'].forEach(function (k) {
+    var SHORT = { silver: 'Starter', gold: 'Active traders', metal: 'Full toolkit' };   // edit or add info shown on the small plan tiles
+    var h = '<div class="mpv-plans"><div class="mpv-pick">';
+    ['silver', 'gold', 'metal'].forEach(function (k, i) {
       var p = PLANS[k];
-      h += '<div class="mpv-plan ' + k + '"><div class="top"><b>' + p.n + '</b><span>' + p.p + '</span></div><div class="mpv-sub" style="margin:0 0 6px;font-size:13px">' + p.t + '</div>' + p.d.map(function (x) { return '<div class="li">✓ ' + x + '</div>'; }).join('');
+      h += '<button type="button" class="mpv-pk ' + k + (i ? '' : ' sel') + '" data-k="' + k + '"><b>' + p.n + '</b><span class="pr">' + p.p.replace(' per month', '') + '<small>/mo</small></span><span class="sh">' + (SHORT[k] || '') + '</span></button>';
+    });
+    h += '</div><p class="mpv-hint">Tap a plan to see what\u2019s included</p>';
+    ['silver', 'gold', 'metal'].forEach(function (k, i) {
+      var p = PLANS[k];
+      h += '<div class="mpv-plan ' + k + (i ? '' : ' sel') + '" data-k="' + k + '"><div class="top"><b>' + p.n + '</b><span>' + p.p + '</span></div><div class="mpv-sub" style="margin:0 0 6px;font-size:13px">' + p.t + '</div>' + p.d.map(function (x) { return '<div class="li">✓ ' + x + '</div>'; }).join('');
       if (buy && k === 'silver' && !S.trialUsed) h += '<button class="mpv-btn" id="mpvTr">Get your free trial code</button>';
       if (buy && NOWPAY[k]) h += '<a class="mpv-now" href="' + NOWPAY[k] + '" target="_blank" rel="noreferrer noopener"><img src="' + NOW_IMG + '" alt="Cryptocurrency &amp; Bitcoin payment button by NOWPayments"></a><button class="mpv-btn ghost pay" data-plan="' + k + '">Already paid? Get your code</button>';
       else if (buy) h += '<button class="mpv-btn blue pay" data-plan="' + k + '">Get ' + p.n + '</button>';
@@ -194,7 +207,7 @@
     return {
       about: '<p class="mpv-about">A fast trading view tool that helps traders and investors analyse the market with live crypto charts, indicators, buy / sell signals, alerts and more.</p>' +
         '<img class="mpv-pic" src="https://res.cloudinary.com/datfuxotx/image/upload/v1792505233/2be62a10-cc8f-11f1-b9c5-33fdd4115e46_bqcnrm.png" alt="MarketPlusView" loading="lazy">' +
-        '<div class="mpv-msg"><h2>MarketPlusView — <b>Research. Understand. Decide.</b></h2>' +
+        '<div class="mpv-note"><h2>MarketPlusView — <b>Research. Understand. Decide.</b></h2>' +
         '<p>We believe information comes first before every trade or investment. The right information opens your eyes, helps you see further, and guides you toward smarter decisions.</p>' +
         '<p>As a trader or investor, always question what you hear: Where, when, and who? Research, verify, and understand the risks before you decide.</p>' +
         '<p>Winning isn\u2019t always easy, but with the right information, experience, and risk management, you increase your chances of growing and breaking through.</p>' +
@@ -213,15 +226,11 @@
       ov.innerHTML = '<div class="mpv-wrap"><div class="mpv-card">' + BRAND + inner + '</div></div>';
     }
     ov.scrollTop = 0;
-    if (more) {
-      var hb = document.createElement('button'); hb.type = 'button'; hb.id = 'mpvChat';
-      hb.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="2.5" y="13" width="4" height="6" rx="1.5"/><rect x="17.5" y="13" width="4" height="6" rx="1.5"/><path d="M19.5 19c0 1.7-1.6 2.5-4.5 2.5h-1.5"/></svg>Need help?';
-      hb.onclick = function () {
-        function go() { try { tidioChatApi.show(); tidioChatApi.open(); } catch (e) {} }
-        if (window.tidioChatApi) go(); else location.href = 'mailto:' + SUPPORT;
+    document.querySelectorAll('.mpv-pk').forEach(function (b) {
+      b.onclick = function () {
+        document.querySelectorAll('.mpv-pk,.mpv-plans .mpv-plan').forEach(function (e) { e.classList.toggle('sel', e.getAttribute('data-k') === b.getAttribute('data-k')); });
       };
-      ov.appendChild(hb);
-    }
+    });
     document.querySelectorAll('.pay').forEach(function (b) { b.onclick = function () { payView(b.dataset.plan); }; });
     if ($('mpvTr')) $('mpvTr').onclick = function () { location.href = 'mailto:' + SUPPORT + '?subject=' + enc('Free 7-day trial code') + '&body=' + enc('Hello, please send me my free 7-day trial code. My account email: ' + S.email); };
   }
@@ -326,11 +335,9 @@
       '<p>Our support team is happy to assist with sign-in problems, payments, activation codes and any other inquiries.</p>' +
       '<div class="k">Email</div><div class="mpv-ct"><b>' + SUPPORT + '</b><div class="mpv-cb"><a class="go" href="mailto:' + SUPPORT + '">Open</a><button type="button" id="mpvEc">Copy</button></div></div>' +
       '<div class="k">WhatsApp</div><div class="mpv-ct"><b>' + WA_SHOW + '</b><div class="mpv-cb"><a class="go" href="https://wa.me/' + WA_NUM + '" target="_blank" rel="noopener">Open</a><button type="button" id="mpvWc">Copy</button></div></div>' +
-      (window.tidioChatApi ? '<button class="mpv-btn" id="mpvLc">Chat with us now</button>' : '') +
       '<button class="mpv-btn ghost" id="mpvBk">Back</button></div>');
     $('mpvEc').onclick = function () { copyText(SUPPORT, this); };
     $('mpvWc').onclick = function () { copyText(WA_SHOW, this); };
-    if ($('mpvLc')) $('mpvLc').onclick = function () { try { tidioChatApi.show(); tidioChatApi.open(); } catch (e) {} };
     $('mpvBk').onclick = function () { accountView(); };
   }
   function aboutView() {
