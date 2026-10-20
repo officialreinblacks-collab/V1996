@@ -67,6 +67,8 @@
     '#mpvChat{position:fixed;right:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);z-index:5;display:flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:11px 16px;font-size:14px;font-weight:700;color:#fff;background:linear-gradient(135deg,#ef4444,#b91c1c);box-shadow:0 6px 18px rgba(239,68,68,.45);cursor:pointer}' +
     '.mpv-or{text-align:center;color:#7f8fb3;font-size:13px;margin:12px 0 2px}.mpv-plans{display:grid;gap:12px}.mpv-pay{text-align:center;color:#aebbd8;font-size:13px}' +
     '.mpv-about{font-size:15px;line-height:1.55;color:#dbe4f7;text-align:center;margin:4px 4px 0}' +
+    '.mpv-pic{display:block;width:100%;height:auto;border-radius:18px;margin:14px 0 0;border:1px solid rgba(255,255,255,.16);box-shadow:0 14px 40px rgba(0,0,0,.45)}' +
+    '.mpv-msg{margin:16px 4px 0;text-align:center;color:#dbe4f7;font-size:15px;line-height:1.6}.mpv-msg h2{margin:0 0 10px;font-size:19px;line-height:1.3;color:#fff}.mpv-msg h2 b{color:#ef4444}.mpv-msg p{margin:0 0 12px}.mpv-msg .mpv-site{font-weight:700;color:#fff;margin:14px 0 2px}.mpv-msg .mpv-tag{color:#60a5fa;font-weight:600;margin:0}' +
     '.mpv-legal{font-size:12.5px;line-height:1.5;color:#8d9bbd;text-align:center;margin:0 6px}' +
     '#mpv-pill{position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);right:8px;z-index:9998;background:rgba(10,20,50,.75);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#dbe4f7;border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:4px 10px;font:600 12px Inter,system-ui,sans-serif}';
   st.textContent +=
@@ -190,7 +192,13 @@
   }
   function extraParts(buy) {
     return {
-      about: '<p class="mpv-about">A fast trading view tool that helps traders and investors analyse the market with live crypto charts, indicators, buy / sell signals, alerts and more.</p>',
+      about: '<p class="mpv-about">A fast trading view tool that helps traders and investors analyse the market with live crypto charts, indicators, buy / sell signals, alerts and more.</p>' +
+        '<img class="mpv-pic" src="https://res.cloudinary.com/datfuxotx/image/upload/v1792505233/2be62a10-cc8f-11f1-b9c5-33fdd4115e46_bqcnrm.png" alt="MarketPlusView" loading="lazy">' +
+        '<div class="mpv-msg"><h2>MarketPlusView — <b>Research. Understand. Decide.</b></h2>' +
+        '<p>We believe information comes first before every trade or investment. The right information opens your eyes, helps you see further, and guides you toward smarter decisions.</p>' +
+        '<p>As a trader or investor, always question what you hear: Where, when, and who? Research, verify, and understand the risks before you decide.</p>' +
+        '<p>Winning isn\u2019t always easy, but with the right information, experience, and risk management, you increase your chances of growing and breaking through.</p>' +
+        '<p class="mpv-site">MarketPlusView.com</p><p class="mpv-tag">Research. Understand. Decide.</p></div>',
       plans: plansHtml(buy),
       help: '<div class="mpv-help"><h2>Having login problems or inquiries?</h2><p>Our support team will be glad to assist you. Please contact us through either channel below.</p><p>WhatsApp: <a href="https://wa.me/' + WA_NUM + '" target="_blank" rel="noopener">' + WA_SHOW + '</a><br>Email: <a href="mailto:' + SUPPORT + '">' + SUPPORT + '</a></p></div>',
       legal: '<p class="mpv-legal">MarketPlusView provides trading analysis tools only. We are not a broker, we do not hold, manage or send money, and nothing here is financial advice. Trading involves risk; no tool guarantees profits. Our aim is to help you experience different markets.</p>'
