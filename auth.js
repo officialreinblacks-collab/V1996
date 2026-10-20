@@ -2,6 +2,7 @@
 (function () {
   var SB_URL = 'https://ssukfrvtknfsccqxqkjh.supabase.co';
   var SB_KEY = 'sb_publishable_qjmaCvag0XhnMlipWFHCeA_fwt3CqST';
+  var WA_NUM = '254711691608', WA_SHOW = '+254 711 691608';   // support WhatsApp (digits only for the link)
   var SUPPORT = 'marketplusview@gmail.com';            // support email shown to clients
   // NOWPayments (crypto) pay links, one per plan. Leave a plan empty until its own NOWPayments invoice exists.
   var NOWPAY = { silver: 'https://nowpayments.io/payment/?iid=4645727622&source=button', gold: 'https://nowpayments.io/payment/?iid=4317860823&source=button', metal: 'https://nowpayments.io/payment/?iid=5561351398&source=button' };
@@ -60,6 +61,9 @@
     '.mpv-msg{min-height:20px;font-size:14px;color:#ff7b8f;margin:2px 0 6px;line-height:1.4}.mpv-msg.ok{color:#4ade80}' +
     '.mpv-links{display:flex;justify-content:space-between;gap:12px;margin-top:16px;font-size:14px}' +
     '.mpv-links a,.mpv-legal a{color:#93b4ff;cursor:pointer;text-decoration:none}' +
+    '.mpv-ct{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:4px 0 10px}.mpv-ct b{font-size:14px;color:#fff;word-break:break-all}' +
+    '.mpv-cb{display:flex;gap:8px}.mpv-cb a,.mpv-cb button{border:0;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;color:#fff;background:rgba(255,255,255,.12);text-decoration:none;cursor:pointer;font-family:inherit}.mpv-cb .go{background:linear-gradient(135deg,#ef4444,#b91c1c)}' +
+    '.mpv-help{margin-top:14px;padding:14px 16px;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:rgba(255,255,255,.04);font-size:13px;line-height:1.6;color:#dbe4f7}.mpv-help h2{margin:0 0 6px;font-size:15px;color:#fff}.mpv-help p{margin:0 0 6px}.mpv-help a{color:#93b4ff;text-decoration:none;font-weight:600}' +
     '#mpvChat{position:fixed;right:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 16px);z-index:5;display:flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:11px 16px;font-size:14px;font-weight:700;color:#fff;background:linear-gradient(135deg,#ef4444,#b91c1c);box-shadow:0 6px 18px rgba(239,68,68,.45);cursor:pointer}' +
     '.mpv-or{text-align:center;color:#7f8fb3;font-size:13px;margin:12px 0 2px}.mpv-plans{display:grid;gap:12px}.mpv-pay{text-align:center;color:#aebbd8;font-size:13px}' +
     '.mpv-about{font-size:15px;line-height:1.55;color:#dbe4f7;text-align:center;margin:4px 4px 0}' +
@@ -87,7 +91,7 @@
     '.mpv-info p{font-size:14px;line-height:1.6;color:#dbe4f7;margin:0 0 12px}' +
     '.mpv-info .k{color:#93b4ff;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin:14px 0 2px}' +
     '#bar #mpvMenuBtn{flex:none;order:200;position:sticky;right:0;z-index:5;box-sizing:border-box;width:40px;min-width:40px;height:36px;display:flex;align-items:center;justify-content:center;background:var(--bg,#0b0e14);color:#c9d0e0;box-shadow:-10px 0 8px var(--bg,#0b0e14);cursor:pointer;-webkit-tap-highlight-color:transparent}' +
-    '#bar #mpvMenuBtn:active{color:#fff}#bar #bFull{right:40px!important}';
+    '#bar #mpvMenuBtn:active{color:#fff}#bar #bFull{right:130px!important}';
   st.textContent +=
     '.mpv-ld{text-align:center;padding:36px 20px 30px;animation:mpvIn .5s ease both}' +
     '.mpv-ldlogo{font-weight:800;font-size:24px;letter-spacing:-.02em;margin-bottom:22px;animation:mpvPulse 2.2s ease-in-out infinite}.mpv-ldlogo img{display:block;margin:0 auto;max-width:70%;max-height:110px;width:auto;height:auto;object-fit:contain}' +
@@ -188,15 +192,15 @@
     return {
       about: '<p class="mpv-about">A fast trading view tool that helps traders and investors analyse the market with live crypto charts, indicators, buy / sell signals, alerts and more.</p>',
       plans: plansHtml(buy),
-      legal: '<p class="mpv-legal">MarketPlusView provides trading analysis tools only. We are not a broker, we do not hold, manage or send money, and nothing here is financial advice. Trading involves risk; no tool guarantees profits. Our aim is to help you experience different markets.</p>' +
-        '<p class="mpv-legal">Need help? <a href="mailto:' + SUPPORT + '">' + SUPPORT + '</a></p>'
+      help: '<div class="mpv-help"><h2>Having login problems or inquiries?</h2><p>Our support team will be glad to assist you. Please contact us through either channel below.</p><p>WhatsApp: <a href="https://wa.me/' + WA_NUM + '" target="_blank" rel="noopener">' + WA_SHOW + '</a><br>Email: <a href="mailto:' + SUPPORT + '">' + SUPPORT + '</a></p></div>',
+      legal: '<p class="mpv-legal">MarketPlusView provides trading analysis tools only. We are not a broker, we do not hold, manage or send money, and nothing here is financial advice. Trading involves risk; no tool guarantees profits. Our aim is to help you experience different markets.</p>'
     };
   }
   function card(inner, more, buy) {
     ov.style.display = 'block'; if (pill) pill.style.display = 'none';
     if (more) {
       var x = extraParts(buy);
-      ov.innerHTML = '<div class="mpv-wrap mpv-wide"><div class="mpv-cola"><div class="mpv-card">' + BRAND + inner + '</div>' + x.about + '</div><div class="mpv-colb">' + x.plans + '</div><div class="mpv-foot">' + x.legal + '</div></div>';
+      ov.innerHTML = '<div class="mpv-wrap mpv-wide"><div class="mpv-cola"><div class="mpv-card">' + BRAND + inner + '</div>' + x.help + x.about + '</div><div class="mpv-colb">' + x.plans + '</div><div class="mpv-foot">' + x.legal + '</div></div>';
     } else {
       ov.innerHTML = '<div class="mpv-wrap"><div class="mpv-card">' + BRAND + inner + '</div></div>';
     }
@@ -304,13 +308,30 @@
     openOv('<div class="mpv-card mpv-info"><h1>' + title + '</h1>' + body + '<button class="mpv-btn ghost" id="mpvBk">Back</button></div>');
     $('mpvBk').onclick = function () { accountView(); };
   }
+  function copyText(t, btn) {
+    function done() { var o = btn.textContent; btn.textContent = 'Copied \u2713'; setTimeout(function () { btn.textContent = o; }, 1600); }
+    function fb() { var ta = document.createElement('textarea'); ta.value = t; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch (e) {} document.body.removeChild(ta); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, fb); else fb();
+  }
+  function helpView() {
+    openOv('<div class="mpv-card mpv-info"><h1>Help Center</h1>' +
+      '<p>Our support team is happy to assist with sign-in problems, payments, activation codes and any other inquiries.</p>' +
+      '<div class="k">Email</div><div class="mpv-ct"><b>' + SUPPORT + '</b><div class="mpv-cb"><a class="go" href="mailto:' + SUPPORT + '">Open</a><button type="button" id="mpvEc">Copy</button></div></div>' +
+      '<div class="k">WhatsApp</div><div class="mpv-ct"><b>' + WA_SHOW + '</b><div class="mpv-cb"><a class="go" href="https://wa.me/' + WA_NUM + '" target="_blank" rel="noopener">Open</a><button type="button" id="mpvWc">Copy</button></div></div>' +
+      (window.tidioChatApi ? '<button class="mpv-btn" id="mpvLc">Chat with us now</button>' : '') +
+      '<button class="mpv-btn ghost" id="mpvBk">Back</button></div>');
+    $('mpvEc').onclick = function () { copyText(SUPPORT, this); };
+    $('mpvWc').onclick = function () { copyText(WA_SHOW, this); };
+    if ($('mpvLc')) $('mpvLc').onclick = function () { try { tidioChatApi.show(); tidioChatApi.open(); } catch (e) {} };
+    $('mpvBk').onclick = function () { accountView(); };
+  }
   function aboutView() {
     infoView('About us',
       '<p>MarketPlusView is a fast trading view tool that helps traders and investors analyse the market with live crypto charts, indicators, buy / sell signals, alerts and more. Our aim is to help you experience different markets.</p>' +
       '<div class="k">Chief Executive Officer</div><p>Reinhard Mugambi</p>' +
       '<div class="k">Registered under</div><p>Reinblacks Limited Dev</p>' +
       '<div class="k">Please note</div><p>MarketPlusView provides trading analysis tools only. We are not a broker, we do not hold, manage or send money, and nothing here is financial advice. Trading involves risk; no tool guarantees profits.</p>' +
-      '<div class="k">Contact</div><p><a href="mailto:' + SUPPORT + '" style="color:#93b4ff">' + SUPPORT + '</a></p>');
+      '<div class="k">Contact</div><p><a href="mailto:' + SUPPORT + '" style="color:#93b4ff">' + SUPPORT + '</a><br><a href="https://wa.me/' + WA_NUM + '" target="_blank" rel="noopener" style="color:#93b4ff">WhatsApp ' + WA_SHOW + '</a></p>');
   }
   function termsView() { infoView('Terms and conditions', '<p>We will update.</p>'); }
   function licenceView() { infoView('Licence', '<p>Our licence details will be added here once they are ready.</p>'); }
@@ -328,8 +349,8 @@
   function accountView(m, ok) {
     var days = S.exp ? Math.max(0, Math.ceil((S.exp - Date.now()) / 864e5)) : 0;
     if (S.guest) {
-      card('<h1>Account</h1><p class="mpv-sub">Guest · ' + days + ' days left</p><button class="mpv-btn ghost" id="mpvHp">Need help? Email us</button><div class="mpv-links"><a id="mpvCl">Close</a></div>');
-      $('mpvHp').onclick = function () { location.href = 'mailto:' + SUPPORT; }; $('mpvCl').onclick = close; return;
+      card('<h1>Account</h1><p class="mpv-sub">Guest · ' + days + ' days left</p><button class="mpv-btn ghost" id="mpvHp">Help Center</button><div class="mpv-links"><a id="mpvCl">Close</a></div>');
+      $('mpvHp').onclick = helpView; $('mpvCl').onclick = close; return;
     }
     var T = PLANS[tierOf(S.plan)], nm = shownName(S.email);
     var badge = S.admin ? 'ADMIN' : S.plan === 'trial' ? 'FREE TRIAL' : (T ? T.n.toUpperCase() : '');
@@ -345,7 +366,7 @@
       '</div><div class="mpv-c2">' +
       '<div class="mpv-card mpv-list">' + rows.map(function (r) { return '<button class="mpv-item" data-go="' + r[0] + '">' + r[1] + '<span>›</span></button>'; }).join('') + '</div>' +
       '<div class="mpv-card mpv-list"><button class="mpv-item out" data-go="out">Sign out</button></div></div></div>', 'mpv-acct');
-    var go = { plans: plansView, code: function () { codeView(S.email, '', true); }, pw: changePwView, help: function () { location.href = 'mailto:' + SUPPORT; }, about: aboutView, terms: termsView, lic: licenceView, admin: function () { location.href = 'admin.html'; }, out: signOut };
+    var go = { plans: plansView, code: function () { codeView(S.email, '', true); }, pw: changePwView, help: helpView, about: aboutView, terms: termsView, lic: licenceView, admin: function () { location.href = 'admin.html'; }, out: signOut };
     [].forEach.call(ov.querySelectorAll('[data-go]'), function (b) { b.onclick = function () { go[b.getAttribute('data-go')](); }; });
     $('mpvCl').onclick = close; msg(m, ok);
     var im = ov.querySelector('.mpv-lg'); if (im) im.onerror = function () { this.style.display = 'none'; };
