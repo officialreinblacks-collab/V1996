@@ -14277,8 +14277,8 @@ if('serviceWorker' in navigator) window.addEventListener('load',function(){ navi
     function py(p){ var m=ready(); return m?m.s.priceToCoordinate(p):null; }
     function unpx(x,y){ var m=ready(); if(!m) return null; var lg=m.c.timeScale().coordinateToLogical(x), p=m.s.coordinateToPrice(y); if(lg==null||p==null) return null; var t=i2t(lg); return t==null?null:{t:t,p:p}; }
     function dseg(x,y,x1,y1,x2,y2){ var dx=x2-x1, dy=y2-y1, l=dx*dx+dy*dy, u=l?Math.max(0,Math.min(1,((x-x1)*dx+(y-y1)*dy)/l)):0; return Math.hypot(x-(x1+u*dx),y-(y1+u*dy)); }
-    function hit(x,y){ var R=18;
-      for(var k=draws.length-1;k>=0;k--){ var o=draws[k], ya=py(o.a.p); if(ya==null) continue;
+    function hit(x,y,only){ var R=18;
+      for(var k=draws.length-1;k>=0;k--){ if(only!=null&&k!==only) continue; var o=draws[k], ya=py(o.a.p); if(ya==null) continue;
         if(o.k==='h'){ if(Math.abs(y-ya)<=14) return {i:k,m:'mv'}; continue; }
         if(!o.b) continue; var xa=px(o.a.t), xb=px(o.b.t), yb=py(o.b.p); if(xa==null||xb==null||yb==null) continue;
         if(o.k==='t'){ if(Math.hypot(x-xa,y-ya)<=R) return {i:k,m:'a'}; if(Math.hypot(x-xb,y-yb)<=R) return {i:k,m:'b'}; if(dseg(x,y,xa,ya,xb,yb)<=12) return {i:k,m:'mv'}; }
@@ -14288,19 +14288,26 @@ if('serviceWorker' in navigator) window.addEventListener('load',function(){ navi
       return null; }
     function updDel(){ dl.hidden=(sel==null); }
     function rel(cx_,cy_){ var r=host.getBoundingClientRect(); return {x:cx_-r.left,y:cy_-r.top}; }
-    function begin(cx_,cy_){ if(tool||OPT.lock) return false; var q=rel(cx_,cy_), h=hit(q.x,q.y);
-      if(!h){ if(sel!=null){ sel=null; updDel(); sig=''; } return false; }
-      sel=h.i; updDel(); sig=''; dg={h:h,o:JSON.parse(JSON.stringify(draws[h.i])),x:q.x,y:q.y}; return true; }
+    var tp=null;   /* possible tap: select / deselect on release, only if the finger did not move (a swipe pans the chart) */
+    function begin(cx_,cy_){ tp=null; if(tool||OPT.lock) return false; var q=rel(cx_,cy_), h=null;
+      if(sel!=null) h=hit(q.x,q.y,sel);                       /* grab only the drawing that is already selected (like the main chart) */
+      if(!h){ var a=hit(q.x,q.y); tp={cx:cx_,cy:cy_,i:a?a.i:null}; return false; }   /* not grabbed: let the chart scroll left / right */
+      dg={h:h,o:JSON.parse(JSON.stringify(draws[h.i])),x:q.x,y:q.y}; return true; }
+    function tapEnd(){ if(!tp) return; var t=tp; tp=null; if(t.i==null){ if(sel!=null){ sel=null; updDel(); sig=''; } } else { sel=t.i; updDel(); sig=''; } }
     function mv(cx_,cy_){ if(!dg) return; var q=rel(cx_,cy_), dx=q.x-dg.x, dy=q.y-dg.y, o=dg.o, t=draws[dg.h.i]; if(!t) return;
       if(dg.h.m==='mv'){ ['a','b'].forEach(function(k){ if(!o[k]) return; var x=px(o[k].t), y=py(o[k].p); if(x==null||y==null) return; var u=unpx(o.k==='h'?x:x+dx,y+dy); if(u) t[k]=u; }); }
       else if(dg.h.m==='a'||dg.h.m==='b'){ var u=unpx(q.x,q.y); if(u) t[dg.h.m]=u; }
       else { var u2=unpx(q.x,q.y); if(u2){ (dg.h.ix?t.b:t.a).t=u2.t; (dg.h.iy?t.b:t.a).p=u2.p; } }
       sig=''; }
     function fin(){ if(dg){ dg=null; saveD(); } }
-    host.addEventListener('touchstart',function(e){ if(e.touches.length!==1){ dg=null; return; } var t=e.touches[0]; if(begin(t.clientX,t.clientY)){ e.stopPropagation(); e.preventDefault(); } },{capture:true,passive:false});
+    host.addEventListener('touchstart',function(e){ if(e.touches.length!==1){ dg=null; tp=null; return; } var t=e.touches[0]; if(begin(t.clientX,t.clientY)){ e.stopPropagation(); e.preventDefault(); } },{capture:true,passive:false});
     host.addEventListener('touchmove',function(e){ if(!dg) return; var t=e.touches[0]; mv(t.clientX,t.clientY); e.stopPropagation(); e.preventDefault(); },{capture:true,passive:false});
     ['touchend','touchcancel'].forEach(function(n){ host.addEventListener(n,function(e){ if(dg){ e.stopPropagation(); fin(); } },true); });
     function wm(e){ mv(e.clientX,e.clientY); } function wu(){ window.removeEventListener('mousemove',wm); window.removeEventListener('mouseup',wu); fin(); }
+    host.addEventListener('touchmove',function(e){ if(tp&&e.touches[0]&&Math.hypot(e.touches[0].clientX-tp.cx,e.touches[0].clientY-tp.cy)>9) tp=null; },{capture:true,passive:true});
+    host.addEventListener('touchend',function(){ tapEnd(); },{capture:true,passive:true});
+    host.addEventListener('touchcancel',function(){ tp=null; },{capture:true,passive:true});
+    window.addEventListener('mouseup',function(e){ if(tp&&Math.hypot(e.clientX-tp.cx,e.clientY-tp.cy)<=6) tapEnd(); else tp=null; });
     host.addEventListener('mousedown',function(e){ if(e.button!==0) return; if(begin(e.clientX,e.clientY)){ e.stopPropagation(); e.preventDefault(); window.addEventListener('mousemove',wm); window.addEventListener('mouseup',wu); } },true);
     /* ---------- buttons + indicator sheet ---------- */
     var css=document.createElement('style');
@@ -14712,6 +14719,49 @@ document.addEventListener("tidioChat-ready", function(){
 document.getElementById("bChat").onclick = function(){
   if(window.tidioChatApi){ tidioChatApi.show(); tidioChatApi.open(); }
 };
+</script>
+<script>
+/* pane node: pull any lower indicator pane (RSI, Stochastic, MACD ...) up / down; double-tap resets */
+try{
+(function(){
+  if(document.querySelector('.pnh')) return; const stage=document.getElementById('stage'); if(!stage) return;
+  const PANES=[['rsi','mpPaneH1'],['osc2','mpPaneH2']], MINH=64;
+  const css=document.createElement('style');
+  css.textContent='.pnh{position:absolute;z-index:7;width:54px;height:26px;margin-left:-27px;display:none;align-items:center;justify-content:center;touch-action:none;cursor:ns-resize;-webkit-tap-highlight-color:transparent}'
+    +'.pnh i{display:block;width:34px;height:14px;border-radius:9px;background:rgba(22,27,38,.55);border:1px solid rgba(255,255,255,.28);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);position:relative}'
+    +'.pnh i:before,.pnh i:after{content:"";position:absolute;left:50%;width:10px;height:2px;margin-left:-5px;border-radius:2px;background:rgba(255,255,255,.75)}'
+    +'.pnh i:before{top:3px}.pnh i:after{top:7px}'
+    +'.pnh.on i{background:rgba(124,140,255,.55);border-color:#7c8cff}';
+  document.head.appendChild(css);
+  const mw=document.getElementById('mw');
+  const items=PANES.map(([id,key])=>{ const el=document.getElementById(id); if(!el) return null;
+    const n=document.createElement('div'); n.className='pnh'; n.title='Pull up / down to resize this pane (double-tap to reset)'; n.innerHTML='<i></i>'; stage.appendChild(n);
+    const o={el,n,key,h:0};
+    try{ const v=+localStorage.getItem(key); if(v>=MINH) o.h=v; }catch(e){}
+    return o; }).filter(Boolean);
+  const other=o=>items.find(x=>x!==o);
+  const maxH=o=>{ const ot=other(o), oh=(ot&&ot.el.offsetHeight&&getComputedStyle(ot.el).display!=='none')?ot.el.offsetHeight:0; return Math.max(MINH, stage.clientHeight-oh-120); };
+  function apply(o){ if(o.h>=MINH){ o.el.style.flex='0 0 '+Math.min(o.h,maxH(o))+'px'; } else o.el.style.flex=''; }
+  function place(){ const sr=stage.getBoundingClientRect();
+    items.forEach(o=>{ const shown=getComputedStyle(o.el).display!=='none'&&o.el.offsetHeight>0; o.n.style.display=shown?'flex':'none'; if(!shown) return;
+      const r=o.el.getBoundingClientRect(); o.n.style.left=(r.left-sr.left+r.width/2)+'px'; o.n.style.top=(r.top-sr.top-13)+'px'; }); }
+  items.forEach(o=>{ apply(o);
+    let sy=0, sh=0, drag=false, lastTap=0;
+    const move=e=>{ if(!drag) return; o.h=Math.round(Math.max(MINH,Math.min(maxH(o),sh+(sy-e.clientY)))); apply(o); place(); e.preventDefault(); };
+    const end=()=>{ if(!drag) return; drag=false; o.n.classList.remove('on'); try{ localStorage.setItem(o.key,String(o.h||0)); }catch(e){}
+      try{ window.dispatchEvent(new Event('resize')); }catch(e){} place(); };
+    o.n.addEventListener('pointerdown',e=>{ e.stopPropagation(); e.preventDefault();
+      const now=Date.now(); if(now-lastTap<350){ o.h=0; apply(o); try{ localStorage.removeItem(o.key); }catch(x){} place(); lastTap=0; return; } lastTap=now;
+      drag=true; sy=e.clientY; sh=o.el.offsetHeight; o.n.classList.add('on'); try{ o.n.setPointerCapture(e.pointerId); }catch(x){} });
+    o.n.addEventListener('pointermove',move); o.n.addEventListener('pointerup',end); o.n.addEventListener('pointercancel',end);
+    ['touchstart','mousedown'].forEach(ev=>o.n.addEventListener(ev,e=>e.stopPropagation(),{passive:true}));
+  });
+  const ro=new ResizeObserver(place); ro.observe(stage); items.forEach(o=>{ ro.observe(o.el); }); if(mw) ro.observe(mw);
+  const mo=new MutationObserver(()=>{ items.forEach(apply); place(); }); items.forEach(o=>mo.observe(o.el,{attributes:true,attributeFilter:['style']})); mo.observe(stage,{attributes:true,attributeFilter:['class']});
+  window.addEventListener('resize',()=>{ items.forEach(apply); place(); }); window.addEventListener('orientationchange',()=>setTimeout(()=>{ items.forEach(apply); place(); },250));
+  setInterval(place,800); place();
+})();
+}catch(err){ console.error('pane node failed',err); }
 </script>
 </body>
 </html>
