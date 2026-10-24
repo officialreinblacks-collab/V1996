@@ -160,7 +160,7 @@ function lrsBench(bs){ const iv=tf[1], key=bs+'|'+iv; let d=lrsD[key]; if(!d) d=
         if(all.length){ const m=new Map(); all.forEach(x=>m.set(x[0]/1000,+x[4])); d.map=m; d.err=false; } else d.err=true; }catch(e){ d.err=true; }
       d.busy=false; d.ts=Date.now(); try{ render(); }catch(e){} })(); }
   return d; }
-function lrsCalc(c,p){ const N=c.length, d=lrsBench(p.bench), cl=c.map(x=>x.close), vo=c.map(x=>x.volume||0);
+function lrsCore(c,p){ const N=c.length, d=lrsBench(p.bench), cl=c.map(x=>x.close), vo=c.map(x=>x.volume||0);
   const R={rsmk:new Array(N).fill(null),mars:new Array(N).fill(null),buy:[],exit:[],segs:[],ready:false,err:d.err,busy:!d.map};
   if(!d.map) return R;
   const bn=c.map(x=>d.map.has(x.time)?d.map.get(x.time):null); let last=null; // carry the last known benchmark value over gaps
@@ -184,6 +184,13 @@ function lrsCalc(c,p){ const N=c.length, d=lrsBench(p.bench), cl=c.map(x=>x.clos
     if(isBuy&&i<nC){ pos=1; ep=cl[i]; eb=i; R.buy.push(i); R.segs.push({a:i,b:N-1,ep}); } else if(ex&&i<nC){ pos=0; R.exit.push(i); R.segs[R.segs.length-1].b=i; }
   }
   return R; }
+// The app calls calc()/extras() on every live tick: work on the newest 3000 candles only and reuse the result for ~1.5 s.
+const lrsMem={};
+function lrsCalc(c,p){ const N=c.length, st=Math.max(0,N-3000), d=lrsBench(p.bench), key=JSON.stringify(p)+'|'+N+'|'+(N?c[N-1].time:0)+'|'+(d.map?d.map.size:-1)+'|'+d.ts, m=lrsMem[key], now=Date.now();
+  if(m&&now-m.t<1500) return m.R;
+  let R; try{ R=lrsCore(st?c.slice(st):c,p); }catch(e){ console.error('lrs calc failed',e); R={rsmk:[],mars:[],buy:[],exit:[],segs:[]}; }
+  if(st){ R.rsmk=new Array(st).fill(null).concat(R.rsmk); R.mars=new Array(st).fill(null).concat(R.mars); R.buy=R.buy.map(i=>i+st); R.exit=R.exit.map(i=>i+st); R.segs=R.segs.map(q=>({a:q.a+st,b:q.b+st,ep:q.ep})); }
+  Object.keys(lrsMem).forEach(k=>{ if(k!==key) delete lrsMem[k]; }); lrsMem[key]={t:now,R}; return R; }
 IND.lrs={label:'Low-Risk ETF Strategy (RSMK)',cat:'Momentum',nm:p=>'LRETF '+p.bench,p:{bench:'BTCUSDT',rsL:35,rsiL:10,rsMa:50,rsCrit:3,minVol:0,rsiOs:35,maB:15,corMin:0.6,hold:30,tp:25,showLine:true},
   cols:['#2dd4a7','#2962ff'],kinds:['line','line'],pane:1,lines:p=>[[0,'#787b86']],
   fields:[['bench','sel','Benchmark symbol',{opts:LRS_SYMS}],['rsL','num','RSMK length',{min:2,max:300}],['rsiL','num','RSI length',{min:2,max:100}],['rsMa','num','RS MA length',{min:2,max:300}],['rsCrit','num','RS entry level',{step:0.5}],['minVol','num','Minimum volume (0 = off)',{min:0}],['rsiOs','num','RSI oversold',{min:1,max:99}],['maB','num','MA bars',{min:2,max:200}],['corMin','num','Minimum correlation',{min:0,max:1,step:0.05}],['hold','num','Rebalance period (bars)',{min:1,max:500}],['tp','num','Profit target exit %',{min:1,max:500}],['showLine','chk','Show entry line and position fill']],
