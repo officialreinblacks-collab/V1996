@@ -567,7 +567,8 @@ function lrsBench(bs){ const iv=tf[1], key=bs+'|'+iv; let d=lrsD[key]; if(!d) d=
   if(!d.busy&&Date.now()-d.ts>30000){ d.busy=true;
     (async()=>{ try{ let end=null, all=[]; for(let pg=0;pg<3;pg++){ const r=await fetch(`${RB(bs)}/klines?symbol=${bs}&interval=${iv}&limit=1000${end?'&endTime='+end:''}`).then(x=>x.json()); if(!Array.isArray(r)||!r.length) break; all=r.concat(all); end=r[0][0]-1; if(r.length<1000) break; }
         if(all.length){ const m=new Map(); all.forEach(x=>m.set(x[0]/1000,+x[4])); d.map=m; d.err=false; } else d.err=true; }catch(e){ d.err=true; }
-      d.busy=false; d.ts=Date.now(); try{ render(); }catch(e){} })(); }
+      d.busy=false; d.ts=Date.now(); try{ inds.forEach(q=>{ if(q.t==='lrs') recalc(q); }); }catch(e){}   // live ticks only touch the last point, so push the whole line again once the benchmark is in
+      try{ render(); }catch(e){} })(); }
   return d; }
 function lrsCore(c,p){ const N=c.length, d=lrsBench(p.bench), cl=c.map(x=>x.close), vo=c.map(x=>x.volume||0);
   const R={rsmk:new Array(N).fill(null),mars:new Array(N).fill(null),buy:[],exit:[],segs:[],ready:false,err:d.err,busy:!d.map};
