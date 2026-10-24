@@ -711,12 +711,16 @@ function makeSeries(i){
   (typeof d.lines==='function'?d.lines(i.p):(d.lines||[])).forEach(([price,color,ls])=>i.ser[0].createPriceLine({price,color,lineStyle:ls==null?2:ls,lineWidth:1,axisLabelVisible:false}));
 }
 function applyVis(){ inds.forEach(i=>i.ser.forEach(x=>x.applyOptions({visible:!!show(i)}))); paneUpdate(); }
-function recalc(i){ IND[i.t].calc(candles,i.p).forEach((a,k)=>i.ser[k].setData(a)); }
+/* lower panes: pad the series with empty points so its bar numbers match the candles (otherwise the pane starts later and sits many bars behind the price) */
+function padS(a){ if(!a||!candles.length) return a; const m=new Map(); a.forEach(q=>{ if(q) m.set(q.time,q); }); let hit=0; const cs=new Set(); const out=candles.map(c=>{ cs.add(c.time); const q=m.get(c.time); if(q) hit++; return q||{time:c.time}; });
+  if(hit<m.size){ a.forEach(q=>{ if(q&&!cs.has(q.time)) out.push(q); }); out.sort((x,y)=>x.time-y.time); } return out; }
+function paneUp(ser,a){ const last=candles[candles.length-1]; if(!last||!a||!a.length) return; const lp=a[a.length-1]; try{ ser.update(lp.time===last.time?lp:{time:last.time}); }catch(e){} }
+function recalc(i){ const pn=IND[i.t].pane||0; IND[i.t].calc(candles,i.p).forEach((a,k)=>i.ser[k].setData(pn?padS(a):a)); }
 function addInd(t){ const d=IND[t], i={id:++uid,t,p:clone(d.p),cols:[...d.cols],on:true,w:2,lbl:true,vis:VIS0(),ser:[]}; makeSeries(i); inds.push(i); recalc(i); paneUpdate(); drawInds(); }
 function drawIndicators(full){
   const last=candles[candles.length-1]; if(!last) return;
   if(full) lineS.setData(candles.map(c=>({time:c.time,value:c.close}))); else lineS.update({time:last.time,value:last.close});
-  inds.forEach(i=>IND[i.t].calc(candles,i.p).forEach((a,k)=>{ if(full) i.ser[k].setData(a); else if(a.length) i.ser[k].update(a[a.length-1]); }));
+  inds.forEach(i=>{ const pn=IND[i.t].pane||0; IND[i.t].calc(candles,i.p).forEach((a,k)=>{ if(full) i.ser[k].setData(pn?padS(a):a); else if(pn) paneUp(i.ser[k],a); else if(a.length) i.ser[k].update(a[a.length-1]); }); });
 }
 function stratName(k){ k=k||strat; const S_=STRATS[k.k]; if((k.k==='pcr'||k.k==='ccp'||k.k==='mru')&&window.pcrHtml){ const _t=stratName0(k); return window.pcrHtml(_t); }
   return stratName0(k); }
