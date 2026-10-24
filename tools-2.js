@@ -146,61 +146,110 @@ function lrEmaMM(v,n){ return mmEma(v,n); }
 }catch(err){ console.error('mmx indicator failed',err); window.__mmxErr=err; }
 
 
-// ---- [lrs] INDICATOR: Low-Risk ETF Strategy (RSMK) - port of TASC Oct 2026, Markos Katsanos (PineCoders version) ----
-// Buy-only relative-strength tool: RSMK line + its average in an own pane, Buy / Exit markers on the price chart.
-// The benchmark (default BTCUSDT instead of SPY) is fetched from Binance on the chart's interval and matched by candle time.
+// ---- [slo] INDICATOR: Shaakuni - Liquidity Levels & Order Blocks - port of the Pine v6 script by Shaakuni (MPL 2.0) ----
+// Previous week / previous day highs, lows and 50% (EQ) levels, simple Order Blocks (OB / POI) from a swing break + ATR impulse rule,
+// and a small panel with the active New York session and the status of the previous day's high / low. A context tool, not a strategy.
 try{
-const LRS_SYMS=['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','ADAUSDT','DOGEUSDT','AVAXUSDT','LINKUSDT','LTCUSDT','PAXGUSDT'];
-const lrsD={};
-function lrsRsi(v,n){ const o=new Array(v.length).fill(null); let g=0,l=0; for(let i=1;i<v.length;i++){ const x=v[i]-v[i-1], gg=Math.max(x,0), ll=Math.max(-x,0); if(i<=n){ g+=gg; l+=ll; if(i===n){ g/=n; l/=n; } } else { g=(g*(n-1)+gg)/n; l=(l*(n-1)+ll)/n; } if(i>=n) o[i]=l===0?100:100-100/(1+g/l); } return o; }
-function lrsCor(a,b,n,i){ if(i<n-1) return null; let sa=0,sb=0; for(let k=i-n+1;k<=i;k++){ if(a[k]==null||b[k]==null) return null; sa+=a[k]; sb+=b[k]; } const ma=sa/n, mb=sb/n; let c=0,va=0,vb=0; for(let k=i-n+1;k<=i;k++){ const x=a[k]-ma, y=b[k]-mb; c+=x*y; va+=x*x; vb+=y*y; } return va>0&&vb>0?c/Math.sqrt(va*vb):null; }
-function lrsBench(bs){ const iv=tf[1], key=bs+'|'+iv; let d=lrsD[key]; if(!d) d=lrsD[key]={map:null,ts:0,busy:false,err:false};
-  if(!d.busy&&Date.now()-d.ts>30000){ d.busy=true;
-    (async()=>{ try{ let end=null, all=[]; for(let pg=0;pg<3;pg++){ const r=await fetch(`${RB(bs)}/klines?symbol=${bs}&interval=${iv}&limit=1000${end?'&endTime='+end:''}`).then(x=>x.json()); if(!Array.isArray(r)||!r.length) break; all=r.concat(all); end=r[0][0]-1; if(r.length<1000) break; }
-        if(all.length){ const m=new Map(); all.forEach(x=>m.set(x[0]/1000,+x[4])); d.map=m; d.err=false; } else d.err=true; }catch(e){ d.err=true; }
-      d.busy=false; d.ts=Date.now(); try{ render(); }catch(e){} })(); }
-  return d; }
-function lrsCore(c,p){ const N=c.length, d=lrsBench(p.bench), cl=c.map(x=>x.close), vo=c.map(x=>x.volume||0);
-  const R={rsmk:new Array(N).fill(null),mars:new Array(N).fill(null),buy:[],exit:[],segs:[],ready:false,err:d.err,busy:!d.map};
-  if(!d.map) return R;
-  const bn=c.map(x=>d.map.has(x.time)?d.map.get(x.time):null); let last=null; // carry the last known benchmark value over gaps
-  for(let i=0;i<N;i++){ if(bn[i]!=null) last=bn[i]; else if(last!=null&&i>0) bn[i]=last; }
-  const rs1=cl.map((x,i)=>{ if(i<p.rsL||bn[i]==null||bn[i-p.rsL]==null) return null; const a=Math.log(x/bn[i]), b=Math.log(cl[i-p.rsL]/bn[i-p.rsL]); return isFinite(a)&&isFinite(b)?a-b:null; });
-  const rs=emaV(rs1,4).map(v=>v==null?null:v*100), mars=smaV(rs,p.rsMa), rsi=lrsRsi(cl,p.rsiL), e5=emaV(cl,5), sm=smaV(cl,p.maB), vsm=smaV(vo,5);
-  R.rsmk=rs; R.mars=mars; R.ready=true;
-  let pos=0, ep=0, eb=0; const nC=N-1;   // the candle still forming never prints a signal
-  for(let i=0;i<N;i++){
-    const r=rs[i]; if(r==null) continue;
-    let hh=null; for(let k=Math.max(0,i-3);k<=i;k++){ if(rs[k]==null){ hh=null; break; } if(hh==null||rs[k]>hh) hh=rs[k]; }
-    const cor=lrsCor(cl,bn,100,i), roc=i>=6&&bn[i]!=null&&bn[i-6]?(bn[i]-bn[i-6])/bn[i-6]*100:null;
-    let llr=null; if(i>=19){ for(let k=i-19;k<=i;k++){ if(rsi[k]==null){ llr=null; break; } if(llr==null||rsi[k]<llr) llr=rsi[k]; } }
-    const gotVol=p.minVol<=0||(vsm[i]!=null&&vsm[i]>p.minVol);
-    const rsSig=mars[i]!=null&&r>mars[i]&&r>p.rsCrit&&hh!=null&&r===hh&&r<25;
-    const rocSig=cor!=null&&roc!=null&&((roc>-6&&cor>p.corMin)||(roc<-6&&cor<-p.corMin));
-    const rsiSig=llr!=null&&llr<p.rsiOs&&rsi[i]!=null&&rsi[i-3]!=null&&rsi[i]>rsi[i-3];
-    const momSig=e5[i]!=null&&i>=5&&sm[i-5]!=null&&e5[i]>sm[i-5];
-    const isBuy=gotVol&&rsSig&&rocSig&&rsiSig&&momSig&&pos===0;
-    const isSell=cor!=null&&r<-p.rsCrit&&cor>0.8&&pos===1, perExit=pos===1&&cl[i]>=ep*(1+p.tp/100), reBal=pos===1&&i-eb>=p.hold, ex=isSell||perExit||reBal;
-    if(isBuy&&i<nC){ pos=1; ep=cl[i]; eb=i; R.buy.push(i); R.segs.push({a:i,b:N-1,ep}); } else if(ex&&i<nC){ pos=0; R.exit.push(i); R.segs[R.segs.length-1].b=i; }
-  }
-  return R; }
-// The app calls calc()/extras() on every live tick: work on the newest 3000 candles only and reuse the result for ~1.5 s.
-const lrsMem={};
-function lrsCalc(c,p){ const N=c.length, st=Math.max(0,N-3000), d=lrsBench(p.bench), key=JSON.stringify(p)+'|'+N+'|'+(N?c[N-1].time:0)+'|'+(d.map?d.map.size:-1)+'|'+d.ts, m=lrsMem[key], now=Date.now();
-  if(m&&now-m.t<1500) return m.R;
-  let R; try{ R=lrsCore(st?c.slice(st):c,p); }catch(e){ console.error('lrs calc failed',e); R={rsmk:[],mars:[],buy:[],exit:[],segs:[]}; }
-  if(st){ R.rsmk=new Array(st).fill(null).concat(R.rsmk); R.mars=new Array(st).fill(null).concat(R.mars); R.buy=R.buy.map(i=>i+st); R.exit=R.exit.map(i=>i+st); R.segs=R.segs.map(q=>({a:q.a+st,b:q.b+st,ep:q.ep})); }
-  Object.keys(lrsMem).forEach(k=>{ if(k!==key) delete lrsMem[k]; }); lrsMem[key]={t:now,R}; return R; }
-IND.lrs={label:'Low-Risk ETF Strategy (RSMK)',cat:'Momentum',nm:p=>'LRETF '+p.bench,p:{bench:'BTCUSDT',rsL:35,rsiL:10,rsMa:50,rsCrit:3,minVol:0,rsiOs:35,maB:15,corMin:0.6,hold:30,tp:25,showLine:true},
-  cols:['#2dd4a7','#2962ff'],kinds:['line','line'],pane:1,lines:p=>[[0,'#787b86']],
-  fields:[['bench','sel','Benchmark symbol',{opts:LRS_SYMS}],['rsL','num','RSMK length',{min:2,max:300}],['rsiL','num','RSI length',{min:2,max:100}],['rsMa','num','RS MA length',{min:2,max:300}],['rsCrit','num','RS entry level',{step:0.5}],['minVol','num','Minimum volume (0 = off)',{min:0}],['rsiOs','num','RSI oversold',{min:1,max:99}],['maB','num','MA bars',{min:2,max:200}],['corMin','num','Minimum correlation',{min:0,max:1,step:0.05}],['hold','num','Rebalance period (bars)',{min:1,max:500}],['tp','num','Profit target exit %',{min:1,max:500}],['showLine','chk','Show entry line and position fill']],
-  calc:(c,p)=>{ const R=lrsCalc(c,Object.assign({},IND.lrs.p,p)); return [toS(c,R.rsmk),toS(c,R.mars)]; },
-  extras:(c,p)=>{ const R=lrsCalc(c,Object.assign({},IND.lrs.p,p)), mk=[]; R.buy.forEach(i=>mk.push({time:c[i].time,position:'belowBar',color:'#2dd4a7',shape:'arrowUp',text:'Buy'})); R.exit.forEach(i=>mk.push({time:c[i].time,position:'aboveBar',color:'#f23645',shape:'circle',text:'Exit'})); mk.sort((a,b)=>a.time-b.time); return {mk:mk.slice(-500),boxes:p.showLine!==false&&R.segs.length?[{type:'lrsview',pts:[],o:{segs:R.segs.slice(-60)}}]:[],labels:[]}; }};
-{ const _D=draw; draw=function(d,X,Y,W,H){ if(!d||d.type!=='lrsview') return _D.apply(this,arguments);
-    const n0=candles.length; cx.save(); cx.beginPath(); cx.rect(0,0,W,H); cx.clip(); cx.setLineDash([]);
-    d.o.segs.forEach(sg=>{ const b=Math.min(sg.b,n0-1), ye=Y(sg.ep); if(ye==null||sg.a>=n0) return;
-      for(let i=sg.a+1;i<=b;i++){ const x0=X(i-1), x1=X(i), y0=Y(candles[i-1].close), y1=Y(candles[i].close); if(x0==null||x1==null||y0==null||y1==null) continue;
-        cx.fillStyle=candles[i-1].close>sg.ep?'rgba(0,150,136,.2)':'rgba(242,54,69,.2)'; cx.beginPath(); cx.moveTo(x0,ye); cx.lineTo(x0,y0); cx.lineTo(x1,y1); cx.lineTo(x1,ye); cx.closePath(); cx.fill(); }
-      const xa=X(sg.a), xb=X(b); if(xa==null||xb==null) return; cx.strokeStyle='#ffeb3b'; cx.lineWidth=1; cx.setLineDash([2,3]); cx.beginPath(); cx.moveTo(xa,ye); cx.lineTo(xb,ye); cx.stroke(); cx.setLineDash([]); });
+const SL_DEF={panel:true,pos:'Top Right',theme:'Dark',tz:'Auto (DST)',psize:'Small',showWeek:true,showEQ:true,showPrevW:true,showDay:true,showDEQ:true,showOB:true,showFresh:true,showMit:false,
+  lbMode:'Auto',lbMan:500,swLen:10,imp:0.7,cBull:'#2979ff',cBear:'#ff7043',cEQ:'#ffd700',cDEQ:'#00e5ff',cHead:'#ffc850',cLab:'#a0a0a0'};
+const slTfSec=iv=>{ const m=/^(\d+)([mhdwM])$/.exec(iv||''); return m?(+m[1])*({m:60,h:3600,d:86400,w:604800,M:2592000}[m[2]]):0; };
+const slRgba=(c,a)=>{ const m=/^#?([0-9a-f]{6})$/i.exec(String(c||'')); if(!m) return c; const n=parseInt(m[1],16); return 'rgba('+(n>>16&255)+','+(n>>8&255)+','+(n&255)+','+a+')'; };
+const slFmt=v=>v==null||!isFinite(v)?'-':Math.abs(v)>=1000?String(Math.round(v)):Math.abs(v)>=100?v.toFixed(2):v.toPrecision(5);
+const slSame=(a,b)=>a!=null&&b!=null&&Math.abs(a-b)<=Math.abs(a)*1e-7;
+let slFmtr=null;
+function slSession(tz){ let h,m; const d=new Date();
+  if(tz==='Auto (DST)'){ try{ if(!slFmtr) slFmtr=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'numeric',hourCycle:'h23'}); const q=slFmtr.formatToParts(d); h=+q.find(x=>x.type==='hour').value%24; m=+q.find(x=>x.type==='minute').value; }catch(e){ h=(d.getUTCHours()-4+24)%24; m=d.getUTCMinutes(); } }
+  else { h=(d.getUTCHours()-(tz==='Manual UTC-4 (EDT)'?4:5)+24)%24; m=d.getUTCMinutes(); }
+  const t=h*60+m; return t>=1200&&t<1440?'Asian':t>=120&&t<300?'London':t>=420&&t<600?'New York':t>=600&&t<720?'London Close':'-'; }
+function slCompute(c,p){ const N=c.length, D={N,ok:false,zones:[]}; if(N<20) return D;
+  const H=c.map(x=>x.high), L=c.map(x=>x.low), O=c.map(x=>x.open), C=c.map(x=>x.close);
+  // ATR(14), Wilder
+  const atr=new Array(N).fill(null); { let s=0; for(let i=0;i<N;i++){ const tr=i?Math.max(H[i]-L[i],Math.abs(H[i]-C[i-1]),Math.abs(L[i]-C[i-1])):H[i]-L[i]; if(i<14){ s+=tr; if(i===13) atr[i]=s/14; } else atr[i]=(atr[i-1]*13+tr)/14; } }
+  // weekly + daily ranges
+  let tH=null,tL=null,tHB=-1,tLB=-1,pwh=null,pwl=null,pwhB=-1,pwlB=-1,pwh2=null,pwl2=null,pwh2B=-1,pwl2B=-1,pw=null,dH=null,dL=null,dHB=-1,dLB=-1,pdh=null,pdl=null,pdhB=-1,pdlB=-1,pd=null;
+  for(let i=0;i<N;i++){ const day=Math.floor(c[i].time/86400), wk=Math.floor((day+3)/7);
+    if(i===0||wk!==pw){ pwh2=pwh; pwl2=pwl; pwh2B=pwhB; pwl2B=pwlB; pwh=tH; pwl=tL; pwhB=tHB; pwlB=tLB; tH=H[i]; tL=L[i]; tHB=i; tLB=i; } else { if(H[i]>tH){ tH=H[i]; tHB=i; } if(L[i]<tL){ tL=L[i]; tLB=i; } }
+    if(i===0||day!==pd){ pdh=dH; pdl=dL; pdhB=dHB; pdlB=dLB; dH=H[i]; dL=L[i]; dHB=i; dLB=i; } else { if(H[i]>dH){ dH=H[i]; dHB=i; } if(L[i]<dL){ dL=L[i]; dLB=i; } }
+    pw=wk; pd=day; }
+  const cl=b=>Math.max(b,N-1-499);
+  D.week=pwh!=null?{hi:pwh,lo:pwl,hiB:cl(pwhB),loB:cl(pwlB),cur:false}:{hi:tH,lo:tL,hiB:cl(tHB),loB:cl(tLB),cur:true};
+  D.prevW=pwh!=null&&pwh2!=null?{hi:pwh2,lo:pwl2,hiB:cl(pwh2B),loB:cl(pwl2B)}:null;
+  D.day=pdh!=null?{hi:pdh,lo:pdl,hiB:cl(pdhB),loB:cl(pdlB),cur:false}:{hi:dH,lo:dL,hiB:cl(dHB),loB:cl(dLB),cur:true};
+  D.pdh=pdh; D.pdl=pdl; D.dHi=dH; D.dLo=dL; D.close=C[N-1];
+  D.pdhSt='Active'; D.pdlSt='Active';
+  if(pdh!=null){ if(C[N-1]>pdh) D.pdhSt='Break'; else if(dH>pdh) D.pdhSt='Sweep !'; }
+  if(pdl!=null){ if(C[N-1]<pdl) D.pdlSt='Break'; else if(dL<pdl) D.pdlSt='Sweep !'; }
+  // order blocks / POI (confirmed bars only, no repaint)
+  const sw=p.swLen, im=p.imp, Z=[]; let lastBull=-1, lastBear=-1;
+  for(let t=0;t<N;t++){
+    if(t<N-1&&atr[t]!=null&&t>sw+2){ const a=atr[t];
+      let hh=H[t-1], hOff=1; for(let i=2;i<=sw;i++) if(H[t-i]>hh){ hh=H[t-i]; hOff=i; }
+      if(C[t]>hh&&hOff>=3){ let mn=L[t-1], mnOff=1; for(let i=2;i<=hOff-1;i++) if(L[t-i]<mn){ mn=L[t-i]; mnOff=i; }
+        let dOff=-1; for(let k=0;k<=mnOff-1;k++){ const o=mnOff-1-k; if(C[t-o]>O[t-o]&&(C[t-o]-O[t-o])>=a*im){ dOff=o; break; } }
+        if(dOff>=0){ let ob=mnOff; for(let j=dOff+1;j<=mnOff;j++) if(C[t-j]<O[t-j]){ ob=j; break; }
+          let fresh=true; if(ob>=2) for(let k=0;k<=ob-2;k++) if(L[t-k]<=H[t-ob]){ fresh=false; break; }
+          const obBar=t-ob; if(fresh&&obBar!==lastBull){ lastBull=obBar; Z.push({ty:5,top:H[t-ob],bot:L[t-ob],obBar,cbar:t,st:0,mit:-1}); } } }
+      let ll=L[t-1], lOff=1; for(let i=2;i<=sw;i++) if(L[t-i]<ll){ ll=L[t-i]; lOff=i; }
+      if(C[t]<ll&&lOff>=3){ let mx=H[t-1], mxOff=1; for(let i=2;i<=lOff-1;i++) if(H[t-i]>mx){ mx=H[t-i]; mxOff=i; }
+        let dOff=-1; for(let k=0;k<=mxOff-1;k++){ const o=mxOff-1-k; if(C[t-o]<O[t-o]&&(O[t-o]-C[t-o])>=a*im){ dOff=o; break; } }
+        if(dOff>=0){ let ob=mxOff; for(let j=dOff+1;j<=mxOff;j++) if(C[t-j]>O[t-j]){ ob=j; break; }
+          let fresh=true; if(ob>=2) for(let k=0;k<=ob-2;k++) if(H[t-k]>=L[t-ob]){ fresh=false; break; }
+          const obBar=t-ob; if(fresh&&obBar!==lastBear){ lastBear=obBar; Z.push({ty:6,top:H[t-ob],bot:L[t-ob],obBar,cbar:t,st:0,mit:-1}); } } } }
+    for(let k=Z.length-1;k>=0;k--){ const z=Z[k]; if(z.st===0&&t>z.cbar&&H[t]>=z.bot&&L[t]<=z.top){ z.st=2; z.mit=t; } } }
+  const lb=p.lbMode==='Auto'?(()=>{ const s=slTfSec(tf[1]); return s<=60?2000:s<=300?1500:s<=900?1000:s<=1800?700:s<=3600?500:s<=14400?250:150; })():p.lbMan;
+  D.zones=Z.filter(z=>z.cbar>=N-1-lb).slice(-200); D.ok=true; return D; }
+let slMem=null;
+function slGet(c,p){ const N=c.length, key=JSON.stringify(p)+'|'+N+'|'+(N?c[N-1].time+'|'+c[N-1].close+'|'+c[N-1].high+'|'+c[N-1].low:''); if(slMem&&slMem.k===key) return slMem.D;
+  let D; try{ D=slCompute(c,p); }catch(e){ console.error('slo calc failed',e); D={N,ok:false,zones:[]}; } slMem={k:key,D}; return D; }
+IND.slo={label:'Shaakuni \u00b7 Liquidity Levels & Order Blocks',cat:'Trend',nm:()=>'Shaakuni Levels & OB',p:Object.assign({},SL_DEF),cols:['#ffc850'],
+  fields:[['panel','chk','Show panel'],['pos','sel','Panel position',{opts:['Top Left','Top Right','Bottom Left','Bottom Right','Middle Left','Middle Right']}],['theme','sel','Theme',{opts:['Dark','Light']}],['tz','sel','Timezone',{opts:['Auto (DST)','Manual UTC-4 (EDT)','Manual UTC-5 (EST)']}],['psize','sel','Panel text size',{opts:['Small','Medium','Large']}],
+    ['showWeek','chk','Show weekly high / low'],['showEQ','chk','Show weekly EQ (50%)'],['showPrevW','chk','Show previous week'],['showDay','chk','Show daily high / low'],['showDEQ','chk','Show daily EQ (50%)'],
+    ['showOB','chk','Show Order Blocks (OB / POI)'],['showFresh','chk','Show unmitigated'],['showMit','chk','Show mitigated'],['lbMode','sel','Zone lookback',{opts:['Auto','Manual']}],['lbMan','num','Manual lookback (bars)',{min:30,max:2000}],
+    ['swLen','num','OB structure lookback (bars)',{min:3,max:50}],['imp','num','OB impulse candle (x ATR)',{min:0.1,max:5,step:0.1}],
+    ['cBull','col','Bull OB / POI'],['cBear','col','Bear OB / POI'],['cEQ','col','Weekly EQ'],['cDEQ','col','Daily EQ'],['cHead','col','Panel header text']],
+  calc:(c,p)=>[[]],
+  extras:(c,p)=>{ const q=Object.assign({},SL_DEF,p); return {mk:[],boxes:[{type:'slview',pts:[],o:q,D:slGet(c,q)}],labels:[]}; }};
+
+{ const _D=draw; draw=function(d,X,Y,W,H){ if(!d||d.type!=='slview') return _D.apply(this,arguments);
+    const p=d.o, D=d.D, n0=candles.length; if(!D||!D.ok||n0<5) return; const dark=p.theme!=='Light';
+    cx.save(); cx.beginPath(); cx.rect(0,0,W,H); cx.clip(); cx.setLineDash([]); cx.textBaseline='middle';
+    const xe=X(n0-1), xp=X(n0-2), bw=(xe!=null&&xp!=null)?Math.max(1,xe-xp):6, xr=(xe==null?W*0.8:xe)+bw*5, xa=i=>{ const v=X(i); return v==null?0:v; };
+    const C={pwh:dark?'#dc3232':'#8b0000',pwl:dark?'#1eb464':'#0a5c34',pdh:dark?'#ff8c00':'#964500',pdl:dark?'#0096c8':'#004e7c'};
+    const ln=(x1,x2,y,col,dash,w)=>{ if(y==null) return; cx.strokeStyle=col; cx.lineWidth=w||1; cx.setLineDash(dash||[]); cx.beginPath(); cx.moveTo(x1,y); cx.lineTo(x2,y); cx.stroke(); cx.setLineDash([]); };
+    const lab=(txt,y,bg,fg)=>{ if(y==null) return; cx.font='bold 9px system-ui'; const w=cx.measureText(txt).width+8, x=Math.min(xr,W-w-2); cx.fillStyle=bg; cx.fillRect(x,y-7,w,14); cx.fillStyle=fg; cx.textAlign='left'; cx.fillText(txt,x+4,y); };
+    const small=(txt,x,y,col)=>{ cx.font='9px system-ui'; cx.fillStyle=col; cx.textAlign='center'; cx.fillText(txt,x,y); };
+    const dayOn=p.showDay&&['1w','1M'].indexOf(tf[1])<0&&!(slTfSec(tf[1])>=604800);
+    const wk=D.week, dy=D.day; let mergeH=false, mergeL=false;
+    if(dayOn&&p.showWeek){ mergeH=slSame(dy.hi,wk.hi); mergeL=slSame(dy.lo,wk.lo); }
+    // order blocks
+    if(p.showOB) D.zones.forEach(z=>{ const bull=z.ty===5, fresh=z.st<2; if(fresh&&!p.showFresh) return; if(!fresh&&!p.showMit) return;
+      const x0=xa(z.obBar), x1=fresh?xr:xa(z.mit+2), y0=Y(z.top), y1=Y(z.bot); if(y0==null||y1==null||x1<=x0) return;
+      const col=bull?p.cBull:p.cBear;
+      cx.fillStyle=fresh?slRgba(col,dark?0.18:0.32):'rgba(0,0,0,.25)'; cx.fillRect(x0,Math.min(y0,y1),x1-x0,Math.max(1,Math.abs(y1-y0)));
+      if(fresh){ cx.strokeStyle=slRgba(col,dark?0.7:0.85); cx.lineWidth=1; cx.strokeRect(x0,Math.min(y0,y1),x1-x0,Math.max(1,Math.abs(y1-y0))); }
+      const cxm=(x0+Math.min(x1,W))/2; if(Math.abs(y1-y0)>9) small(slSec()>=3600?'POI':'OB',cxm,(y0+y1)/2,'rgba(255,255,255,.85)'); });
+    function slSec(){ return slTfSec(tf[1]); }
+    // weekly
+    if(p.showWeek&&wk.hi!=null){ const yh=Y(wk.hi), yl=Y(wk.lo), xh=xa(wk.hiB), xl=xa(wk.loB);
+      if(yh!=null&&yl!=null){ cx.fillStyle=dark?'rgba(128,128,128,.05)':'rgba(120,120,120,.07)'; cx.fillRect(Math.min(xh,xl),Math.min(yh,yl),xr-Math.min(xh,xl),Math.abs(yl-yh)); }
+      ln(xh,xr,yh,C.pwh); ln(xl,xr,yl,C.pwl);
+      lab((mergeH?'PDH / PWH  ':'PWH  ')+slFmt(wk.hi),yh,C.pwh,'#fff'); lab((mergeL?'PDL / PWL  ':'PWL  ')+slFmt(wk.lo),yl,C.pwl,'#fff');
+      if(p.showEQ){ const eq=(wk.hi+wk.lo)/2, ye=Y(eq); ln(Math.min(xh,xl),xr,ye,p.cEQ,[5,4]); lab('W-EQ (50%)  '+slFmt(eq),ye,p.cEQ,'#000'); }
+      if(p.showPrevW&&D.prevW){ const v=D.prevW, a=xa(v.hiB), b=xa(v.loB); ln(a,xr,Y(v.hi),slRgba(C.pwh,0.4),[1.5,3]); ln(b,xr,Y(v.lo),slRgba(C.pwl,0.4),[1.5,3]);
+        const y1=Y(v.hi), y2=Y(v.lo); if(y1!=null) small(slFmt(v.hi),a,y1-8,C.pwh); if(y2!=null) small(slFmt(v.lo),b,y2+8,C.pwl); } }
+    // daily
+    if(dayOn&&dy.hi!=null){ const yh=Y(dy.hi), yl=Y(dy.lo), xh=xa(dy.hiB), xl=xa(dy.loB);
+      ln(xh,xr,yh,C.pdh); ln(xl,xr,yl,C.pdl);
+      if(!mergeH) lab('PDH  '+slFmt(dy.hi),yh,C.pdh,'#fff'); if(!mergeL) lab('PDL  '+slFmt(dy.lo),yl,C.pdl,'#fff');
+      if(p.showDEQ){ const eq=(dy.hi+dy.lo)/2, ye=Y(eq); ln(Math.min(xh,xl),xr,ye,p.cDEQ,[5,4]); lab('D-EQ (50%)  '+slFmt(eq),ye,p.cDEQ,'#000'); } }
+    // panel
+    if(p.panel){ const fs=p.psize==='Large'?14:p.psize==='Medium'?12:10, rh=fs+9, sess=slSession(p.tz), live=sess!=='-', hasD=dayOn&&D.pdh!=null;
+      const stTxt=s=>s==='Sweep !'?'Sweep !':s==='Break'?'Broken X':'Active', stCol=s=>s==='Sweep !'?'#fff':s==='Break'?'#c86464':'#a0a0a0';
+      const rows=[['Shaakuni - Levels & OB',String(sym[0])+' / '+String(tf[1]),p.cHead,'#a0a0a0','#1f1f1f'],['Session',live?sess:'No Active Session','#a0a0a0',live?'#64c88c':'#a0a0a0','#2d2d2d']];
+      if(hasD){ rows.push(['Day High',stTxt(D.pdhSt)+'  '+slFmt(D.pdh),C.pdh,stCol(D.pdhSt),D.pdhSt==='Sweep !'?'rgba(0,180,80,.75)':'#141414']); rows.push(['Day Low',stTxt(D.pdlSt)+'  '+slFmt(D.pdl),C.pdl,stCol(D.pdlSt),D.pdlSt==='Sweep !'?'rgba(0,180,80,.75)':'#141414']); }
+      cx.font=fs+'px system-ui'; let w1=0,w2=0; rows.forEach(r=>{ w1=Math.max(w1,cx.measureText(r[0]).width); w2=Math.max(w2,cx.measureText(r[1]).width); }); const pw=w1+w2+32, ph=rows.length*rh, m=6;
+      const left=/Left/.test(p.pos), x0=left?m:W-pw-m, y0=/Top/.test(p.pos)?m+34:/Bottom/.test(p.pos)?H-ph-m-24:(H-ph)/2;
+      rows.forEach((r,k)=>{ const y=y0+k*rh; cx.fillStyle=r[4]; cx.fillRect(x0,y,pw,rh); cx.font=(k===0?'bold ':'')+fs+'px system-ui'; cx.textAlign='left'; cx.fillStyle=r[2]; cx.fillText(r[0],x0+8,y+rh/2); cx.textAlign='right'; cx.fillStyle=r[3]; cx.fillText(r[1],x0+pw-8,y+rh/2); });
+      cx.strokeStyle='#2a2a2a'; cx.lineWidth=1; cx.strokeRect(x0,y0,pw,ph); }
     cx.restore(); }; }
-}catch(err){ console.error('lrs indicator failed',err); window.__lrsErr=err; }
+}catch(err){ console.error('slo indicator failed',err); window.__sloErr=err; }

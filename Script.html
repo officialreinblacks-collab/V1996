@@ -49,7 +49,7 @@ footer{text-align:center;color:var(--mut);font-size:13px;padding:6px 16px 30px}
 <body>
 <nav class="nav">
   <a href="#pcr">Ranging Channel</a><a href="#ccp">Counter Premium</a><a href="#smc">SMC</a><a href="#ssm">Sweep MSS OB</a><a href="#paw">Wave Analysis</a><a href="#rvp">Reversal Profile</a><a href="#pac">PA Concepts</a><a href="#msa">Market Structure</a><a href="#srh">S/R Volume Boxes</a><a href="#rtr">Retracement</a><a href="#czt">Curved Trendlines</a><a href="#rbs">% Retest</a><a href="#wre">Wyckoff</a><a href="#scr">Spike Counter</a><a href="#bsp">Buyers &amp; Sellers</a><a href="#tts">Trend Targets</a><a href="#fvs">FVG Sessions</a><a href="#hrm">Harmonics</a><a href="#kzp">KZP Killzones</a><a href="#ppa">Price Action 2</a><a href="#ecr">Engulfing + RSI</a><a href="#pcl">Piercing Line</a><a href="#hsd">Head &amp; Shoulders</a><a href="#frv">Volume Profile</a><a href="#mru">Fast Future Sniper</a><a href="#beg">Bullish Engulfing</a><a href="#ber">Bearish Engulfing</a><a href="#ihm">Inverse Hammer</a><a href="#mst">Morning Star</a><a href="#tws">Three White Soldiers</a><a href="#rtm">Rising Three Methods</a><a href="#fpc">Fakey + Pin Bar</a><a href="#mmo">Market Momentum 02</a><a href="#ccz">Consecutive Candles</a><a href="#bbs">Breaker Blocks</a><a href="#obr">Order Block Retest</a><a href="#lpo">Liquidity Pools &amp; OB</a><a href="#sdx">Supply Demand Legs</a><a href="#pdo">DT + OB Setups</a><a href="#dbt">Price Action Setup</a><a href="#ard">Auto Range Detector</a><a href="#bkc">Breakout Channels</a><a href="#sbk">Support Break</a><a href="#tdl">Trendlines</a><a href="#fsw">Fib Sequence Swing</a><a href="#f3x">Fib 1-2-3</a><a href="#vpn">Volume Profile Nodes</a><a href="#prv">Regression Profile</a><a href="#sfa">Fib Arcs</a><a href="#gpa">Gap Analysis</a><a href="#ibauc">IBAUC</a><a href="#po3">PO3 Power of 3</a><a href="#pgs">Premium GOLD</a><a href="#sno">Signals &amp; Overlays</a><a href="#axz">S/R Confluence</a><a href="#dsz">Distilled Sweep Zone</a><a href="#tpo">TPO Market Profile</a><a href="#sbx">Super Buys</a><a href="#rzr">RSI Zone Reversal</a><a href="#afib">Auto Fibonacci</a><a href="#wvadp">WVADP</a><a href="#mvp">MOYA Sessions</a><a href="#wt">WaveTrend</a><a href="#lsv">Liquidity Spectrum</a><a href="#lqh">Liquidity Heatmap</a><a href="#brk">Breakout Trading</a><a href="#fpd">50 Pips a Day</a><a href="#oht">One-Hour Breakout</a><a href="#tlt">Trendline Trading</a><a href="#svt">Strength &amp; Volatility</a><span class="sp"></span>
-  <a href="#sae">Strategy Analysis</a><a href="#lrs">Low-Risk ETF (RSMK)</a><a href="#mmx">Market Matrix</a>
+  <a href="#sae">Strategy Analysis</a><a href="#slo">Levels &amp; Order Blocks</a><a href="#mmx">Market Matrix</a>
   <a class="x" href="index.html" id="xb" aria-label="Close">✕</a>
 </nav>
 
@@ -5260,64 +5260,63 @@ Bullish lines are <b>green</b> and bearish lines are <b>red</b>, for both BOS an
 </ul>
 </section>
 
-<!-- ============ LOW-RISK ETF STRATEGY (RSMK) ============ -->
-<section id="lrs">
-<h2>Low-Risk ETF Strategy (RSMK)</h2>
-<p class="sub">Buy-only relative-strength indicator with Buy and Exit markers. Found under Indicators, Momentum.</p>
+<!-- ============ SHAAKUNI LEVELS & ORDER BLOCKS ============ -->
+<section id="slo">
+<h2>Levels &amp; Order Blocks</h2>
+<p class="sub">Previous day and week levels, order blocks and a small session panel. Found under Indicators, Trend.</p>
 
-<div class="card">Ported from the October 2026 TASC article by Markos Katsanos, written for ETFs. It looks for assets that are <b>stronger than a benchmark</b> and have just dipped, then marks a <b>Buy</b>. It marks an <b>Exit</b> on weak relative strength, a profit target, or after a set number of bars. The markers are possibilities to review, <b>not guarantees</b>. The original rules were designed for ETFs, so check how they behave on crypto before relying on them.</div>
+<div class="card">Ported from the <b>Shaakuni - Liquidity Levels &amp; Order Blocks</b> TradingView script (Mozilla Public License 2.0). It is a <b>context tool, not a strategy</b>: it has no buy or sell signals, no BOS / CHoCH and no FVG.</div>
 
 <h3>Set up</h3>
 <ol class="steps">
-<li>Open <b>Indicators</b>, then <b>Momentum</b>, and add <b>Low-Risk ETF Strategy (RSMK)</b>.</li>
-<li>Tap the <b>⚙</b> on the indicator and choose a <b>Benchmark symbol</b>. The article uses SPY. This app uses Binance data, so the default is <b>BTCUSDT</b>. Use another Binance symbol such as ETHUSDT if you prefer.</li>
-<li>The indicator shows in its own pane with the relative-strength line (green above zero, red below) and its 50-bar average (blue). The first time it loads it fetches the benchmark candles, so wait a moment.</li>
-<li>On the price chart you will see green <b>Buy</b> arrows, red <b>X</b> exit marks, a dotted yellow entry line while a position is open, and a green or red fill between price and the entry.</li>
+<li>Open <b>Indicators</b>, then <b>Trend</b>, and add <b>Shaakuni · Liquidity Levels &amp; Order Blocks</b>.</li>
+<li>Lines and zones are drawn on the price chart. A small panel shows in the top right (change its place in the settings with the <b>⚙</b>).</li>
+<li>Levels are built from the candles loaded on your chart, so on short time frames the first day or week can be incomplete.</li>
 </ol>
 
-<h3>How a Buy is decided</h3>
-<p>All of these must be true on the same closed candle, and no position may already be open:</p>
+<h3>What you see</h3>
 <div class="tw"><table>
-<tr><th>Rule</th><th>Meaning</th></tr>
-<tr><td>Relative strength</td><td>RSMK is above its average, above the entry level (3), at a 4-bar high and below 25.</td></tr>
-<tr><td>Market trend + correlation</td><td>The benchmark is not falling more than 6% over 6 bars and correlation is above the minimum, or the benchmark is falling and the correlation is strongly negative.</td></tr>
-<tr><td>Oversold dip</td><td>RSI dropped below the oversold level in the last 20 bars and has turned up over the last 3 bars.</td></tr>
-<tr><td>Momentum</td><td>The 5-bar EMA is above the average price from 5 bars ago.</td></tr>
-<tr><td>Volume (optional)</td><td>Average volume above your minimum. Set to 0 to switch it off (default).</td></tr>
+<tr><th>Item</th><th>Meaning</th></tr>
+<tr><td>PWH / PWL</td><td>Previous week high and low (red and green), with a faint box between them.</td></tr>
+<tr><td>W-EQ (50%)</td><td>Dashed line halfway between the previous week high and low.</td></tr>
+<tr><td>Week before last</td><td>Dotted lines and small prices for the week before, optional.</td></tr>
+<tr><td>PDH / PDL</td><td>Previous day high and low (orange and blue). Hidden on weekly and monthly charts. When a day level sits on the same price as a week level, one combined label such as PDH / PWH is shown.</td></tr>
+<tr><td>D-EQ (50%)</td><td>Dashed line halfway between the previous day high and low.</td></tr>
+<tr><td>OB / POI zones</td><td>Blue (bullish) and orange (bearish) boxes. Labelled OB on short time frames and POI from 1h up.</td></tr>
 </table></div>
 
-<h3>How an Exit is decided</h3>
+<h3>How an order block is found</h3>
 <ul>
-<li>RSMK falls below minus the entry level while correlation is above 0.8 (weak relative strength).</li>
-<li>Price reaches the profit target (default +25% above the entry).</li>
-<li>The rebalance period ends (default 30 bars after entry).</li>
+<li>Price closes beyond the highest high (or lowest low) of the last few candles, and that extreme is at least 3 candles old.</li>
+<li>Inside that move there must be a strong candle at least 0.7 x ATR in size.</li>
+<li>The zone is the last opposite candle before the move, and only if price has not already come back into it.</li>
+<li>Zones are confirmed on a closed candle, so they do not repaint. A zone stops extending once price touches it (mitigated). Mitigated zones are hidden unless you switch them on.</li>
 </ul>
 
-<details open><summary>Settings explained</summary>
+<h3>The panel</h3>
+<ul>
+<li><b>Session</b> shows the active New York time session: Asian 20:00 to 00:00, London 02:00 to 05:00, New York 07:00 to 10:00, London Close 10:00 to 12:00.</li>
+<li><b>Day High / Day Low</b> shows <b>Active</b>, <b>Sweep !</b> (today wicked past yesterday's level but closed back inside, shown on green) or <b>Broken X</b> (price is beyond it). It uses the live candle, so it can change until the candle closes.</li>
+</ul>
+
+<details><summary>Settings explained</summary>
 <div class="tw"><table>
 <tr><th>Setting</th><th>What it does</th></tr>
-<tr><td>Benchmark symbol</td><td>What your chart is compared with. Must be a Binance symbol.</td></tr>
-<tr><td>RSMK length (35)</td><td>How far back relative strength is measured.</td></tr>
-<tr><td>RSI length (10)</td><td>RSI period used for the dip check.</td></tr>
-<tr><td>RS MA length (50)</td><td>The average the RSMK line must stay above.</td></tr>
-<tr><td>RS entry level (3)</td><td>Minimum relative strength for a Buy.</td></tr>
-<tr><td>RSI oversold (35)</td><td>How deep the dip must be.</td></tr>
-<tr><td>MA bars (15)</td><td>Average used in the momentum check.</td></tr>
-<tr><td>Minimum correlation (0.6)</td><td>How closely the chart must follow the benchmark.</td></tr>
-<tr><td>Rebalance period (30)</td><td>Bars before a position is closed.</td></tr>
-<tr><td>Profit target exit % (25)</td><td>Gain that triggers an Exit.</td></tr>
-<tr><td>Minimum average volume (0)</td><td>Optional volume filter. The article used 100,000 shares for ETFs.</td></tr>
-<tr><td>Show entry line and position fill</td><td>Turns the yellow line and fill on the price chart on or off.</td></tr>
+<tr><td>Show panel, position, theme, timezone, text size</td><td>Panel look. Timezone Auto follows New York daylight saving.</td></tr>
+<tr><td>Weekly / daily high-low, EQ, previous week</td><td>Switch each group of lines on or off.</td></tr>
+<tr><td>Show Order Blocks, unmitigated, mitigated</td><td>Which zones are drawn.</td></tr>
+<tr><td>Zone lookback</td><td>Auto keeps fewer zones on higher time frames. Manual lets you pick the number of bars (default 500).</td></tr>
+<tr><td>OB structure lookback (10)</td><td>How many candles back price must break.</td></tr>
+<tr><td>OB impulse candle (0.7)</td><td>Minimum size of the strong candle, in ATR. Lower gives more zones.</td></tr>
+<tr><td>Colours</td><td>Bull and bear zones, weekly and daily EQ lines, panel header text.</td></tr>
 </table></div></details>
 
 <h3>Tips</h3>
 <ul>
-<li>It needs a long history: the correlation looks back 100 bars and the average 50 more, so signals start after about 150 bars.</li>
-<li>Higher time frames suit it best because the article uses daily bars. Very short time frames give noisy results.</li>
-<li>Buy signals are rare by design. Many charts will show none for long stretches.</li>
-<li>Markers use only candles that have closed, so they do not change after they appear.</li>
-<li>The benchmark is refreshed about every 30 seconds, so the line keeps up with the newest candle.</li>
-<li>This indicator has not been backtested here. Test it on your own symbols before trusting it, and always set your own stop-loss.</li>
+<li>Use the levels as places to watch for a sweep or a reaction, not as automatic entries.</li>
+<li>Order blocks work best on higher time frames. On very short ones you will see many small zones.</li>
+<li>Day and week boundaries follow UTC, which is how crypto candles are split on this app.</li>
+<li>This has not been backtested here. Always set your own stop-loss. Credit: Shaakuni, under the Mozilla Public License 2.0.</li>
 </ul>
 </section>
 
