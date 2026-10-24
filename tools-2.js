@@ -3,74 +3,6 @@
 // Each tool is its own try{} block: if one fails, the app and the other tools keep working.
 // ===================================================================================================
 
-// ---- [lrs] INDICATOR: Low-Risk ETF Strategy (RSMK) - port of TASC Oct 2026 (M. Katsanos) Pine v6 script ----
-try{
-const LRS_DEF={rsBars:35,rsiBars:10,mar:50,rsCrit:3,minVol:0,rsiOS:35,maBars:15,corMin:0.6,timeExit:30,tpPct:25,bench:'BTCUSDT',fill:true};
-const lrB={}; let lrVer=0;
-const lrN=v=>v!=null&&isFinite(v);
-function lrEma(v,n){ const k=2/(n+1), o=new Array(v.length).fill(null); let p=null; for(let i=0;i<v.length;i++){ if(!lrN(v[i])){ p=null; continue; } p=p==null?v[i]:k*v[i]+(1-k)*p; o[i]=p; } return o; }   // Pine ta.ema seeds with the first value
-function lrSma(v,n){ const o=new Array(v.length).fill(null); for(let i=n-1;i<v.length;i++){ let s=0,ok=true; for(let j=i-n+1;j<=i;j++){ if(!lrN(v[j])){ ok=false; break; } s+=v[j]; } if(ok) o[i]=s/n; } return o; }
-function lrExt(v,n,mx){ const o=new Array(v.length).fill(null); for(let i=n-1;i<v.length;i++){ let m=null,ok=true; for(let j=i-n+1;j<=i;j++){ if(!lrN(v[j])){ ok=false; break; } m=m==null?v[j]:(mx?Math.max(m,v[j]):Math.min(m,v[j])); } if(ok) o[i]=m; } return o; }
-function lrRsi(v,n){ const o=new Array(v.length).fill(null); let g=0,l=0; for(let i=1;i<v.length;i++){ const x=v[i]-v[i-1], gg=Math.max(x,0), ll=Math.max(-x,0);
-  if(i<=n){ g+=gg; l+=ll; if(i===n){ g/=n; l/=n; } } else { g=(g*(n-1)+gg)/n; l=(l*(n-1)+ll)/n; }
-  if(i>=n) o[i]=l===0?100:100-100/(1+g/l); } return o; }
-function lrCor(a,b,n){ const o=new Array(a.length).fill(null); for(let i=n-1;i<a.length;i++){ let sa=0,sb=0,ok=true; for(let j=i-n+1;j<=i;j++){ if(!lrN(a[j])||!lrN(b[j])){ ok=false; break; } sa+=a[j]; sb+=b[j]; }
-  if(!ok) continue; const ma=sa/n, mb=sb/n; let c=0,va=0,vb=0; for(let j=i-n+1;j<=i;j++){ const x=a[j]-ma, y=b[j]-mb; c+=x*y; va+=x*x; vb+=y*y; } if(va>0&&vb>0) o[i]=c/Math.sqrt(va*vb); } return o; }
-
-// benchmark candles (same interval): full history once, then the latest bars are refreshed so the line never falls behind the chart
-async function lrFetch(b,iv,t0,d,tail){ d.busy=true; try{ let end=null, rows=[]; const pages=tail?1:4, lim=tail?300:1000;
-    for(let k=0;k<pages;k++){ const r=await fetch(`${RB(b)}/klines?symbol=${b}&interval=${iv}&limit=${lim}${end?'&endTime='+end:''}`); if(!r.ok) break; const a=await r.json(); if(!Array.isArray(a)||!a.length) break; rows=a.concat(rows); end=a[0][0]-1; if(a[0][0]/1000<=t0) break; }
-    if(!d.m) d.m=new Map(); rows.forEach(x=>d.m.set(Math.floor(x[0]/1000),+x[4])); d.arr=null; d.err=d.m.size?0:1; }catch(e){ if(!d.m) d.m=new Map(); d.err=d.m.size?0:1; }
-  d.busy=false; d.ts=Date.now(); lrVer++; try{ inds.forEach(i=>{ if(i.t==='lrs'){ i._xs=null; recalc(i); } }); recomputeExtras(); render(); }catch(e){} }
-function lrBench(c,p){ const b=String(p.bench||'BTCUSDT').toUpperCase().replace(/[^A-Z0-9]/g,''), key=sym[0]+'|'+tf[1]+'|'+b; let d=lrB[key]; if(!d){ d=lrB[key]={m:null,b,ts:0,busy:false,arr:null}; lrFetch(b,tf[1],c[0].time,d,false); return d; }
-  if(d.m&&!d.busy){ if(!d.arr) d.arr=Array.from(d.m.entries()).sort((x,y)=>x[0]-y[0]); const lastB=d.arr.length?d.arr[d.arr.length-1][0]:0, age=Date.now()-d.ts;
-    if((lastB<c[c.length-1].time&&age>5000)||age>30000) lrFetch(b,tf[1],c[0].time,d,true); }
-  return d; }
-
-function lrRun(c,p){ const n=c.length, d=lrBench(c,p), q=Object.assign({},LRS_DEF,p), bm=d.m;
-  const cl=c.map(x=>x.close), arr=d.arr||(bm?(d.arr=Array.from(bm.entries()).sort((x,y)=>x[0]-y[0])):[]); let bj=-1; const bn=c.map(x=>{ while(bj+1<arr.length&&arr[bj+1][0]<=x.time) bj++; return bj>=0?arr[bj][1]:null; });
-  const rs1=cl.map((x,i)=>i>=q.rsBars&&lrN(bn[i])&&lrN(bn[i-q.rsBars])&&bn[i]>0&&bn[i-q.rsBars]>0?Math.log(x/bn[i])-Math.log(cl[i-q.rsBars]/bn[i-q.rsBars]):null);
-  const rsmk=lrEma(rs1,4).map(x=>lrN(x)?x*100:null), mars=lrSma(rsmk,q.mar), hh=lrExt(rsmk,4,true);
-  const roc=cl.map((x,i)=>i>=6&&lrN(bn[i])&&lrN(bn[i-6])&&bn[i-6]>0?(bn[i]-bn[i-6])/bn[i-6]*100:null), cor=lrCor(cl,bn,100);
-  const rsi=lrRsi(cl,q.rsiBars), ll=lrExt(rsi,20,false), e5=lrEma(cl,5), s5=lrSma(cl,q.maBars), vs=lrSma(c.map(x=>x.volume||0),5);
-  let pos=0, ep=0, eb=0; const buys=[], exits=[], segs=[]; let cur=null;
-  for(let i=0;i<n;i++){ const r=rsmk[i];
-    const gotVol=q.minVol<=0||(lrN(vs[i])&&vs[i]>q.minVol);
-    const rsS=lrN(r)&&lrN(mars[i])&&r>mars[i]&&r>q.rsCrit&&r===hh[i]&&r<25;
-    const roS=lrN(roc[i])&&lrN(cor[i])&&((roc[i]>-6&&cor[i]>q.corMin)||(roc[i]<-6&&cor[i]<-q.corMin));
-    const riS=lrN(ll[i])&&lrN(rsi[i])&&i>=3&&lrN(rsi[i-3])&&ll[i]<q.rsiOS&&rsi[i]>rsi[i-3];
-    const moS=lrN(e5[i])&&i>=5&&lrN(s5[i-5])&&e5[i]>s5[i-5];
-    const isBuy=gotVol&&rsS&&roS&&riS&&moS&&pos===0;
-    const isSell=lrN(r)&&r<-q.rsCrit&&lrN(cor[i])&&cor[i]>0.8&&pos===1, per=pos===1&&cl[i]>=ep*(1+q.tpPct/100), reb=pos===1&&i-eb>=q.timeExit, ex=isSell||per||reb;
-    if(ex){ exits.push({i,why:isSell?'weak RS':per?'+'+q.tpPct+'% target':'rebalance',ret:(cl[i]-ep)/ep*100}); if(cur){ cur.i1=i; segs.push(cur); cur=null; } }
-    if(isBuy){ pos=1; ep=cl[i]; eb=i; buys.push({i}); cur={i0:i,i1:null,ep}; } else if(ex) pos=0; }
-  if(cur) segs.push(cur);
-  return {rsmk,mars,buys,exits,segs,d,n}; }
-
-IND.lrs={label:'Low-Risk ETF Strategy (RSMK relative strength) \u00b7 Buy / Exit',cat:'Momentum',nm:p=>'LRETF '+p.rsBars+' vs '+String(p.bench||'').replace(/USDT$/,''),
-  p:Object.assign({},LRS_DEF),cols:['#00e676','#2962ff'],pane:2,lines:[[0,'#787b86',0]],
-  fields:[['bench','txt','Benchmark symbol (Binance, e.g. BTCUSDT, ETHUSDT)'],['rsBars','num','RSMK length',{min:2,max:300}],['rsiBars','num','RSI length',{min:2,max:100}],['mar','num','RS MA length',{min:2,max:300}],['rsCrit','num','RS entry level',{min:0,step:0.5}],
-    ['rsiOS','num','RSI oversold',{min:1,max:99}],['maBars','num','MA bars',{min:2,max:200}],['corMin','num','Minimum correlation',{min:0,max:1,step:0.05}],['timeExit','num','Rebalance period (bars)',{min:1,max:1000}],
-    ['tpPct','num','Profit target exit %',{min:1,max:500}],['minVol','num','Minimum average volume (0 = off)',{min:0}],['fill','chk','Show entry line and position fill']],
-  calc:(c,p)=>{ const r=lrRun(c,p), a=[], b=[]; for(let i=0;i<c.length;i++){ const v=r.rsmk[i]; if(lrN(v)) a.push({time:c[i].time,value:v,color:v>0?'#00e676':'#ff5252'}); if(lrN(r.mars[i])) b.push({time:c[i].time,value:r.mars[i]}); } return [a,b]; },
-  extras:(c,p,i)=>{ const cc=c.length>1?c.slice(0,-1):c, r=lrRun(cc,p), mk=[], d=r.d;   // signals use closed candles only (no repaint)
-    r.buys.forEach(x=>mk.push({time:cc[x.i].time,position:'belowBar',color:'#2dd4a7',shape:'arrowUp',text:'Buy'}));
-    mk.sort((a,b)=>a.time-b.time);
-    const w=r.exits.filter(x=>true), won=w.filter(x=>x.ret>0).length;
-    const stat=!d.m?'benchmark '+d.b+' loading\u2026':d.err?'no data for benchmark '+d.b:(w.length?'closed '+w.length+' \u00b7 up '+Math.round(won/w.length*100)+'%':'no closed trades yet');
-    const ev=r.exits.map(x=>({k:'x'+cc[x.i].time,time:cc[x.i].time,msg:'EXIT \u00b7 Low-Risk ETF ('+x.why+')',col:'#ff5d7a'}));
-    return {mk,ev,boxes:[{type:'lrview',pts:[],r:{segs:p.fill===false?[]:r.segs,exits:r.exits},o:p}],labels:[],stat}; }};
-
-{ const _D=draw; draw=function(d,X,Y,W,H){ if(!d||d.type!=='lrview') return _D.apply(this,arguments);
-    const S=d.r.segs, n=candles.length; cx.save(); cx.beginPath(); cx.rect(0,0,W,H); cx.clip();
-    (d.r.exits||[]).forEach(e=>{ const x=X(e.i), y=candles[e.i]?Y(candles[e.i].high):null; if(x==null||y==null) return; const yy=y-12; cx.strokeStyle='#ff5252'; cx.lineWidth=2; cx.setLineDash([]); cx.beginPath(); cx.moveTo(x-5,yy-5); cx.lineTo(x+5,yy+5); cx.moveTo(x+5,yy-5); cx.lineTo(x-5,yy+5); cx.stroke(); });
-    S.forEach(s=>{ const e=s.i1==null?n-1:s.i1, ye=Y(s.ep); if(ye==null) return; const xa=X(s.i0), xb=X(e); if(xa==null&&xb==null) return;
-      for(let i=s.i0;i<=Math.min(e,n-1);i++){ const x0=X(i); if(x0==null) continue; const x1=X(i+1), bw=x1!=null?Math.max(1,x1-x0):4, yc=Y(candles[i].close); if(yc==null) continue;
-        cx.fillStyle=(i>s.i0&&candles[i-1].close>s.ep)||(i===s.i0)?'rgba(0,150,136,.22)':'rgba(244,67,54,.22)'; cx.fillRect(x0-bw/2,Math.min(yc,ye),bw,Math.abs(yc-ye)); }
-      cx.strokeStyle='#ffeb3b'; cx.lineWidth=1; cx.setLineDash([2,3]); cx.beginPath(); cx.moveTo(xa==null?0:xa,ye); cx.lineTo(xb==null?W:xb,ye); cx.stroke(); cx.setLineDash([]); });
-    cx.restore(); }; }
-}catch(err){ console.error('lrs indicator failed',err); window.__lrsErr=err; }
-
 // ---- [mmx] INDICATOR: Market Matrix - port of "Market Matrix (Zeiierman)" (c) Zeiierman, CC BY-NC-SA 4.0 ----
 // Six mini-panels from a higher time frame (candles + MAs + swing anchored VWAP, RSI, MACD, Relative Trend Index, Absolute Strength Index,
 // Range Oscillator) drawn to the right of the price, plus 89 EMA, chart volume, auto Fibonacci and regression channel. Original: tradingview.com
@@ -212,3 +144,56 @@ function lrEmaMM(v,n){ return mmEma(v,n); }
       lines(R,f,100,-100,OBL,OSL); }
     cx.restore(); }; }
 }catch(err){ console.error('mmx indicator failed',err); window.__mmxErr=err; }
+
+
+// ---- [lrs] INDICATOR: Low-Risk ETF Strategy (RSMK) - port of TASC Oct 2026, Markos Katsanos (PineCoders version) ----
+// Buy-only relative-strength tool: RSMK line + its average in an own pane, Buy / Exit markers on the price chart.
+// The benchmark (default BTCUSDT instead of SPY) is fetched from Binance on the chart's interval and matched by candle time.
+try{
+const LRS_SYMS=['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','ADAUSDT','DOGEUSDT','AVAXUSDT','LINKUSDT','LTCUSDT','PAXGUSDT'];
+const lrsD={};
+function lrsRsi(v,n){ const o=new Array(v.length).fill(null); let g=0,l=0; for(let i=1;i<v.length;i++){ const x=v[i]-v[i-1], gg=Math.max(x,0), ll=Math.max(-x,0); if(i<=n){ g+=gg; l+=ll; if(i===n){ g/=n; l/=n; } } else { g=(g*(n-1)+gg)/n; l=(l*(n-1)+ll)/n; } if(i>=n) o[i]=l===0?100:100-100/(1+g/l); } return o; }
+function lrsCor(a,b,n,i){ if(i<n-1) return null; let sa=0,sb=0; for(let k=i-n+1;k<=i;k++){ if(a[k]==null||b[k]==null) return null; sa+=a[k]; sb+=b[k]; } const ma=sa/n, mb=sb/n; let c=0,va=0,vb=0; for(let k=i-n+1;k<=i;k++){ const x=a[k]-ma, y=b[k]-mb; c+=x*y; va+=x*x; vb+=y*y; } return va>0&&vb>0?c/Math.sqrt(va*vb):null; }
+function lrsBench(bs){ const iv=tf[1], key=bs+'|'+iv; let d=lrsD[key]; if(!d) d=lrsD[key]={map:null,ts:0,busy:false,err:false};
+  if(!d.busy&&Date.now()-d.ts>30000){ d.busy=true;
+    (async()=>{ try{ let end=null, all=[]; for(let pg=0;pg<3;pg++){ const r=await fetch(`${RB(bs)}/klines?symbol=${bs}&interval=${iv}&limit=1000${end?'&endTime='+end:''}`).then(x=>x.json()); if(!Array.isArray(r)||!r.length) break; all=r.concat(all); end=r[0][0]-1; if(r.length<1000) break; }
+        if(all.length){ const m=new Map(); all.forEach(x=>m.set(x[0]/1000,+x[4])); d.map=m; d.err=false; } else d.err=true; }catch(e){ d.err=true; }
+      d.busy=false; d.ts=Date.now(); try{ render(); }catch(e){} })(); }
+  return d; }
+function lrsCalc(c,p){ const N=c.length, d=lrsBench(p.bench), cl=c.map(x=>x.close), vo=c.map(x=>x.volume||0);
+  const R={rsmk:new Array(N).fill(null),mars:new Array(N).fill(null),buy:[],exit:[],segs:[],ready:false,err:d.err,busy:!d.map};
+  if(!d.map) return R;
+  const bn=c.map(x=>d.map.has(x.time)?d.map.get(x.time):null); let last=null; // carry the last known benchmark value over gaps
+  for(let i=0;i<N;i++){ if(bn[i]!=null) last=bn[i]; else if(last!=null&&i>0) bn[i]=last; }
+  const rs1=cl.map((x,i)=>{ if(i<p.rsL||bn[i]==null||bn[i-p.rsL]==null) return null; const a=Math.log(x/bn[i]), b=Math.log(cl[i-p.rsL]/bn[i-p.rsL]); return isFinite(a)&&isFinite(b)?a-b:null; });
+  const rs=emaV(rs1,4).map(v=>v==null?null:v*100), mars=smaV(rs,p.rsMa), rsi=lrsRsi(cl,p.rsiL), e5=emaV(cl,5), sm=smaV(cl,p.maB), vsm=smaV(vo,5);
+  R.rsmk=rs; R.mars=mars; R.ready=true;
+  let pos=0, ep=0, eb=0; const nC=N-1;   // the candle still forming never prints a signal
+  for(let i=0;i<N;i++){
+    const r=rs[i]; if(r==null) continue;
+    let hh=null; for(let k=Math.max(0,i-3);k<=i;k++){ if(rs[k]==null){ hh=null; break; } if(hh==null||rs[k]>hh) hh=rs[k]; }
+    const cor=lrsCor(cl,bn,100,i), roc=i>=6&&bn[i]!=null&&bn[i-6]?(bn[i]-bn[i-6])/bn[i-6]*100:null;
+    let llr=null; if(i>=19){ for(let k=i-19;k<=i;k++){ if(rsi[k]==null){ llr=null; break; } if(llr==null||rsi[k]<llr) llr=rsi[k]; } }
+    const gotVol=p.minVol<=0||(vsm[i]!=null&&vsm[i]>p.minVol);
+    const rsSig=mars[i]!=null&&r>mars[i]&&r>p.rsCrit&&hh!=null&&r===hh&&r<25;
+    const rocSig=cor!=null&&roc!=null&&((roc>-6&&cor>p.corMin)||(roc<-6&&cor<-p.corMin));
+    const rsiSig=llr!=null&&llr<p.rsiOs&&rsi[i]!=null&&rsi[i-3]!=null&&rsi[i]>rsi[i-3];
+    const momSig=e5[i]!=null&&i>=5&&sm[i-5]!=null&&e5[i]>sm[i-5];
+    const isBuy=gotVol&&rsSig&&rocSig&&rsiSig&&momSig&&pos===0;
+    const isSell=cor!=null&&r<-p.rsCrit&&cor>0.8&&pos===1, perExit=pos===1&&cl[i]>=ep*(1+p.tp/100), reBal=pos===1&&i-eb>=p.hold, ex=isSell||perExit||reBal;
+    if(isBuy&&i<nC){ pos=1; ep=cl[i]; eb=i; R.buy.push(i); R.segs.push({a:i,b:N-1,ep}); } else if(ex&&i<nC){ pos=0; R.exit.push(i); R.segs[R.segs.length-1].b=i; }
+  }
+  return R; }
+IND.lrs={label:'Low-Risk ETF Strategy (RSMK)',cat:'Momentum',nm:p=>'LRETF '+p.bench,p:{bench:'BTCUSDT',rsL:35,rsiL:10,rsMa:50,rsCrit:3,minVol:0,rsiOs:35,maB:15,corMin:0.6,hold:30,tp:25,showLine:true},
+  cols:['#2dd4a7','#2962ff'],kinds:['line','line'],pane:1,lines:p=>[[0,'#787b86']],
+  fields:[['bench','sel','Benchmark symbol',{opts:LRS_SYMS}],['rsL','num','RSMK length',{min:2,max:300}],['rsiL','num','RSI length',{min:2,max:100}],['rsMa','num','RS MA length',{min:2,max:300}],['rsCrit','num','RS entry level',{step:0.5}],['minVol','num','Minimum volume (0 = off)',{min:0}],['rsiOs','num','RSI oversold',{min:1,max:99}],['maB','num','MA bars',{min:2,max:200}],['corMin','num','Minimum correlation',{min:0,max:1,step:0.05}],['hold','num','Rebalance period (bars)',{min:1,max:500}],['tp','num','Profit target exit %',{min:1,max:500}],['showLine','chk','Show entry line and position fill']],
+  calc:(c,p)=>{ const R=lrsCalc(c,Object.assign({},IND.lrs.p,p)); return [toS(c,R.rsmk),toS(c,R.mars)]; },
+  extras:(c,p)=>{ const R=lrsCalc(c,Object.assign({},IND.lrs.p,p)), mk=[]; R.buy.forEach(i=>mk.push({time:c[i].time,position:'belowBar',color:'#2dd4a7',shape:'arrowUp',text:'Buy'})); R.exit.forEach(i=>mk.push({time:c[i].time,position:'aboveBar',color:'#f23645',shape:'circle',text:'Exit'})); mk.sort((a,b)=>a.time-b.time); return {mk:mk.slice(-500),boxes:p.showLine!==false&&R.segs.length?[{type:'lrsview',pts:[],o:{segs:R.segs.slice(-60)}}]:[],labels:[]}; }};
+{ const _D=draw; draw=function(d,X,Y,W,H){ if(!d||d.type!=='lrsview') return _D.apply(this,arguments);
+    const n0=candles.length; cx.save(); cx.beginPath(); cx.rect(0,0,W,H); cx.clip(); cx.setLineDash([]);
+    d.o.segs.forEach(sg=>{ const b=Math.min(sg.b,n0-1), ye=Y(sg.ep); if(ye==null||sg.a>=n0) return;
+      for(let i=sg.a+1;i<=b;i++){ const x0=X(i-1), x1=X(i), y0=Y(candles[i-1].close), y1=Y(candles[i].close); if(x0==null||x1==null||y0==null||y1==null) continue;
+        cx.fillStyle=candles[i-1].close>sg.ep?'rgba(0,150,136,.2)':'rgba(242,54,69,.2)'; cx.beginPath(); cx.moveTo(x0,ye); cx.lineTo(x0,y0); cx.lineTo(x1,y1); cx.lineTo(x1,ye); cx.closePath(); cx.fill(); }
+      const xa=X(sg.a), xb=X(b); if(xa==null||xb==null) return; cx.strokeStyle='#ffeb3b'; cx.lineWidth=1; cx.setLineDash([2,3]); cx.beginPath(); cx.moveTo(xa,ye); cx.lineTo(xb,ye); cx.stroke(); cx.setLineDash([]); });
+    cx.restore(); }; }
+}catch(err){ console.error('lrs indicator failed',err); window.__lrsErr=err; }
