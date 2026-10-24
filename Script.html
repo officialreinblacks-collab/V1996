@@ -49,7 +49,7 @@ footer{text-align:center;color:var(--mut);font-size:13px;padding:6px 16px 30px}
 <body>
 <nav class="nav">
   <a href="#pcr">Ranging Channel</a><a href="#ccp">Counter Premium</a><a href="#smc">SMC</a><a href="#ssm">Sweep MSS OB</a><a href="#paw">Wave Analysis</a><a href="#rvp">Reversal Profile</a><a href="#pac">PA Concepts</a><a href="#msa">Market Structure</a><a href="#srh">S/R Volume Boxes</a><a href="#rtr">Retracement</a><a href="#czt">Curved Trendlines</a><a href="#rbs">% Retest</a><a href="#wre">Wyckoff</a><a href="#scr">Spike Counter</a><a href="#bsp">Buyers &amp; Sellers</a><a href="#tts">Trend Targets</a><a href="#fvs">FVG Sessions</a><a href="#hrm">Harmonics</a><a href="#kzp">KZP Killzones</a><a href="#ppa">Price Action 2</a><a href="#ecr">Engulfing + RSI</a><a href="#pcl">Piercing Line</a><a href="#hsd">Head &amp; Shoulders</a><a href="#frv">Volume Profile</a><a href="#mru">Fast Future Sniper</a><a href="#beg">Bullish Engulfing</a><a href="#ber">Bearish Engulfing</a><a href="#ihm">Inverse Hammer</a><a href="#mst">Morning Star</a><a href="#tws">Three White Soldiers</a><a href="#rtm">Rising Three Methods</a><a href="#fpc">Fakey + Pin Bar</a><a href="#mmo">Market Momentum 02</a><a href="#ccz">Consecutive Candles</a><a href="#bbs">Breaker Blocks</a><a href="#obr">Order Block Retest</a><a href="#lpo">Liquidity Pools &amp; OB</a><a href="#sdx">Supply Demand Legs</a><a href="#pdo">DT + OB Setups</a><a href="#dbt">Price Action Setup</a><a href="#ard">Auto Range Detector</a><a href="#bkc">Breakout Channels</a><a href="#sbk">Support Break</a><a href="#tdl">Trendlines</a><a href="#fsw">Fib Sequence Swing</a><a href="#f3x">Fib 1-2-3</a><a href="#vpn">Volume Profile Nodes</a><a href="#prv">Regression Profile</a><a href="#sfa">Fib Arcs</a><a href="#gpa">Gap Analysis</a><a href="#ibauc">IBAUC</a><a href="#po3">PO3 Power of 3</a><a href="#pgs">Premium GOLD</a><a href="#sno">Signals &amp; Overlays</a><a href="#axz">S/R Confluence</a><a href="#dsz">Distilled Sweep Zone</a><a href="#tpo">TPO Market Profile</a><a href="#sbx">Super Buys</a><a href="#rzr">RSI Zone Reversal</a><a href="#afib">Auto Fibonacci</a><a href="#wvadp">WVADP</a><a href="#mvp">MOYA Sessions</a><a href="#wt">WaveTrend</a><a href="#lsv">Liquidity Spectrum</a><a href="#lqh">Liquidity Heatmap</a><a href="#brk">Breakout Trading</a><a href="#fpd">50 Pips a Day</a><a href="#oht">One-Hour Breakout</a><a href="#tlt">Trendline Trading</a><a href="#svt">Strength &amp; Volatility</a><span class="sp"></span>
-  <a href="#sae">Strategy Analysis</a><a href="#lrs">Low-Risk ETF (RSMK)</a>
+  <a href="#sae">Strategy Analysis</a><a href="#lrs">Low-Risk ETF (RSMK)</a><a href="#mmx">Market Matrix</a>
   <a class="x" href="index.html" id="xb" aria-label="Close">✕</a>
 </nav>
 
@@ -5272,7 +5272,7 @@ Bullish lines are <b>green</b> and bearish lines are <b>red</b>, for both BOS an
 <li>Open <b>Indicators</b>, then <b>Momentum</b>, and add <b>Low-Risk ETF Strategy (RSMK)</b>.</li>
 <li>Tap the <b>⚙</b> on the indicator and choose a <b>Benchmark symbol</b>. The article uses SPY. This app uses Binance data, so the default is <b>BTCUSDT</b>. Use another Binance symbol such as ETHUSDT if you prefer.</li>
 <li>The indicator shows in its own pane with the relative-strength line (green above zero, red below) and its 50-bar average (blue). The first time it loads it fetches the benchmark candles, so wait a moment.</li>
-<li>On the price chart you will see <b>Buy</b> arrows, <b>Exit</b> arrows, a dotted yellow entry line while a position is open, and a green or red fill between price and the entry.</li>
+<li>On the price chart you will see green <b>Buy</b> arrows, red <b>X</b> exit marks, a dotted yellow entry line while a position is open, and a green or red fill between price and the entry.</li>
 </ol>
 
 <h3>How a Buy is decided</h3>
@@ -5316,7 +5316,62 @@ Bullish lines are <b>green</b> and bearish lines are <b>red</b>, for both BOS an
 <li>Higher time frames suit it best because the article uses daily bars. Very short time frames give noisy results.</li>
 <li>Buy signals are rare by design. Many charts will show none for long stretches.</li>
 <li>Markers use only candles that have closed, so they do not change after they appear.</li>
+<li>The benchmark is refreshed about every 30 seconds, so the line keeps up with the newest candle. You also get an alert when an Exit appears.</li>
 <li>This indicator has not been backtested here. Test it on your own symbols before trusting it, and always set your own stop-loss.</li>
+</ul>
+</section>
+
+<!-- ============ MARKET MATRIX ============ -->
+<section id="mmx">
+<h2>Market Matrix</h2>
+<p class="sub">Six higher-time-frame mini panels drawn to the right of your chart. Found under Indicators, Trend.</p>
+
+<div class="card">Based on <b>Market Matrix by Zeiierman</b> (TradingView, licence CC BY-NC-SA 4.0). It shows what a higher time frame (1 day by default) looks like without leaving your chart. It is a reading aid, <b>not a buy or sell signal</b>.</div>
+
+<h3>Set up</h3>
+<ol class="steps">
+<li>Open <b>Indicators</b>, then <b>Trend</b>, and add <b>Market Matrix</b>.</li>
+<li>The panels appear to the right of the last candle. If there is no room, the chart scrolls a little to make space. If you still see a message, scroll the chart left.</li>
+<li>Tap the <b>⚙</b> to change the mini-chart time frame (1h, 4h, 1d, 1w). It must be equal to or higher than your chart time frame.</li>
+<li>The panels load fresh data about once a minute.</li>
+</ol>
+
+<h3>The six panels</h3>
+<div class="tw"><table>
+<tr><th>Panel</th><th>What it shows</th></tr>
+<tr><td>HTF candles + swing VWAP</td><td>Higher-time-frame candles with 20, 50 and 200 moving averages (dotted) and a swing anchored VWAP. The VWAP is green in up-swings and red in down-swings. HH, LH, HL and LL mark confirmed swing points.</td></tr>
+<tr><td>RSI</td><td>RSI with its average. Green fill above the overbought level, red fill below the oversold level.</td></tr>
+<tr><td>MACD</td><td>MACD and signal lines with a four-colour histogram: positive rising or falling, negative falling or rising.</td></tr>
+<tr><td>Relative Trend Index</td><td>Where price sits inside its recent range, with an EMA. High values mean a strong up-trend, low values a strong down-trend.</td></tr>
+<tr><td>Absolute Strength Index</td><td>Compares the latest move with the biggest recent up and down moves, with a signal line.</td></tr>
+<tr><td>Range Oscillator</td><td>How far price is from its weighted centre, scaled by ATR. Bright green or red means price is outside the range, so a strong move. Other colours show how often similar levels were visited.</td></tr>
+</table></div>
+
+<details open><summary>Main chart extras</summary>
+<ul>
+<li><b>EMA 89</b> line on your chart.</li>
+<li><b>Chart volume</b> bars along the bottom.</li>
+<li><b>Auto Fibonacci</b> and <b>auto regression channel</b>, both off by default. Switch them on in the settings.</li>
+</ul></details>
+
+<details><summary>Settings explained</summary>
+<div class="tw"><table>
+<tr><th>Setting</th><th>What it does</th></tr>
+<tr><td>Mini-chart timeframe</td><td>Which higher time frame the panels use.</td></tr>
+<tr><td>History points per panel</td><td>How many candles each panel shows (default 150).</td></tr>
+<tr><td>Header values, reference lines, backgrounds, zones, fills</td><td>Show or hide parts of the panels. Turn on backgrounds if the panels are hard to read.</td></tr>
+<tr><td>Moving averages</td><td>On or off, and the three lengths (20, 50, 200).</td></tr>
+<tr><td>Swing anchored VWAP</td><td>Swing period (50), tracking speed (20), optional volatility adaptation and the HH / LH / HL / LL labels.</td></tr>
+<tr><td>RSI, MACD, RTI, ASI, Range Oscillator</td><td>The usual lengths and overbought / oversold levels for each panel.</td></tr>
+<tr><td>EMA, volume, Fibonacci, regression</td><td>Switches and lengths for the main chart extras.</td></tr>
+</table></div></details>
+
+<h3>Tips</h3>
+<ul>
+<li>Panels need history. 1h and 4h load up to 1000 candles, so 150 panel points plus warm-up fit comfortably.</li>
+<li>Best on a phone in landscape, or with Header values off if the text feels crowded.</li>
+<li>Use it for context, for example to check that the higher time frame agrees with your trade idea. It does not predict price.</li>
+<li>Credit: Zeiierman. Indicator design and calculations are theirs under the CC BY-NC-SA 4.0 licence.</li>
 </ul>
 </section>
 
