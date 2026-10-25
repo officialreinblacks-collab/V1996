@@ -253,3 +253,160 @@ IND.slo={label:'Shaakuni \u00b7 Liquidity Levels & Order Blocks',cat:'Trend',nm:
       cx.strokeStyle='#2a2a2a'; cx.lineWidth=1; cx.strokeRect(x0,y0,pw,ph); }
     cx.restore(); }; }
 }catch(err){ console.error('slo indicator failed',err); window.__sloErr=err; }
+
+// ---- [dpr] INDICATOR: Dual-Phase Reversal - Exhaustion, Pivots & Pressure - port of the Pine v6 script by (c) dgtrd ----
+// Momentum Exhaustion (9 steps) -> Terminal Exhaustion (13 steps) with support / resistance and invalidation levels, higher-timeframe Range Pivots
+// (S / P / R, developing + historical), Volume Pressure oscillator drawn under / over the price, Volume-Weighted Bars and a small dashboard.
+try{
+const DP_DEF={mode:'Completed Only',srLv:true,stopLv:false,piv:true,pivTf:'Auto',devPiv:false,histPiv:false,cR:'#f23645',cS:'#089981',
+  prs:true,cOsc:'#00bcd4',prsLen:13,ob:75,os:25,oscLen:200,place:'Bottom',oscH:9,oscOff:5,
+  vwb:true,vma:89,vhi:1.618,vlo:0.618,dash:true,dpos:'Top Right'};
+const dpRgba=(c,a)=>{ const m=/^#?([0-9a-f]{6})$/i.exec(String(c||'')); if(!m) return c; const n=parseInt(m[1],16); return 'rgba('+(n>>16&255)+','+(n>>8&255)+','+(n&255)+','+a+')'; };
+const dpTfSec=iv=>{ const m=/^(\d+)([mhdwM])$/.exec(iv||''); return m?(+m[1])*({m:60,h:3600,d:86400,w:604800,M:2592000}[m[2]]):0; };
+const dpFmt=v=>v==null||!isFinite(v)?'-':Math.abs(v)>=1000?String(Math.round(v)):Math.abs(v)>=100?v.toFixed(2):v.toPrecision(5);
+function dpAuto(s){ if(s<=180) return '1 Hour'; if(s<=900) return '4 Hour'; if(s<=3600) return 'Daily'; if(s<=14400) return 'Weekly'; if(s===86400) return 'Monthly'; if(s===604800) return 'Quarterly'; if(s<86400) return 'Monthly'; return 'Yearly'; }
+function dpKey(t,k){ if(k==='1 Hour') return Math.floor(t/3600); if(k==='4 Hour') return Math.floor(t/14400); if(k==='Daily') return Math.floor(t/86400);
+  if(k==='Weekly') return Math.floor((Math.floor(t/86400)+3)/7); const d=new Date(t*1000), y=d.getUTCFullYear(), m=d.getUTCMonth();
+  return k==='Monthly'?y*12+m:k==='Quarterly'?y*4+Math.floor(m/3):y; }
+const dpPv=(o,h,l,c)=>{ const x=c<o?h+2*l+c:c>o?2*h+l+c:h+l+2*c; return [x/2-l,x/4,x/2-h]; };
+function dpCompute(c,p,tfs){ const N=c.length, D={N,ok:false}; if(N<30) return D;
+  const O=c.map(x=>x.open),H=c.map(x=>x.high),L=c.map(x=>x.low),C=c.map(x=>x.close),V=c.map(x=>x.volume||0);
+  const A=()=>new Array(N).fill(0), bc=A(),sc=A(),bq=A(),sq=A(),bRes=A(),sSup=A(),bStop=A(),sStop=A(),bec=A(),sec=A(),bf=A(),sf=A(),beStopA=A(),seStopA=A();
+  const g=(a,i,k)=>i-k>=0?a[i-k]:NaN;
+  let bCnt=0,sCnt=0,bLowest=0,bHigh=0,sHighest=0,sLow=0,bResP=0,sSupP=0,bStpP=0,sStpP=0;
+  let bE=0,sE=0,stB=false,stS=false,refB=0,refS=0,beHi=0,beHigh=0,beLow=0,beLowest=0,beStop=0,beTgt=0,seHi=0,seHigh=0,seLow=0,seLowest=0,seStop=0,seTgt=0;
+  for(let i=0;i<N;i++){ const c0=C[i], c4=g(C,i,4), c1=g(C,i,1), c5=g(C,i,5);
+    const bms=c0<c4&&c1>c5, sms=c0>c4&&c1<c5;
+    if(c0<c4){ bCnt=(bCnt===0||bCnt===9)?(bms?1:0):bCnt+1; sCnt=0; } else if(c0>c4){ sCnt=(sCnt===0||sCnt===9)?(sms?1:0):sCnt+1; bCnt=0; } else { bCnt=0; sCnt=0; }
+    const l1=g(L,i,1),l2=g(L,i,2),l3=g(L,i,3),h1=g(H,i,1),h2=g(H,i,2),h3=g(H,i,3);
+    bq[i]=((L[i]<=l3&&L[i]<=l2)||(l1<=l3&&l1<=l2))?1:0; sq[i]=((H[i]>=h3&&H[i]>=h2)||(h1>=h3&&h1>=h2))?1:0; bc[i]=bCnt; sc[i]=sCnt;
+    let hi9=NaN,lo9=NaN; if(i>=8){ hi9=-Infinity; lo9=Infinity; for(let k=i-8;k<=i;k++){ if(H[k]>hi9) hi9=H[k]; if(L[k]<lo9) lo9=L[k]; } }
+    bResP=bCnt===9?hi9:(c0>bResP?0:bResP); bRes[i]=bResP;
+    if(bCnt===1) bLowest=L[i]; if(bCnt>0){ bLowest=Math.min(L[i],bLowest); if(L[i]===bLowest) bHigh=H[i]; }
+    bStpP=bCnt===9?2*bLowest-bHigh:(c0<bStpP?0:bStpP); bStop[i]=bStpP;
+    sSupP=sCnt===9?lo9:(c0<sSupP?0:sSupP); sSup[i]=sSupP;
+    if(sCnt===1) sHighest=H[i]; if(sCnt>0){ sHighest=Math.max(H[i],sHighest); if(H[i]===sHighest) sLow=L[i]; }
+    sStpP=sCnt===9?2*sHighest-sLow:(c0>sStpP?0:sStpP); sStop[i]=sStpP;
+    // terminal exhaustion - buy side
+    const bCond=c0<=g(L,i,2), bFail=bCond&&L[i]>=refB, bePrev=bE;
+    stB=(bCnt===9&&bE===0)?true:((sCnt===9||bE===13||c0>bResP)?false:stB);
+    bE=stB?(bCnt===9?(bCond?1:0):(bCond?bE+1:bE)):0; if(bE===13&&bFail) bE-=1; if(bE===8&&bE!==bePrev) refB=c0;
+    bf[i]=(stB&&bE===bePrev&&bE===12&&bFail)?1:0; bec[i]=bE;
+    if(bE===1){ beLowest=L[i]; beHi=H[i]; } if(stB){ beHi=Math.max(H[i],beHi); beLowest=Math.min(L[i],beLowest); if(H[i]===beHi) beLow=L[i]; if(L[i]===beLowest) beHigh=H[i]; }
+    beTgt=bE===13?2*beHi-beLow:((c0>beTgt||(beStop===0&&sE===13))?0:beTgt);
+    beStop=bE===13?2*beLowest-beHigh:((c0<beStop||(beTgt===0&&sE===13))?0:beStop); beStopA[i]=beStop;
+    // terminal exhaustion - sell side
+    const sCond=c0>=g(H,i,2), sFail=sCond&&H[i]<=refS, sePrev=sE;
+    stS=(sCnt===9&&sE===0)?true:((bCnt===9||sE===13||c0<sSupP)?false:stS);
+    sE=stS?(sCnt===9?(sCond?1:0):(sCond?sE+1:sE)):0; if(sE===13&&sFail) sE-=1; if(sE===8&&sE!==sePrev) refS=c0;
+    sf[i]=(stS&&sE===sePrev&&sE===12&&sFail)?1:0; sec[i]=sE;
+    if(sE===1){ seLowest=L[i]; seHi=H[i]; } if(stS){ seHi=Math.max(H[i],seHi); seLowest=Math.min(L[i],seLowest); if(H[i]===seHi) seLow=L[i]; if(L[i]===seLowest) seHigh=H[i]; }
+    seStop=sE===13?2*seHi-seLow:((c0>seStop||(seTgt===0&&bE===13))?0:seStop); seStopA[i]=seStop;
+    seTgt=sE===13?2*seLowest-seHigh:((c0<seTgt||(seStop===0&&bE===13))?0:seTgt); }
+  Object.assign(D,{O,H,L,C,V,bc,sc,bq,sq,bRes,sSup,bStop,sStop,bec,sec,bf,sf,beStopA,seStopA});
+  // higher-timeframe range pivots
+  const kind=p.pivTf==='Auto'?dpAuto(dpTfSec(tfs)):p.pivTf; D.kind=kind;
+  const R1a=new Array(N).fill(NaN),Pa=new Array(N).fill(NaN),S1a=new Array(N).fill(NaN),chg=A();
+  let o=0,h=0,l=0,ox=0,hx=0,lx=0,cx_=0,pk=null,st=0,pst=-1,haveP=false;
+  for(let i=0;i<N;i++){ const k=dpKey(c[i].time,kind);
+    if(i===0){ o=O[0]; h=H[0]; l=L[0]; st=0; }
+    else if(k!==pk){ ox=o; hx=h; lx=l; cx_=C[i-1]; o=O[i]; h=H[i]; l=L[i]; pst=st; st=i; haveP=true; chg[i]=1; }
+    else { h=Math.max(h,H[i]); l=Math.min(l,L[i]); }
+    pk=k; if(haveP){ const q=dpPv(ox,hx,lx,cx_); R1a[i]=q[0]; Pa[i]=q[1]; S1a[i]=q[2]; } }
+  D.R1a=R1a; D.Pa=Pa; D.S1a=S1a; D.chg=chg; D.havePiv=haveP&&pst>=0;
+  if(D.havePiv){ D.t1=c[st].time; D.t11=c[pst].time; D.dev=dpPv(o,h,l,C[N-1]); }
+  // volume pressure
+  const osc=A(); if(p.prs){ const len=Math.max(1,p.prsLen|0); for(let i=0;i<N;i++){ if(!V[i]) continue; let bp=0,sp=0;
+      for(let j=0;j<len&&i-j>=0;j++){ const k=i-j, d=C[k]-O[k], r=H[k]-L[k]; if(r>0){ if(d>0) bp+=d/r*V[k]; if(d<0) sp+=d/r*V[k]; } }
+      const dom=bp+Math.abs(sp); osc[i]=dom!==0?100*(bp/dom):50; } }
+  const sig=new Array(N).fill(NaN); { let s=0; for(let i=0;i<N;i++){ s+=osc[i]; if(i>=9) s-=osc[i-9]; if(i>=8) sig[i]=s/9; } }
+  D.osc=osc; D.hist=osc.map((v,i)=>v-sig[i]);
+  const vl=Math.max(1,p.vma|0), vs=new Array(N).fill(NaN); { let s=0; for(let i=0;i<N;i++){ s+=V[i]; if(i>=vl) s-=V[i-vl]; if(i>=vl-1) vs[i]=s/vl; } } D.vsma=vs;
+  D.ok=true; return D; }
+let dpMem=null;
+function dpGet(c,p){ const N=c.length, key=JSON.stringify(p)+'|'+tf[1]+'|'+N+'|'+(N?c[N-1].time+'|'+c[N-1].close+'|'+c[N-1].high+'|'+c[N-1].low+'|'+c[N-1].volume:''); if(dpMem&&dpMem.k===key) return dpMem.D;
+  let D; try{ D=dpCompute(c,p,tf[1]); }catch(e){ console.error('dpr calc failed',e); D={N,ok:false}; } dpMem={k:key,D}; return D; }
+IND.dpr={label:'Dual-Phase Reversal (DGT)',cat:'Trend',nm:()=>'Dual-Phase Reversal',p:Object.assign({},DP_DEF),cols:['#00bcd4'],
+  fields:[['mode','sel','Phase display mode',{opts:['Completed Only','All Sequence Steps','None']}],['srLv','chk','Momentum support & resistance levels'],['stopLv','chk','Momentum & terminal invalidation levels'],
+    ['piv','chk','Range pivot'],['pivTf','sel','Pivot timeframe',{opts:['Auto','1 Hour','4 Hour','Daily','Weekly','Monthly','Quarterly','Yearly']}],['devPiv','chk','Developing range pivot'],['histPiv','chk','Historical range pivot'],['cR','col','Resistance'],['cS','col','Support'],
+    ['prs','chk','Volume pressure'],['cOsc','col','Pressure line'],['prsLen','num','Pressure length',{min:1,max:200}],['ob','num','Pressure upper band',{min:1,max:100}],['os','num','Pressure lower band',{min:0,max:99}],
+    ['oscLen','num','Display length (bars)',{min:10,max:475,step:10}],['place','sel','Placement',{opts:['Top','Middle','Bottom']}],['oscH','num','Height',{min:1,max:10}],['oscOff','num','Vertical offset',{min:-3,max:10}],
+    ['vwb','chk','Volume-weighted bars'],['vma','num','Volume MA length',{min:1,max:500}],['vhi','num','High-volume multiplier',{min:1,step:0.1}],['vlo','num','Low-volume multiplier',{min:0.1,step:0.1}],
+    ['dash','chk','Dashboard'],['dpos','sel','Dashboard position',{opts:['Top Right','Top Left','Bottom Left']}]],
+  calc:(c,p)=>[[]],
+  extras:(c,p)=>{ const q=Object.assign({},DP_DEF,p); return {mk:[],boxes:[{type:'dprview',pts:[],o:q,D:dpGet(c,q)}],labels:[]}; }};
+
+{ const _D=draw; draw=function(d,X,Y,W,Hh){ if(!d||d.type!=='dprview') return _D.apply(this,arguments);
+    const p=d.o, D=d.D, N=candles.length; if(!D||!D.ok||N<30||D.N!==N) return;
+    const xe=X(N-1), xp=X(N-2); if(xe==null||xp==null) return; const bw=xe-xp; if(!(bw>0)) return;
+    const xi=i=>xe+(i-(N-1))*bw, iLo=Math.max(0,Math.floor(N-1-(xe+40)/bw)), iHi=Math.min(N-1,Math.ceil(N-1+(W+40-xe)/bw));
+    const tb=(t)=>{ if(t>=candles[N-1].time){ const dt=candles[N-1].time-candles[N-2].time; return N-1+(t-candles[N-1].time)/(dt||1); }
+      let a=0,b=N-1; while(a<b){ const m=(a+b)>>1; if(candles[m].time<t) a=m+1; else b=m; } return a; };
+    cx.save(); cx.beginPath(); cx.rect(0,0,W,Hh); cx.clip(); cx.setLineDash([]); cx.textBaseline='middle';
+    const fg='#d1d4dc', RED='#f23645', TEAL='#089981';
+    // volume-weighted bars (repaint the candle with its volume colour)
+    if(p.vwb){ const cw=Math.max(1,Math.round(bw*0.74)); for(let i=iLo;i<=iHi;i++){ const v=D.V[i], vs=D.vsma[i]; if(!v||!(vs>0)) continue; let col=null; const up=D.O[i]<D.C[i];
+        if(v>vs*p.vhi) col=up?'#006400':'#910000'; else if(v<vs*p.vlo) col=up?'#7FFFD4':'#FF9800'; if(!col) continue;
+        const x=xi(i), yh=Y(D.H[i]), yl=Y(D.L[i]), yo=Y(D.O[i]), yc=Y(D.C[i]); if(yh==null||yl==null||yo==null||yc==null) continue;
+        cx.strokeStyle=col; cx.fillStyle=col; cx.lineWidth=1; cx.beginPath(); cx.moveTo(x,yh); cx.lineTo(x,yl); cx.stroke(); cx.fillRect(x-cw/2,Math.min(yo,yc),cw,Math.max(1,Math.abs(yc-yo))); } }
+    // historical range pivots
+    if(p.histPiv){ const seg=(arr,col,brk)=>{ cx.strokeStyle=col; cx.lineWidth=1; cx.beginPath(); let pen=false; for(let i=Math.max(0,iLo-1);i<=iHi;i++){ const v=arr[i]; if(!(v>0)||(brk&&D.chg[i])){ pen=false; if(!(v>0)||!brk) continue; }
+          const y=Y(v); if(y==null){ pen=false; continue; } const x=xi(i); if(!pen){ cx.moveTo(x,y); pen=true; } else cx.lineTo(x,y); } cx.stroke(); };
+      seg(D.R1a,p.cR,true); seg(D.Pa,'#2962ff',false); seg(D.S1a,p.cS,true); }
+    // momentum support / resistance + invalidation levels
+    const poly=(arr,col)=>{ cx.strokeStyle=col; cx.lineWidth=1; cx.beginPath(); let pen=false; for(let i=Math.max(0,iLo-1);i<=iHi;i++){ const v=arr[i]; if(!(v>0)){ pen=false; continue; } const y=Y(v); if(y==null){ pen=false; continue; } const x=xi(i); if(!pen){ cx.moveTo(x,y); pen=true; } else cx.lineTo(x,y); } cx.stroke(); };
+    const dots=(arr)=>{ cx.fillStyle='#2962ff'; for(let i=iLo;i<=iHi;i++){ const v=arr[i]; if(!(v>0)) continue; const y=Y(v); if(y==null) continue; cx.beginPath(); cx.arc(xi(i),y,1.4,0,6.2832); cx.fill(); } };
+    if(p.srLv){ poly(D.bRes,RED); poly(D.sSup,TEAL); }
+    if(p.stopLv){ dots(D.bStop); dots(D.sStop); dots(D.beStopA); dots(D.seStopA); }
+    // phase markers
+    if(p.mode!=='None'){ const all=p.mode==='All Sequence Steps'; const up=new Array(iHi-iLo+1).fill(0), dn=new Array(iHi-iLo+1).fill(0);
+      const put=(i,above,txt,bg,col)=>{ const x=xi(i), k=i-iLo, y0=above?Y(D.H[i]):Y(D.L[i]); if(y0==null) return; const ln=String(txt).split('\n'); cx.font=(bg?'bold ':'')+'9px system-ui'; cx.textAlign='center';
+        const w=Math.max(14,Math.max.apply(null,ln.map(s=>cx.measureText(s).width))+8), h=bg?ln.length*10+4:11, off=above?up[k]:dn[k], g0=4, yEdge=above?y0-g0-off:y0+g0+off, yTop=above?yEdge-h-(bg?4:0):yEdge+(bg?4:0);
+        if(bg){ cx.fillStyle=bg; const ry=above?yTop:yTop; cx.beginPath(); cx.moveTo(x,yEdge); cx.lineTo(x-3,above?yEdge-4:yEdge+4); cx.lineTo(x+3,above?yEdge-4:yEdge+4); cx.closePath(); cx.fill(); cx.fillRect(x-w/2,ry,w,h); }
+        cx.fillStyle=col; ln.forEach((s,j)=>cx.fillText(s,x,yTop+(bg?2:0)+5+j*10+(bg?0:0))); if(above) up[k]+=h+(bg?4:0)+1; else dn[k]+=h+(bg?4:0)+1; };
+      const a25=(c,a)=>dpRgba(c,a);
+      for(let i=iLo;i<=iHi;i++){ const bn=D.bc[i], sn=D.sc[i], pb=D.bq[i], ps=D.sq[i], be=D.bec[i], se=D.sec[i], bePv=i?D.bec[i-1]:0, sePv=i?D.sec[i-1]:0;
+        if(all){ if(bn>=1&&bn<=7) put(i,true,String(bn),null,RED); if(bn===8) put(i,true,pb?'Q8':'8',pb?a25(TEAL,.25):null,pb?'#fff':RED);
+                 if(sn>=1&&sn<=7) put(i,true,String(sn),null,TEAL); if(sn===8) put(i,true,ps?'Q8':'8',ps?a25(RED,.25):null,ps?'#fff':TEAL); }
+        if(bn===9) put(i,false,pb?'M\nQ':'M',a25(TEAL,.75),'#fff');
+        if(sn===9) put(i,true,ps?'Q\nM':'M',a25(RED,.75),'#fff');
+        if(all){ if(be!==bePv&&be>=1&&be<=12) put(i,false,String(be),null,RED); if(D.bf[i]) put(i,false,'+',null,RED);
+                 if(se!==sePv&&se>=1&&se<=12) put(i,false,String(se),null,TEAL); if(D.sf[i]) put(i,false,'+',null,TEAL); }
+        if(be!==bePv&&be===13) put(i,false,'T',a25('#006400',.75),'#fff');
+        if(se!==sePv&&se===13) put(i,true,'T',a25('#910000',.75),'#fff'); } }
+    // range pivots (current + developing)
+    if(p.piv&&D.havePiv){ const t1=D.t1, t11=D.t11, t2=2*t1-t11, t20=3*t1-2*t11, ix1=xi(tb(t1)), ix2=xi(tb(t2)), ix20=xi(tb(t20));
+      const lvl=(x1,x2,v,col,w,lb)=>{ const y=Y(v); if(y==null) return; cx.strokeStyle=col; cx.lineWidth=w; cx.beginPath(); cx.moveTo(x1,y); cx.lineTo(x2,y); cx.stroke();
+        cx.font='bold 10px system-ui'; cx.fillStyle=col; cx.textAlign='left'; cx.fillText(lb+' ('+dpFmt(v)+')',x2+4,y); };
+      lvl(ix1,ix2,D.S1a[N-1],p.cS,2,'S'); lvl(ix1,ix2,D.R1a[N-1],p.cR,2,'R'); lvl(ix1,ix2,D.Pa[N-1],'#2962ff',2,'P');
+      if(p.devPiv&&D.dev){ lvl(ix2,ix20,D.dev[2],p.cS,1,'S'); lvl(ix2,ix20,D.dev[0],p.cR,1,'R'); lvl(ix2,ix20,D.dev[1],'#2962ff',1,'P'); } }
+    // volume pressure oscillator
+    if(p.prs&&candles[N-1].volume){ const Lk=Math.min(Math.max(10,p.oscLen|0),N-1); let pHi=-Infinity,pLo=Infinity,oH=-Infinity,oL=Infinity;
+      for(let i=N-Lk;i<=N-1;i++){ if(D.H[i]>pHi) pHi=D.H[i]; if(D.L[i]<pLo) pLo=D.L[i]; if(D.osc[i]>oH) oH=D.osc[i]; if(D.osc[i]<oL) oL=D.osc[i]; }
+      const rate=(pHi-pLo)/pHi, mid=p.place==='Middle', off=p.oscOff/10; if(!mid){ pLo=pLo*(1-rate*off); pHi=pHi*(1+rate*off); }
+      const oLw=oH===oL?oL-1:oL, hight=rate/(11-p.oscH), base=p.place==='Top'?pHi:pLo;
+      const lev=v=>mid?pLo+(v-oLw)*(pHi-pLo)/(oH-oLw):base*(1+v/oH*hight);
+      const xs=xi(N-1-Lk), xz=xi(N-1), yOb=Y(lev(p.ob)), yOs=Y(lev(p.os)), yMd=Y(lev(50));
+      if(yOb!=null&&yOs!=null){ if(!mid){ cx.fillStyle='rgba(41,98,255,.05)'; cx.fillRect(xs,Math.min(yOb,yOs),xz-xs,Math.abs(yOs-yOb)); }
+        cx.strokeStyle='#808080'; cx.lineWidth=1; cx.setLineDash([4,3]); [yOb,yOs].forEach(y=>{ cx.beginPath(); cx.moveTo(xs,y); cx.lineTo(xz,y); cx.stroke(); });
+        if(yMd!=null){ cx.strokeStyle='rgba(128,128,128,.5)'; cx.beginPath(); cx.moveTo(xs,yMd); cx.lineTo(xz,yMd); cx.stroke(); } cx.setLineDash([]); }
+      const hw=Math.max(1.5,bw*0.62), yb=Y(base);
+      for(let b=0;b<Lk;b++){ const i=N-1-b, hs=D.hist[i]; if(!isFinite(hs)) continue; const x=xi(i); if(x<-10||x>W+10) continue; const yt=Y(base*(1+hs/oH*hight)); if(yb==null||yt==null) continue;
+        const pv=i?D.hist[i-1]:hs; const col=hs>=0?(pv<hs?'#26A69A':'#B2DFDB'):(pv<hs?'#FFCDD2':'#FF5252'); cx.fillStyle=col; cx.fillRect(x-hw/2,Math.min(yb,yt),hw,Math.max(1,Math.abs(yt-yb))); }
+      cx.strokeStyle=p.cOsc; cx.lineWidth=1.5; cx.beginPath(); let pen=false; for(let b=Lk;b>=0;b--){ const i=N-1-b; const y=Y(lev(D.osc[i])); if(y==null){ pen=false; continue; } const x=xi(i); if(!pen){ cx.moveTo(x,y); pen=true; } else cx.lineTo(x,y); } cx.stroke(); }
+    // dashboard
+    if(p.dash){ const last=N-1, bn=D.bc[last], sn=D.sc[last], be=D.bec[last], se=D.sec[last], cl=D.C[last];
+      const mT=bn>0?'Buy-side '+bn+'/9':sn>0?'Sell-side '+sn+'/9':'\u2014', mC=bn>0?RED:sn>0?TEAL:'#9598a1';
+      const tT=be>0?'Buy-side '+be+'/13':se>0?'Sell-side '+se+'/13':'\u2014', tC=be>0?RED:se>0?TEAL:'#9598a1';
+      const R1=D.R1a[last], P=D.Pa[last], S1=D.S1a[last], pvOk=p.piv&&R1>0&&P>0&&S1>0; let pT='\u2014', pC='#9598a1';
+      if(pvOk){ const dR=Math.abs(cl-R1), dP=Math.abs(cl-P), dS=Math.abs(cl-S1), isR=dR<=dP&&dR<=dS, isP=!isR&&dP<=dS, nm=isR?'R':isP?'P':'S', nv=isR?R1:isP?P:S1, pc=(nv-cl)/cl*100;
+        pT=nm+' '+(pc>=0?'+':'')+(Math.round(pc*100)/100)+'%'; pC=cl>R1?TEAL:cl<S1?RED:'#9598a1'; }
+      const o=D.osc[last], hasV=!!candles[N-1].volume; const prT=!p.prs?'Off':hasV?(o>=50?Math.round(o)+'% Bull':Math.round(100-o)+'% Bear'):'No data', prC=!p.prs?'#9598a1':hasV?(o>=50?TEAL:RED):'#9598a1';
+      const rows=[['Momentum',mT,mC],['Terminal',tT,tC],['Pivot',pT,pC],['Pressure',prT,prC]]; const fs=11, rh=fs+9; cx.font=fs+'px system-ui'; let w1=0,w2=0; rows.forEach(r=>{ w1=Math.max(w1,cx.measureText(r[0]).width); w2=Math.max(w2,cx.measureText(r[1]).width); });
+      cx.font='bold '+fs+'px system-ui'; const tw=cx.measureText('Dual-Phase Reversal').width, pw=Math.max(w1+w2+30,tw+16), ph=(rows.length+1)*rh, m=6;
+      const left=/Left/.test(p.dpos), x0=left?m:W-pw-m, y0=/Top/.test(p.dpos)?m+34:Hh-ph-m-24;
+      cx.fillStyle='rgba(0,0,0,.35)'; cx.fillRect(x0,y0,pw,ph); cx.strokeStyle='rgba(128,128,128,.4)'; cx.lineWidth=1; cx.strokeRect(x0,y0,pw,ph);
+      cx.textAlign='center'; cx.fillStyle=fg; cx.fillText('Dual-Phase Reversal',x0+pw/2,y0+rh/2);
+      rows.forEach((r,k)=>{ const y=y0+(k+1)*rh; cx.beginPath(); cx.moveTo(x0,y); cx.lineTo(x0+pw,y); cx.stroke(); cx.font=fs+'px system-ui'; cx.textAlign='left'; cx.fillStyle=fg; cx.fillText(r[0],x0+8,y+rh/2); cx.textAlign='right'; cx.fillStyle=r[2]; cx.fillText(r[1],x0+pw-8,y+rh/2); }); }
+    cx.restore(); }; }
+}catch(err){ console.error('dpr indicator failed',err); window.__dprErr=err; }
