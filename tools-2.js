@@ -410,3 +410,118 @@ IND.dpr={label:'Dual-Phase Reversal (DGT)',cat:'Trend',nm:()=>'Dual-Phase Revers
       rows.forEach((r,k)=>{ const y=y0+(k+1)*rh; cx.beginPath(); cx.moveTo(x0,y); cx.lineTo(x0+pw,y); cx.stroke(); cx.font=fs+'px system-ui'; cx.textAlign='left'; cx.fillStyle=fg; cx.fillText(r[0],x0+8,y+rh/2); cx.textAlign='right'; cx.fillStyle=r[2]; cx.fillText(r[1],x0+pw-8,y+rh/2); }); }
     cx.restore(); }; }
 }catch(err){ console.error('dpr indicator failed',err); window.__dprErr=err; }
+
+// ---- [bce] PREMIUM STRATEGY · "Bullish Cross + Bullish Engulfing"  (self-contained: every name starts with bce / BCE) =================
+try{
+// Category: Premium Strategy.  Registered as IND.bce with the same extras() / alerts hook pattern as % Retest Buy & Sell (nothing existing is edited).
+// BULLISH CROSS : fast EMA closes above the slow EMA after being at / below it on the previous closed candle   (defaults 9 / 21)
+// BUY           : after a bullish cross, a BULLISH ENGULFING candle must CLOSE within the next N closed candles (N = lookback)  ->  BUY on that candle's close
+// BEARISH CROSS : fast EMA closes below the slow EMA after being at / above it   ->   SELL after a BEARISH ENGULFING candle closes (exact mirror)
+// ENGULFING     : bull = green candle whose body covers the previous candle's body (prev must be red unless switched off), bear = mirror.
+// ONE SIGNAL PER SETUP: each cross opens one setup; the first engulfing candle fires it and closes it. An opposite cross replaces the setup, an expired lookback drops it.
+// NON-REPAINTING: the forming (last) candle is never used and bar i only ever sees bars <= i, so a printed signal never moves or disappears.
+/*BCE-ENGINE-BEGIN*/
+const BCE_NAME='Bullish Cross + Bullish Engulfing';
+const BCE_DEF={
+  active:true,                                                    // strategy on / off
+  bullCross:true, bearCross:true, fastLen:9, slowLen:21, src:'Close', minSep:0,   // cross detection
+  lookback:5, crossBarCounts:false,                               // candles allowed after the cross for the engulfing candle
+  engMode:'Body engulfs body', reqOpp:true, minBody:1,            // candlestick confirmation
+  showBuy:true, showSell:true, buyCol:'#2dd4a7', sellCol:'#ff5d7a', mkSize:'Small',
+  alBuy:true, alSell:true, alSound:false,
+  inputsStatus:false, valuesStatus:true };
+const BCE_SZ={Small:.8,Normal:1,Large:1.5};
+function bceNorm(p){ const o=Object.assign({},BCE_DEF,p||{}), n=(v,d,lo,hi)=>{ v=+v; if(!isFinite(v)) v=d; return Math.min(hi,Math.max(lo,v)); };
+  o.fastLen=Math.round(n(o.fastLen,9,1,500)); o.slowLen=Math.round(n(o.slowLen,21,2,1000)); o.lookback=Math.round(n(o.lookback,5,1,50));
+  o.minSep=n(o.minSep,0,0,50); o.minBody=n(o.minBody,1,0,10); return o; }
+function bceSrc(x,s){ return s==='HL2'?(x.high+x.low)/2:s==='HLC3'?(x.high+x.low+x.close)/3:s==='OHLC4'?(x.open+x.high+x.low+x.close)/4:x.close; }
+function bceEma(v,n){ const o=new Array(v.length).fill(NaN), k=2/(n+1); let s=0,p=NaN;      // EMA seeded with the SMA of the first n values
+  for(let i=0;i<v.length;i++){ const x=v[i]; if(!isFinite(x)) continue; if(i<n-1){ s+=x; continue; } if(i===n-1){ s+=x; p=s/n; o[i]=p; continue; } p=x*k+p*(1-k); o[i]=p; } return o; }
+function bceEng(c,i,dir,P){            // is closed candle i an engulfing candle of direction dir (1 bullish / -1 bearish)?
+  if(i<1) return false; const a=c[i-1], b=c[i], aTop=Math.max(a.open,a.close), aBot=Math.min(a.open,a.close), bBody=Math.abs(b.close-b.open), aBody=aTop-aBot;
+  if(!(bBody>0)) return false;
+  if(dir>0){ if(!(b.close>b.open)) return false; if(P.reqOpp&&!(a.close<a.open)) return false;
+    if(!(b.open<=aBot&&b.close>=aTop&&(b.open<aBot||b.close>aTop))) return false; if(P.engMode!=='Body engulfs body'&&!(b.close>a.high)) return false; }
+  else { if(!(b.close<b.open)) return false; if(P.reqOpp&&!(a.close>a.open)) return false;
+    if(!(b.open>=aTop&&b.close<=aBot&&(b.open>aTop||b.close<aBot))) return false; if(P.engMode!=='Body engulfs body'&&!(b.close<a.low)) return false; }
+  return bBody>=aBody*P.minBody; }
+function bceEngine(c,p){
+  const P=bceNorm(p), n=c?c.length:0, nC=Math.max(0,n-1), out={events:[],stat:'',P};              // the forming candle (last) is never used
+  if(!P.active){ out.stat='OFF'; return out; }
+  if(P.fastLen>=P.slowLen){ out.stat='fast EMA must be shorter than slow EMA'; return out; }
+  if(nC<P.slowLen+2){ out.stat='waiting for candles'; return out; }
+  const src=[]; for(let i=0;i<nC;i++) src.push(bceSrc(c[i],P.src)); const f=bceEma(src,P.fastLen), s=bceEma(src,P.slowLen);
+  let setup=null;
+  for(let i=1;i<nC;i++){
+    if(isFinite(f[i])&&isFinite(s[i])&&isFinite(f[i-1])&&isFinite(s[i-1])){
+      if(f[i]>s[i]&&f[i-1]<=s[i-1]) setup=P.bullCross?{dir:1,bar:i,used:false}:null;                // a new cross always replaces the old setup
+      else if(f[i]<s[i]&&f[i-1]>=s[i-1]) setup=P.bearCross?{dir:-1,bar:i,used:false}:null; }
+    if(!setup) continue;
+    const age=i-setup.bar; if(age>P.lookback){ setup=null; continue; }
+    if(setup.used||age<(P.crossBarCounts?0:1)) continue;                                            // the engulfing candle must come AFTER the cross candle
+    if(P.minSep>0&&!(Math.abs(f[i]-s[i])/c[i].close*100>=P.minSep)) continue;
+    if(bceEng(c,i,setup.dir,P)){ setup.used=true; out.events.push({type:setup.dir>0?'buy':'sell',time:c[i].time,idx:i,price:c[i].close}); } }
+  const l=nC-1, tag='EMA '+P.fastLen+'/'+P.slowLen;
+  out.stat=setup&&!setup.used&&l-setup.bar<=P.lookback?tag+' · '+(setup.dir>0?'bull':'bear')+' cross '+(l-setup.bar)+' bar(s) ago, waiting for '+(setup.dir>0?'bullish':'bearish')+' engulfing':tag+' · no open setup';
+  return out; }
+/*BCE-ENGINE-END*/
+
+// ---------- [bce] chart hook: small BUY / SELL markers (keep:true so they stay visible with the other indicator markers) ----------
+function bceRun(c,p){
+  const r=bceEngine(c,p), P=r.P, mk=[], sz=BCE_SZ[P.mkSize]||.8;
+  r.events.forEach(e=>{ if(e.type==='buy'&&P.showBuy) mk.push({time:e.time,position:'belowBar',color:P.buyCol,shape:'arrowUp',text:'BUY',size:sz,keep:true});
+    else if(e.type==='sell'&&P.showSell) mk.push({time:e.time,position:'aboveBar',color:P.sellCol,shape:'arrowDown',text:'SELL',size:sz,keep:true}); });
+  return {mk,stat:r.stat,events:r.events}; }
+
+// ---------- [bce] alerts (BUY and SELL switched on / off separately; only the newest CLOSED candle can fire) ----------
+function bceAlerts(q){
+  if(candles.length<2) return; const cc=candles[candles.length-2].time, key=sym[0]+'|'+tf[0];
+  inds.forEach(i=>{
+    if(i.t!=='bce'||!i._xr||!i._xr.events||!show(i)) return;
+    const P=bceNorm(i.p); let quiet=q; if(i._bceK!==key){ i._bceK=key; i._bceLast={}; quiet=true; }   // first run / new symbol or interval: learn history silently
+    const last=i._bceLast||(i._bceLast={});
+    i._xr.events.forEach(e=>{
+      if(e.time<=(last[e.type]||0)) return; last[e.type]=e.time;
+      if(quiet||e.time!==cc||!(e.type==='buy'?P.alBuy:P.alSell)) return;
+      toast((e.type==='buy'?'BUY':'SELL')+' · '+BCE_NAME+' · '+sym[0]+' '+tf[0],e.type==='buy'?'#2e7d32':'#c62828');
+      if(P.alSound&&typeof beep==='function') beep(); }); });
+}
+{ const _bcePrevRE=recomputeExtras; recomputeExtras=function(){ const q=quietNext; const rv=_bcePrevRE.apply(this,arguments); try{ bceAlerts(q); }catch(e){ console.error('bce alerts',e); } return rv; }; }
+
+// ---------- [bce] settings panel ----------
+function bceInputs(b,d){
+  const p=d.p, el=(tag,css,txt)=>{ const e=document.createElement(tag); if(css) e.style.cssText=css; if(txt!=null) e.textContent=txt; return e; };
+  const head=t=>{ const h=el('div'); h.className='sech'; h.textContent=t; b.appendChild(h); };
+  const note=t=>b.appendChild(el('div','color:#8a93a6;font-size:13px;line-height:1.45;padding:2px 0 8px',t));
+  const num=(k,l,o)=>fld(b,p,k,'num',l,o), chk=(k,l)=>fld(b,p,k,'chk',l), sel=(k,l,opts)=>fld(b,p,k,'sel',l,{opts});
+  head('A. STRATEGY'); chk('active','Strategy active');
+  note('OFF removes every signal and alert of this strategy without deleting it.');
+  head('B. CROSS DETECTION'); chk('bullCross','Bullish cross (fast EMA crosses above slow EMA) → BUY setups'); chk('bearCross','Bearish cross (fast EMA crosses below slow EMA) → SELL setups');
+  num('fastLen','Fast EMA length',{min:1,max:500,step:1}); num('slowLen','Slow EMA length',{min:2,max:1000,step:1}); sel('src','EMA source',['Close','HL2','HLC3','OHLC4']);
+  num('minSep','Minimum EMA gap at the signal candle (% of price, 0 = off)',{min:0,max:50,step:.01});
+  note('The fast EMA must be shorter than the slow EMA. Each cross opens one setup; a cross the other way replaces it.');
+  head('C. LOOKBACK'); num('lookback','Candles allowed after the cross for the engulfing candle',{min:1,max:50,step:1}); chk('crossBarCounts','Engulfing candle may be the cross candle itself');
+  note('The engulfing candle must close AFTER the cross candle (unless the option above is on) and within this many closed candles. If none forms, there is no signal.');
+  head('D. CANDLESTICK CONFIRMATION'); sel('engMode','Engulfing rule',['Body engulfs body','Body + close beyond previous high / low']);
+  chk('reqOpp','Previous candle must be the opposite colour (red before BUY, green before SELL)'); num('minBody','Minimum body size vs previous body (×)',{min:0,max:10,step:.1});
+  note('Bullish: green candle whose open ≤ previous body low and close ≥ previous body high. Bearish: the mirror. The signal prints only after that candle has closed.');
+  head('E. SIGNALS'); chk('showBuy','Show BUY signals'); chk('showSell','Show SELL signals'); sel('mkSize','Label size',['Small','Normal','Large']);
+  head('F. ALERTS'); chk('alBuy','BUY alert'); chk('alSell','SELL alert'); chk('alSound','Play a sound');
+  note('Alerts fire once, when the confirming candle closes, while the app is open.');
+}
+function bceStyle(b,d){
+  const p=d.p, head=t=>{ const h=document.createElement('div'); h.className='sech'; h.textContent=t; b.appendChild(h); };
+  stRow(b,'BUY signal',p,'showBuy','buyCol'); stRow(b,'SELL signal',p,'showSell','sellCol');
+  head('OUTPUT VALUES'); fld(b,p,'valuesStatus','chk','Values in status line'); head('INPUT VALUES'); fld(b,p,'inputsStatus','chk','Inputs in status line');
+}
+
+// ---------- [bce] registration under "Premium Strategy" ----------
+IND.bce={label:BCE_NAME,title:BCE_NAME,cat:'Premium Strategy',cols:[],calc:()=>[],
+  nm:p=>BCE_NAME+(p.inputsStatus?' EMA '+p.fastLen+'/'+p.slowLen+' · '+p.lookback:''),
+  status:i=>i.p.valuesStatus!==false&&i._xr&&i._xr.stat?'  '+i._xr.stat:'',
+  p:BCE_DEF, inputsTab:bceInputs, styleTab:bceStyle, visTab:typeof sbxVis==='function'?sbxVis:undefined,
+  visOk:i=>{ const [u,m]=tfUnit(), v=i.p.vr&&i.p.vr[u]; return !v||(v.on&&m>=v.min&&m<=v.max); },
+  extras:(c,p,inst)=>bceRun(c,p)};
+// ================= end of [bce] Bullish Cross + Bullish Engulfing =================
+try{ DESC.bce='Premium strategy \u00b7 fast / slow EMA cross, then an engulfing candle closes \u2192 small BUY / SELL'; }catch(e){}   // picker description
+}catch(err){ console.error('bce strategy failed',err); window.__bceErr=err; }
