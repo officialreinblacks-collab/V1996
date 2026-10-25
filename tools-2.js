@@ -3,6 +3,242 @@
 // Each tool is its own try{} block: if one fails, the app and the other tools keep working.
 // ===================================================================================================
 
+// ---- [nb] INDICATOR: Jilly's ORB + Noise Band - port of the Pine v6 script "Jilly's ORB + Noise Band" (ORB+NB) ----
+// Opening-range breakout that only trades the break when the time-of-day Noise Band confirms it (Zarattini, Aziz & Barbon, 2024): at a checkpoint close
+// price must be outside the opening range AND outside the noise band AND beyond the session VWAP. One trade per session, filled at the next bar open,
+// wide ATR catastrophe stop, optional target, flat late in the day. Green / red boxes follow the trade, a table shows closed-trade statistics.
+try{
+const NB_DEF={N:20,k:1.25,refMode:'Gap-adjusted',rollGuard:true,useNB:true,orLen:15,bufAtr:0.3,useOR:true,cadence:15,lastEntry:'14:00',flatAt:'15:45',
+  qty:1,rtCost:1.8,pointValue:2,tick:0,stopMode:'ATR',stopMult:10,tgtMode:'R multiple',tgtR:1,tgtAtr:5,atrLen:9,atrTf:'5m',sess:'0930-1600',tz:'America/New_York',
+  showSig:true,showStop:true,showBoxes:true,showOR:true,showVwap:true,showOpen:true,showBg:true,showCk:true,showStats:true,statsPos:'Top Right',boxLead:5,
+  cBand:'#2a78d6',cVwap:'#eb6834',cOR:'#787b86',cOpen:'#9c27b0',alLong:true,alShort:true,alExit:false,alSound:false};
+const NB_TZ=['America/New_York','America/Chicago','America/Los_Angeles','Europe/London','Europe/Berlin','Asia/Dubai','Asia/Kolkata','Asia/Singapore','Asia/Tokyo','Australia/Sydney','UTC'];
+function nbSess(s,d){ const m=/^\s*(\d{1,2}):?(\d{2})\s*-\s*(\d{1,2}):?(\d{2})\s*$/.exec(String(s||'')); return m?[(+m[1])*60+(+m[2]),(+m[3])*60+(+m[4])]:d; }
+function nbHM(t,d){ const m=/^\s*(\d{1,2}):?(\d{2})\s*$/.exec(String(t||'')); return m?(+m[1])*60+(+m[2]):d; }
+const nbIn=(m,s)=>s[0]<=s[1]?(m>=s[0]&&m<s[1]):(m>=s[0]||m<s[1]);
+const nbFm={};
+function nbParts(tz,t){ let f=nbFm[tz]; if(f===undefined){ try{ f=new Intl.DateTimeFormat('en-US',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'numeric',day:'numeric',hour:'numeric',minute:'numeric'}); }catch(e){ f=null; } nbFm[tz]=f; }
+  if(!f){ const d=new Date(t*1000); return {key:d.getUTCFullYear()*10000+(d.getUTCMonth()+1)*100+d.getUTCDate(),min:d.getUTCHours()*60+d.getUTCMinutes()}; }
+  const q={}; f.formatToParts(new Date(t*1000)).forEach(x=>{ q[x.type]=+x.value; }); return {key:q.year*10000+q.month*100+q.day,min:(q.hour%24)*60+q.minute}; }
+function nbIv(c){ let m=0; for(let i=c.length-1;i>0&&i>c.length-40;i--){ const d=c[i].time-c[i-1].time; if(d>0&&(m===0||d<m)) m=d; } return m; }
+function nbTfSec(s){ const m=/^(\d+)\s*([mhd])?/i.exec(String(s||'5m')); const n=m?+m[1]:5, u=((m&&m[2])||'m').toLowerCase(); return n*(u==='h'?3600:u==='d'?86400:60); }
+function nbTick(c){ let d=0; for(let i=Math.max(0,c.length-300);i<c.length;i++){ const s=String(c[i].close), k=s.indexOf('.'); if(k>=0) d=Math.max(d,Math.min(8,s.length-k-1)); } return Math.pow(10,-d); }
+function nbA(hex,a){ const m=/^#?([0-9a-f]{6})$/i.exec(hex||''); if(!m) return hex||'#888'; const n=parseInt(m[1],16); return 'rgba('+(n>>16&255)+','+(n>>8&255)+','+(n&255)+','+a+')'; }
+const nbUsd=v=>(v<0?'-$':'$')+Math.abs(v).toLocaleString('en-US',{maximumFractionDigits:0});
+const nbSg=v=>(v<0?'\u2212$':'+$')+Math.abs(v).toLocaleString('en-US',{maximumFractionDigits:0});
+function nbCompute(c,p,iv,forming){
+  const N=c.length, D={N,ok:false,msg:''};
+  if(N<10||!iv) return D;
+  if(iv%60||iv>3600){ D.msg='ORB + Noise Band: use a minute chart (1, 5 or 15 min)'; return D; }
+  const TF=iv/60, cad=Math.round(+p.cadence)||15, orLen=Math.round(+p.orLen)||15;
+  if(cad%TF||orLen%TF){ D.msg='ORB + Noise Band: the chart interval must divide the checkpoint cadence and the OR length'; return D; }
+  const sp=nbSess(p.sess,[570,960]), START=sp[0], END=sp[1], RTH=(((END-START+1440)%1440)||1440);
+  const LAST=(nbHM(p.lastEntry,840)-START+1440)%1440, FLAT=Math.min((nbHM(p.flatAt,945)-START+1440)%1440,RTH), STUB=RTH-180;
+  if(FLAT<=orLen||LAST<=orLen){ D.msg='ORB + Noise Band: last entry and flat time must be after the opening range'; return D; }
+  const tick=+p.tick>0?+p.tick:nbTick(c), tickD=d=>Math.max(Math.round(d/tick)*tick,tick), rt=x=>Math.round(x/tick)*tick, PV=+p.pointValue||1, Q=Math.max(1,Math.round(+p.qty)||1), COST=+p.rtCost||0;
+  // ATR on the ATR time frame (aggregated from the chart candles; if the chart is coarser the chart candles are used)
+  const S=Math.max(iv,nbTfSec(p.atrTf)), aL=Math.max(1,Math.round(+p.atrLen)||9), aMap=new Map(); { let id0=null,cur=null,pc=null,rma=null,sum=0,cnt=0; const flush=()=>{ if(!cur) return; const tr=pc==null?cur.h-cur.l:Math.max(cur.h-cur.l,Math.abs(cur.h-pc),Math.abs(cur.l-pc)); pc=cur.c;
+        if(cnt<aL-1){ sum+=tr; cnt++; } else if(cnt===aL-1){ sum+=tr; cnt++; rma=sum/aL; aMap.set(cur.id,rma); } else { rma=(rma*(aL-1)+tr)/aL; aMap.set(cur.id,rma); } };
+    for(let i=0;i<N;i++){ const id=Math.floor(c[i].time/S); if(id!==id0){ flush(); cur={id,h:c[i].high,l:c[i].low,c:c[i].close}; id0=id; } else { cur.h=Math.max(cur.h,c[i].high); cur.l=Math.min(cur.l,c[i].low); cur.c=c[i].close; } } flush(); }
+  const atrAt=i=>{ const id=Math.floor((c[i].time+iv)/S)-1; for(let k=0;k<=12;k++){ const v=aMap.get(id-k); if(v!=null) return v; } return NaN; };
+  const F=()=>new Float64Array(N).fill(NaN);
+  Object.assign(D,{UB:F(),LB:F(),VW:F(),DO:F(),OH:F(),OL:F(),stp:F(),tgt:F(),ck:new Uint8Array(N),trades:[],sessions:[],ev:[],note:S>iv||S===iv?'':'ATR from chart candles'});
+  const st={cntL:0,cntS:0,winL:0,winS:0,gpL:0,glL:0,gpS:0,glS:0,eq:0,pk:0,dd:0,eqL:0,pkL:0,ddL:0,eqS:0,pkS:0,ddS:0};
+  const rec=(sd,pnl)=>{ const L=sd===1; if(L){ st.cntL++; if(pnl>0){ st.winL++; st.gpL+=pnl; } else st.glL-=pnl; } else { st.cntS++; if(pnl>0){ st.winS++; st.gpS+=pnl; } else st.glS-=pnl; }
+    st.eq+=pnl; st.pk=Math.max(st.pk,st.eq); st.dd=Math.max(st.dd,st.pk-st.eq);
+    if(L){ st.eqL+=pnl; st.pkL=Math.max(st.pkL,st.eqL); st.ddL=Math.max(st.ddL,st.pkL-st.eqL); } else { st.eqS+=pnl; st.pkS=Math.max(st.pkS,st.eqS); st.ddS=Math.max(st.ddS,st.pkS-st.eqS); } return pnl; };
+  const rows=[]; let validDay=false,rollSess=false,lastRollYm=0,dayOpen=NaN,priorClose=NaN,sessClose=NaN,sessLastKey=0,goodClose=NaN,sessStart=null,cumPV=0,cumV=0,lastKey=0,lastMove=NaN,orh=NaN,orl=NaN,traded=false,
+    side=0,entryPx=NaN,stopPx=NaN,tgtPx=NaN,pend=0,pendAtr=NaN,cur=null,row=null,ses=null,prevIn=false,prevKey=0,prevClose=NaN,bhPx=NaN,firstT=null,bhPk=0,bhDD=0;
+  const fin=(xp,xi,kind)=>{ const pnl=rec(side,(side*(xp-entryPx))*PV*Q-COST*Q); Object.assign(cur,{i1:xi,exit:xp,pnl,kind,open:false}); D.ev.push({type:'exit',time:c[xi].time,idx:xi,price:xp});
+    side=0; entryPx=NaN; stopPx=NaN; tgtPx=NaN; cur=null; };
+  for(let i=0;i<N;i++){ const b=c[i], q=nbParts(p.tz,b.time), inRTH=nbIn(q.min,sp), dayCh=q.key!==prevKey, newSess=inRTH&&(!prevIn||dayCh), endedEarly=prevIn&&(!inRTH||dayCh), live=forming&&i===N-1;
+    if(pend!==0){ side=pend; entryPx=b.open; const orLvl=p.stopMode==='Opposite OR'?(pend===1?orl:orh):rt((orh+orl)/2), orDist=pend*(b.open-orLvl), dist=(p.stopMode==='ATR'||orDist<=0)?tickD(p.stopMult*pendAtr):orDist;
+      const td=p.tgtMode==='R multiple'?p.tgtR*dist:p.tgtMode==='ATR multiple'?tickD(p.tgtAtr*pendAtr):NaN; stopPx=b.open-pend*dist; tgtPx=isNaN(td)?NaN:b.open+pend*td;
+      cur={i0:i,i1:i,side,entry:b.open,stop:stopPx,tgt:tgtPx,fav:b.open,adv:b.open,open:true,dist}; D.trades.push(cur); if(isNaN(bhPx)){ bhPx=b.open; firstT=b.time; } }
+    pend=0;
+    if(endedEarly&&side!==0) fin(prevClose,i-1,'x');
+    if(newSess){ if(validDay&&sessLastKey>0){ if(sessLastKey<=STUB) rows.pop(); else goodClose=sessClose; } priorClose=goodClose; validDay=q.min===START; rollSess=false;
+      if(cur){ cur.open=false; cur.i1=i-1; cur.kind=''; cur=null; } side=0; entryPx=stopPx=tgtPx=NaN;
+      if(validDay){ row=new Float32Array(RTH+1).fill(NaN); rows.push(row); const y=Math.floor(q.key/10000), m=Math.floor(q.key/100)%100, d=q.key%100;
+        if(p.rollGuard&&m%3===0){ const dow1=new Date(Date.UTC(y,m-1,1)).getUTCDay(), tf3=1+((5-dow1+7)%7)+14; if(d>=tf3&&lastRollYm!==y*100+m){ rollSess=true; lastRollYm=y*100+m; } }
+        ses={i0:i,i1:i,open:b.open,orh:NaN,orl:NaN,lastOr:-1}; D.sessions.push(ses); }
+      dayOpen=b.open; sessStart=b.time; sessLastKey=0; cumPV=0; cumV=0; lastKey=0; lastMove=NaN; orh=NaN; orl=NaN; traded=false; }
+    if(inRTH&&sessStart!=null&&validDay){ const key=Math.round((b.time+iv-sessStart)/60); sessClose=b.close; sessLastKey=key; cumPV+=(b.high+b.low+b.close)/3*(b.volume||0); cumV+=(b.volume||0);
+      const vw=cumV>0?cumPV/cumV:b.close; if(key<=orLen){ orh=isNaN(orh)?b.high:Math.max(orh,b.high); orl=isNaN(orl)?b.low:Math.min(orl,b.low); } const orDone=key>=orLen; let sig=NaN;
+      if(key>=1&&key<=RTH){ const mv=Math.abs(b.close/dayOpen-1); if(!isNaN(lastMove)&&key>lastKey+1) for(let k=lastKey+1;k<key;k++) row[k]=lastMove;
+        if(rows.length>p.N){ let s=0,n=0; for(let r=rows.length-1-p.N;r<rows.length-1;r++){ const v=rows[r][key]; if(!isNaN(v)){ s+=v; n++; } } sig=n>0?s/n:NaN; } row[key]=mv; lastKey=key; lastMove=mv; }
+      let UB=NaN,LB=NaN; if(!isNaN(sig)){ const gap=p.refMode==='Gap-adjusted'&&!rollSess&&!isNaN(priorClose), up=gap?Math.max(dayOpen,priorClose):dayOpen, dn=gap?Math.min(dayOpen,priorClose):dayOpen; UB=up*(1+p.k*sig); LB=dn*(1-p.k*sig); }
+      if(side!==0){ const hitS=side===1?b.low<=stopPx:b.high>=stopPx, hitT=!isNaN(tgtPx)&&(side===1?b.high>=tgtPx:b.low<=tgtPx);
+        if(hitS) fin(side===1?Math.min(b.open,stopPx):Math.max(b.open,stopPx),i,'SL'); else if(hitT) fin(tgtPx,i,'TP'); else if(key>=FLAT) fin(b.close,i,'x'); }
+      const isCheck=key%cad===0&&key>orLen&&key<=LAST&&key+TF<FLAT; D.ck[i]=isCheck?1:0; const atr=atrAt(i);
+      if(isCheck&&!traded&&side===0&&orDone&&!isNaN(atr)&&(!p.useNB||!isNaN(sig))&&!live){
+        const goL=(!p.useOR||b.close>orh+p.bufAtr*atr)&&(!p.useNB||b.close>UB)&&b.close>vw, goS=(!p.useOR||b.close<orl-p.bufAtr*atr)&&(!p.useNB||b.close<LB)&&b.close<vw;
+        if(goL||goS){ pend=goL?1:-1; pendAtr=atr; traded=true; D.ev.push({type:goL?'long':'short',time:b.time,idx:i,price:b.close}); } }
+      D.UB[i]=UB; D.LB[i]=LB; D.VW[i]=vw; D.DO[i]=dayOpen; if(orDone){ D.OH[i]=orh; D.OL[i]=orl; ses.lastOr=i; ses.orh=orh; ses.orl=orl; } ses.i1=i; }
+    if(side!==0&&cur){ D.stp[i]=stopPx; D.tgt[i]=tgtPx; cur.fav=side===1?Math.max(cur.fav,b.high):Math.min(cur.fav,b.low); cur.adv=side===1?Math.min(cur.adv,b.low):Math.max(cur.adv,b.high); cur.i1=i; }
+    if(!isNaN(bhPx)){ const e=(b.close-bhPx)*PV*Q; bhPk=Math.max(bhPk,e); bhDD=Math.max(bhDD,bhPk-e); }
+    prevIn=inRTH; prevKey=q.key; prevClose=b.close; }
+  D.st=st; D.bh=isNaN(bhPx)?null:{pnl:(c[N-1].close-bhPx)*PV*Q,dd:bhDD}; D.firstT=firstT; D.PV=PV; D.Q=Q; D.tick=tick; D.ok=true; return D; }
+let nbMem=null;
+function nbGet(c,p){ const N=c.length, iv=nbIv(c), forming=N>0&&iv>0&&(c[N-1].time+iv)*1000>Date.now();
+  const key=JSON.stringify(p)+'|'+sym[0]+'|'+tf[0]+'|'+N+'|'+forming+'|'+(N?c[0].time+'|'+c[N-1].time+'|'+c[N-1].close+'|'+c[N-1].high+'|'+c[N-1].low:''); if(nbMem&&nbMem.k===key) return nbMem.D;
+  let D; try{ D=nbCompute(c,p,iv,forming); }catch(e){ console.error('orbnb calc failed',e); D={N,ok:false,msg:''}; } nbMem={k:key,D}; return D; }
+IND.orbnb={label:"Jilly's ORB + Noise Band",cat:'Trend',nm:()=>'ORB+NB',p:Object.assign({},NB_DEF),cols:['#2a78d6'],
+  fields:[['N','num','Noise band lookback N (sessions)',{min:2,max:60}],['k','num','Band multiplier k',{min:0.1,max:10,step:0.05}],['refMode','sel','Reference',{opts:['Open','Gap-adjusted']}],['rollGuard','chk','Roll guard (Gap-adjusted)'],['useNB','chk','Require Noise Band confirmation'],
+    ['orLen','num','OR length (min)',{min:1,max:120}],['bufAtr','num','Trigger buffer x ATR',{min:0,max:5,step:0.05}],['useOR','chk','Require OR break'],
+    ['cadence','sel','Checkpoint cadence (min)',{opts:['5','15','30'],num:true}],['lastEntry','txt','Last entry checkpoint (HH:MM)'],['flatAt','txt','Flat time (HH:MM)'],
+    ['qty','num','Contracts',{min:1,max:1000}],['rtCost','num','Round-trip cost per contract ($)',{min:0,max:1000,step:0.1}],['pointValue','num','Point value ($ per 1.0 of price; MNQ = 2)',{min:0.0001,max:100000,step:0.5}],['tick','num','Tick size (0 = automatic)',{min:0,max:1000,step:0.01}],
+    ['stopMode','sel','Stop',{opts:['ATR','Opposite OR','ORM']}],['stopMult','num','Stop ATR multiple',{min:0.1,max:100,step:0.5}],
+    ['tgtMode','sel','Target',{opts:['R multiple','ATR multiple','None']}],['tgtR','num','Target R multiple',{min:0.1,max:50,step:0.25}],['tgtAtr','num','Target ATR multiple',{min:0.1,max:100,step:0.5}],
+    ['atrLen','num','ATR length',{min:1,max:200}],['atrTf','sel','ATR timeframe',{opts:['1m','5m','15m','30m','1h']}],
+    ['sess','txt','Session (e.g. 0930-1600)'],['tz','sel','Timezone',{opts:NB_TZ}],
+    ['showSig','chk','Entry / exit markers'],['showStop','chk','Stop / target lines'],['showBoxes','chk','Show SL/TP boxes'],['showOR','chk','OR high / low / mid'],['showVwap','chk','Session VWAP'],['showOpen','chk','Reference (open) line'],
+    ['showBg','chk','Shade time in position'],['showCk','chk','Checkpoint dots'],['showStats','chk','Show performance table'],['statsPos','sel','Table position',{opts:['Top Left','Top Right','Top Center','Middle Left','Middle Right','Bottom Left','Bottom Right','Bottom Center']}],
+    ['boxLead','num','Box projection (bars ahead)',{min:0,max:100}],['cBand','col','Band'],['cVwap','col','VWAP'],['cOR','col','OR'],['cOpen','col','Session open'],
+    ['alLong','chk','Alert on long signal'],['alShort','chk','Alert on short signal'],['alExit','chk','Alert on exit'],['alSound','chk','Play a sound']],
+  calc:(c,p)=>[[]],
+  extras:(c,p)=>{ const q=Object.assign({},NB_DEF,p), D=nbGet(c,q); return {mk:[],boxes:[{type:'nbview',pts:[],o:q,D}],labels:[],events:D.ok?D.ev:[]}; }};
+{ const _D=draw; draw=function(d,X,Y,W,H){ if(!d||d.type!=='nbview') return _D.apply(this,arguments);
+    const p=d.o, D=d.D; if(!D) return;
+    cx.save(); cx.beginPath(); cx.rect(0,0,W,H); cx.clip(); cx.textBaseline='middle';
+    if(D.ok){ const N=D.N, xa=X(0), xb=X(1); let dx=(xa!=null&&xb!=null)?xb-xa:6; if(!(dx>0)) dx=6; let lo=0, hi=N-1; if(xa!=null){ lo=Math.max(0,Math.floor(-xa/dx)-3); hi=Math.min(N-1,Math.ceil((W-xa)/dx)+3); } if(hi<lo){ cx.restore(); return; }
+      const tr=D.trades, vis=t=>{ const e=t.open?N-1:t.i1; return e>=lo&&t.i0<=hi; };
+      if(p.showBg) tr.forEach(t=>{ if(!t.side||!vis(t)) return; const e=t.open?N-1:t.i1-1; if(e<t.i0) return; const x0=X(t.i0), x1=X(e); if(x0==null||x1==null) return; cx.fillStyle=t.side===1?'rgba(8,153,129,.09)':'rgba(242,54,69,.09)'; cx.fillRect(x0-dx/2,0,x1-x0+dx,H); });
+      const ln=(arr,col,w,dash,fn)=>{ cx.strokeStyle=col; cx.lineWidth=w; cx.setLineDash(dash||[]); cx.beginPath(); let on=false; for(let i=lo;i<=hi;i++){ const v=fn?fn(i):arr[i]; if(v==null||isNaN(v)){ on=false; continue; } const x=X(i), y=Y(v); if(x==null||y==null){ on=false; continue; } if(on) cx.lineTo(x,y); else{ cx.moveTo(x,y); on=true; } } cx.stroke(); cx.setLineDash([]); };
+      ln(D.UB,p.cBand,2); ln(D.LB,p.cBand,2); if(p.showVwap) ln(D.VW,p.cVwap,2); if(p.showOpen) ln(D.DO,p.cOpen,1);
+      if(p.showOR){ ln(D.OH,p.cOR,1); ln(D.OL,p.cOR,1); ln(null,p.cOR,1,[4,3],i=>(D.OH[i]+D.OL[i])/2); }
+      if(p.showStop){ ln(D.stp,'#f23645',1); ln(D.tgt,'#4caf50',1); }
+      cx.font='9px system-ui,sans-serif'; cx.textAlign='left';
+      D.sessions.forEach(s=>{ if(s.i1<lo||s.i0>hi) return; const lab=(v,t,col)=>{ const x=X(s.i1), y=Y(v); if(x==null||y==null) return; cx.fillStyle=col; cx.fillText(t,x+4,y); };
+        if(p.showOR&&s.lastOr>=0){ const e=s.lastOr; const x=X(e); [[s.orh,'ORH'],[s.orl,'ORL'],[(s.orh+s.orl)/2,'ORM']].forEach(a=>{ const y=Y(a[0]); if(x!=null&&y!=null){ cx.fillStyle=p.cOR; cx.fillText(a[1],x+4,y); } }); }
+        if(p.showOpen) lab(s.open,'Opening',p.cOpen); });
+      if(p.showBoxes) tr.forEach(t=>{ if(!t.side||!vis(t)) return; const x0=X(t.i0), x1=X(t.open?Math.min(N-1+p.boxLead,t.i1+p.boxLead):t.i1); if(x0==null||x1==null) return; const e=t.entry;
+        const won=!t.open&&t.side*(t.exit-e)>0, snap=!t.open&&t.exit!==e; let pr=t.side*(t.fav-e)>0?[e,t.fav]:null, rk=t.side*(t.adv-e)<0?[e,t.adv]:null; if(snap){ if(won) pr=[e,t.exit]; else rk=[e,t.exit]; }
+        const bx=(r,fill,brd)=>{ if(!r) return; const y1=Y(Math.max(r[0],r[1])), y2=Y(Math.min(r[0],r[1])); if(y1==null||y2==null) return; cx.fillStyle=fill; cx.fillRect(x0,y1,x1-x0,Math.max(1,y2-y1)); cx.strokeStyle=brd; cx.lineWidth=1; cx.strokeRect(x0+.5,y1,x1-x0,Math.max(1,y2-y1)); return [y1,y2]; };
+        const a=bx(pr,'rgba(76,175,80,.15)','rgba(76,175,80,.5)'), b2=bx(rk,'rgba(242,54,69,.15)','rgba(242,54,69,.5)');
+        if(snap){ const yy=won?a:b2; if(yy){ const atBottom=won!==(t.side===1); cx.font='11px system-ui,sans-serif'; cx.textAlign='center'; cx.fillStyle=t.pnl>0?'#4caf50':'#f23645'; cx.fillText(nbSg(t.pnl),(x0+x1)/2,atBottom?yy[1]-7:yy[0]+7); } } });
+      if(p.showSig) tr.forEach(t=>{ if(!t.side||!vis(t)) return; cx.font='bold 9px system-ui,sans-serif'; cx.textAlign='center';
+        const x=X(t.i0), y=Y(t.entry); if(x!=null&&y!=null){ const L=t.side===1, by=L?y+4:y-17; cx.fillStyle=L?'#089981':'#f23645'; cx.fillRect(x-7,by,14,13); cx.fillStyle='#fff'; cx.fillText(L?'L':'S',x,by+6.5); }
+        if(!t.open&&t.kind){ const xe=X(t.i1), ye=Y(t.exit); if(xe!=null&&ye!=null){ cx.fillStyle='rgba(120,123,134,.4)'; cx.fillRect(xe-9,ye-7,18,14); cx.fillStyle='#d1d4dc'; cx.fillText(t.kind==='x'?'\u2715':t.kind,xe,ye); } } });
+      if(p.showCk){ cx.fillStyle='rgba(150,150,160,.55)'; for(let i=lo;i<=hi;i++){ if(!D.ck[i]) continue; const x=X(i); if(x==null) continue; cx.beginPath(); cx.arc(x,H-8,2,0,6.2832); cx.fill(); } } }
+    if(D.msg){ cx.fillStyle='rgba(255,193,7,.95)'; cx.textAlign='left'; cx.font='11px system-ui,sans-serif'; cx.fillText(D.msg,10,H-14); }
+    if(D.ok&&p.showStats&&D.st){ const S=D.st, tot=S.cntL+S.cntS, nL=S.gpL-S.glL, nS=S.gpS-S.glS, fP=(w,n)=>n>0?(100*w/n).toFixed(1)+'%':'\u2014', fPF=(a,g)=>g>0?(a/g).toFixed(2):a>0?'\u221e':'\u2014',
+        fE=(n,k)=>k>0?(n<0?'-$':'$')+Math.abs(n/k).toFixed(2):'\u2014', gc=v=>v>=0?'#4caf50':'#f23645', W0='#fff', R0='#f23645';
+      const T=[['ORB + NB','All','Long','Short'],['Trades',String(tot),String(S.cntL),String(S.cntS)],['Win %',fP(S.winL+S.winS,tot),fP(S.winL,S.cntL),fP(S.winS,S.cntS)],['PF',fPF(S.gpL+S.gpS,S.glL+S.glS),fPF(S.gpL,S.glL),fPF(S.gpS,S.glS)],
+        ['Expectancy',fE(S.eq,tot),fE(nL,S.cntL),fE(nS,S.cntS)],['P&L',tot?nbUsd(S.eq):'\u2014',S.cntL?nbUsd(nL):'\u2014',S.cntS?nbUsd(nS):'\u2014'],['Closed-trade Max DD',nbUsd(S.dd),S.cntL?nbUsd(S.ddL):'\u2014',S.cntS?nbUsd(S.ddS):'\u2014'],
+        ['B&H P&L',D.bh?nbUsd(D.bh.pnl):'\u2014','',''],['B&H Max DD',D.bh?nbUsd(D.bh.dd):'\u2014','',''],['First trade',D.firstT?new Date(D.firstT*1000).toLocaleString('en-GB',{timeZone:p.tz,day:'2-digit',month:'short',year:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).replace(',',''):'\u2014','','']];
+      const colr=[[],[],[],[],[null,S.eq>=0?1:0,nL>=0?1:0,nS>=0?1:0],[null,tot?(S.eq>=0?1:0):-1,S.cntL?(nL>=0?1:0):-1,S.cntS?(nS>=0?1:0):-1],[null,2,2,2],[null,D.bh?(D.bh.pnl>=0?1:0):-1],[null,2],[]];
+      cx.font='11px system-ui,sans-serif'; const cw=[0,0,0,0], rh=17; T.forEach(r=>r.forEach((s,j)=>{ cw[j]=Math.max(cw[j],cx.measureText(s).width+12); })); const tw=cw[0]+cw[1]+cw[2]+cw[3], th=rh*T.length, pos=p.statsPos||'Top Right';
+      const tx=pos.indexOf('Left')>-1?8:pos.indexOf('Center')>-1?(W-tw)/2:W-tw-8, ty=pos.indexOf('Top')>-1?8:pos.indexOf('Middle')>-1?(H-th)/2:H-th-8;
+      cx.fillStyle='rgba(0,0,0,.8)'; cx.fillRect(tx,ty,tw,th); cx.fillStyle='rgba(41,98,255,.3)'; cx.fillRect(tx,ty,tw,rh); cx.strokeStyle='rgba(140,140,140,.4)'; cx.lineWidth=1; cx.strokeRect(tx+.5,ty+.5,tw,th); cx.textAlign='left';
+      T.forEach((r,i)=>{ let x=tx; r.forEach((s,j)=>{ let col=W0; const cc=(colr[i]||[])[j]; if(cc===1) col='#4caf50'; else if(cc===0) col='#f23645'; else if(cc===2) col=R0; else if(cc===-1) col=W0; cx.fillStyle=col; cx.fillText(s,x+6,ty+rh*i+rh/2); x+=cw[j]; }); }); }
+    cx.restore(); }; }
+// alerts: fire once, when the signal / exit candle has closed (the newest closed candle), while the app is open
+function nbAlerts(q){ if(candles.length<2) return; const cc=candles[candles.length-2].time, key=sym[0]+'|'+tf[0], KEY={long:'alLong',short:'alShort',exit:'alExit'},
+    MSG={long:['ORB+NB LONG: fills at the next bar open','#2e7d32'],short:['ORB+NB SHORT: fills at the next bar open','#c62828'],exit:['ORB+NB EXIT','#37474f']};
+  inds.forEach(i=>{ if(i.t!=='orbnb'||!i._xr||!i._xr.events||!show(i)) return; const P=Object.assign({},NB_DEF,i.p); let quiet=q; if(i._nbK!==key){ i._nbK=key; i._nbLast={}; quiet=true; }
+    const last=i._nbLast||(i._nbLast={});
+    i._xr.events.forEach(e=>{ if(e.time>cc||e.time<=(last[e.type]||0)) return; last[e.type]=e.time;
+      if(quiet||e.time!==cc||!P[KEY[e.type]]) return;
+      toast(MSG[e.type][0]+' \u00b7 '+sym[0]+' '+tf[0]+' \u00b7 '+e.price,MSG[e.type][1]);
+      if(P.alSound&&typeof beep==='function') beep(); }); }); }
+{ const _nbRE=recomputeExtras; recomputeExtras=function(){ const q=quietNext; const rv=_nbRE.apply(this,arguments); try{ nbAlerts(q); }catch(e){ console.error('orbnb alerts',e); } return rv; }; }
+try{ DESC.orbnb='Opening-range breakout confirmed by a time-of-day Noise Band and VWAP: one trade per session, ATR stop, flat late, with trade boxes and a statistics table'; }catch(e){}
+}catch(err){ console.error('nb indicator failed',err); window.__nbErr=err; }
+
+// ---- [ocb] INDICATOR: Opening Candle Breakout [OCB] - port of the Pine v6 script "Opening Candle Breakout [OCB] v1.1" by elpips (MPL 2.0) ----
+// The FIRST candle of the session sets the direction (green = LONG, red = SHORT). Entry = its close, stop = its opposite side (clamped by ATR),
+// targets T1 / T2 / T3 in R multiples. Weak candles (body smaller than the ATR filter) print a grey "no setup" mark. One setup per day, lines extend
+// while the session is open. A small statistics table estimates the result on the candles on the chart (not a backtest). Idea: Zarattini & Aziz (2023).
+try{
+const OC_DEF={sessFirst:'0930-0935',sessEnd:'1555-1600',sessDay:'0930-1600',tz:'America/New_York',minBodyATR:0.5,atrLen:14,minStopATR:0.10,maxStopATR:2,
+  tp1R:2,tp2R:5,tp3R:10,keepDays:5,showLabels:true,showSetups:true,showSkip:true,cLong:'#009988',cShort:'#CC3311',cStop:'#FF0066',cTarget:'#00C853',
+  showStats:true,statTP:10,statPos:'Top right',alLong:true,alShort:true,alSkip:false,alClose:false,alSound:false};
+const OC_TZ=['America/New_York','America/Chicago','America/Los_Angeles','Europe/London','Europe/Berlin','Asia/Dubai','Asia/Kolkata','Asia/Singapore','Asia/Tokyo','Australia/Sydney','UTC'];
+function ocSess(s,d){ const m=/^\s*(\d{1,2}):?(\d{2})\s*-\s*(\d{1,2}):?(\d{2})\s*$/.exec(String(s||'')); return m?[(+m[1])*60+(+m[2]),(+m[3])*60+(+m[4])]:d; }
+const ocIn=(m,s)=>s[0]<=s[1]?(m>=s[0]&&m<s[1]):(m>=s[0]||m<s[1]);
+const ocFm={};
+function ocParts(tz,t){ let f=ocFm[tz]; if(f===undefined){ try{ f=new Intl.DateTimeFormat('en-US',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'numeric',day:'numeric',hour:'numeric',minute:'numeric'}); }catch(e){ f=null; } ocFm[tz]=f; }
+  if(!f){ const d=new Date(t*1000); return {key:d.getUTCFullYear()*10000+(d.getUTCMonth()+1)*100+d.getUTCDate(),min:d.getUTCHours()*60+d.getUTCMinutes()}; }
+  const q={}; f.formatToParts(new Date(t*1000)).forEach(x=>{ q[x.type]=+x.value; }); return {key:q.year*10000+q.month*100+q.day,min:(q.hour%24)*60+q.minute}; }
+function ocIv(c){ let m=0; for(let i=c.length-1;i>0&&i>c.length-40;i--){ const d=c[i].time-c[i-1].time; if(d>0&&(m===0||d<m)) m=d; } return m; }
+const ocFR=v=>Number.isInteger(+v)?(+v).toFixed(1):String(+v);
+function ocA(hex,a){ const m=/^#?([0-9a-f]{6})$/i.exec(hex||''); if(!m) return hex||'#888'; const n=parseInt(m[1],16); return 'rgba('+(n>>16&255)+','+(n>>8&255)+','+(n&255)+','+a+')'; }
+function ocCompute(c,p,iv,forming){
+  const N=c.length, D={N,ok:false,msg:'',days:[],sig:[],sk:[],ev:[],st:null};
+  if(N<3||!iv) return D;
+  const sF=ocSess(p.sessFirst,[570,575]), sE=ocSess(p.sessEnd,[955,960]), sD=ocSess(p.sessDay,[570,960]), wl=((sF[1]-sF[0])%1440+1440)%1440;
+  if(iv>=86400){ D.msg='OCB needs an intraday chart (first candle '+p.sessFirst+')'; return D; }
+  if(Math.round(iv/60)!==wl){ D.msg='OCB: the first-candle window '+p.sessFirst+' is '+wl+' min - use the '+wl+' minute chart'; return D; }
+  const L=Math.max(5,Math.round(+p.atrLen)||14), atr=new Array(N).fill(null); let pc=null,rma=null,sum=0;
+  for(let i=0;i<N;i++){ const h=c[i].high,l=c[i].low,tr=pc==null?h-l:Math.max(h-l,Math.abs(h-pc),Math.abs(l-pc)); pc=c[i].close;
+    if(i<L-1) sum+=tr; else if(i===L-1){ sum+=tr; rma=sum/L; atr[i]=rma; } else { rma=(rma*(L-1)+tr)/L; atr[i]=rma; } }
+  const days=D.days; let cur=null, sDir=0,sEntry=NaN,sStop=NaN,sRisk=NaN,pend=false,pDir=0,pStop=NaN,trades=0,wins=0,sumR=0,gw=0,gl=0;
+  for(let i=0;i<N;i++){ const b=c[i], q=ocParts(p.tz,b.time), isF=ocIn(q.min,sF), isE=ocIn(q.min,sE), inS=ocIn(q.min,sD), live=forming&&i===N-1;
+    let dir=0, stopLv=NaN;
+    if(isF&&!live){ const a=atr[i], body=Math.abs(b.close-b.open), bodyOk=p.minBodyATR<=0||(a!=null&&body>=a*p.minBodyATR), lg=b.close>b.open&&bodyOk, sh=b.close<b.open&&bodyOk;
+      if(lg||sh){ if(a!=null){ dir=lg?1:-1; const raw=lg?b.close-b.low:b.high-b.close, risk=Math.min(Math.max(raw,a*p.minStopATR),a*p.maxStopATR), e=b.close; stopLv=e-dir*risk;
+          cur={i,end:i,time:b.time,day:q.key,dir,entry:e,stop:stopLv,t:[e+dir*risk*p.tp1R,e+dir*risk*p.tp2R,e+dir*risk*p.tp3R]}; days.push(cur);
+          D.sig.push({time:b.time,dir}); D.ev.push({type:dir>0?'long':'short',time:b.time,idx:i,price:b.close}); } }
+      else { D.sk.push({time:b.time}); D.ev.push({type:'skip',time:b.time,idx:i,price:b.close}); } }
+    if(isE&&!live) D.ev.push({type:'close',time:b.time,idx:i,price:b.close});
+    if(cur&&inS&&q.key===cur.day&&i>=cur.i) cur.end=i;   // today's lines keep extending while the session is open
+    // statistics (estimate): enter at the open of the candle after the signal, stop at the signal stop, target statTP R, else exit at session close
+    if(pend){ sDir=pDir; sEntry=b.open; sStop=pStop; sRisk=Math.abs(b.open-pStop); pend=false; }
+    if(sDir!==0&&sRisk>0){ const tg=sEntry+sDir*sRisk*p.statTP, hSL=sDir===1?b.low<=sStop:b.high>=sStop, hTP=sDir===1?b.high>=tg:b.low<=tg; let r=null;
+      if(hSL) r=-1; else if(hTP) r=+p.statTP; else if(isE) r=sDir*(b.close-sEntry)/sRisk;
+      if(r!=null){ trades++; sumR+=r; if(r>0){ wins++; gw+=r; } else gl+=Math.abs(r); sDir=0; } }
+    if(dir!==0&&sDir===0){ pend=true; pDir=dir; pStop=stopLv; } }
+  D.st={trades,wr:trades>0?100*wins/trades:0,net:sumR,pf:gl>0?gw/gl:0,avg:trades>0?sumR/trades:0}; D.ok=true; return D; }
+let ocMem=null;
+function ocGet(c,p){ const N=c.length, iv=ocIv(c), forming=N>0&&iv>0&&(c[N-1].time+iv)*1000>Date.now();
+  const key=JSON.stringify(p)+'|'+sym[0]+'|'+tf[0]+'|'+N+'|'+forming+'|'+(N?c[0].time+'|'+c[N-1].time+'|'+c[N-1].close+'|'+c[N-1].high+'|'+c[N-1].low:''); if(ocMem&&ocMem.k===key) return ocMem.D;
+  let D; try{ D=ocCompute(c,p,iv,forming); }catch(e){ console.error('ocb calc failed',e); D={N,ok:false,msg:'',days:[],sig:[],sk:[],ev:[],st:null}; } ocMem={k:key,D}; return D; }
+IND.ocb={label:'Opening Candle Breakout [OCB] (elpips)',cat:'Trend',nm:()=>'OCB',p:Object.assign({},OC_DEF),cols:['#009988'],
+  fields:[['sessFirst','txt','First session candle (e.g. 0930-0935)'],['sessEnd','txt','Session close (e.g. 1555-1600)'],['sessDay','txt','Trading session - line extension (e.g. 0930-1600)'],['tz','sel','Timezone of the session',{opts:OC_TZ}],
+    ['minBodyATR','num','Minimum candle body (x ATR, 0 = off)',{min:0,max:5,step:0.05}],['atrLen','num','ATR period (bars)',{min:5,max:200}],
+    ['minStopATR','num','Minimum stop (x ATR)',{min:0.01,max:5,step:0.05}],['maxStopATR','num','Maximum stop (x ATR)',{min:0.25,max:20,step:0.25}],
+    ['tp1R','num','Target 1 (R)',{min:0.5,max:100,step:0.5}],['tp2R','num','Target 2 (R)',{min:0.5,max:100,step:0.5}],['tp3R','num','Target 3 (R)',{min:0.5,max:100,step:0.5}],
+    ['keepDays','num','Days to display',{min:1,max:30}],['showLabels','chk','Show labels'],['showSetups','chk','Show LONG / SHORT arrows'],['showSkip','chk','Show grey "no setup" marks'],
+    ['cLong','col','Long'],['cShort','col','Short'],['cStop','col','Stop'],['cTarget','col','Targets'],
+    ['showStats','chk','Show statistics (estimate, not a backtest)'],['statTP','num','Stats exit: target (R), otherwise session close',{min:0.5,max:100,step:0.5}],['statPos','sel','Statistics position',{opts:['Top right','Top left','Bottom right','Bottom left']}],
+    ['alLong','chk','Alert on OCB Long'],['alShort','chk','Alert on OCB Short'],['alSkip','chk','Alert on OCB No setup'],['alClose','chk','Alert on OCB session close'],['alSound','chk','Play a sound']],
+  calc:(c,p)=>[[]],
+  extras:(c,p)=>{ const q=Object.assign({},OC_DEF,p), D=ocGet(c,q), mk=[];
+    if(D.ok){ if(q.showSetups) D.sig.forEach(s=>mk.push({time:s.time,position:s.dir>0?'belowBar':'aboveBar',color:s.dir>0?q.cLong:q.cShort,shape:s.dir>0?'arrowUp':'arrowDown',text:'',size:.8,keep:true}));
+      if(q.showSkip) D.sk.forEach(s=>mk.push({time:s.time,position:'aboveBar',color:'#9e9e9e',shape:'square',text:'',size:.4,keep:true}));
+      mk.sort((a,b)=>a.time-b.time); }
+    return {mk,boxes:[{type:'ocbview',pts:[],o:q,D}],labels:[],events:D.ok?D.ev:[]}; }};
+{ const _D=draw; draw=function(d,X,Y,W,H){ if(!d||d.type!=='ocbview') return _D.apply(this,arguments);
+    const p=d.o, D=d.D; if(!D) return;
+    cx.save(); cx.beginPath(); cx.rect(0,0,W,H); cx.clip(); cx.font='10px system-ui,sans-serif'; cx.textBaseline='middle';
+    if(D.ok){ D.days.slice(-Math.max(1,Math.round(p.keepDays))).forEach(z=>{ const x0=X(z.i); let x1=X(z.end); if(x0==null||x1==null) return; x1=Math.max(x1,x0+6);
+        const cl=z.dir>0?p.cLong:p.cShort, lv=[[z.entry,cl,2,[],''],[z.stop,p.cStop,2,[],'SL  -1R'],[z.t[0],p.cTarget,1,[5,4],'T1  '+ocFR(p.tp1R)+'R'],[z.t[1],p.cTarget,1,[5,4],'T2  '+ocFR(p.tp2R)+'R'],[z.t[2],p.cTarget,1,[5,4],'T3  '+ocFR(p.tp3R)+'R']];
+        lv.forEach(a=>{ const y=Y(a[0]); if(y==null) return; cx.strokeStyle=a[1]; cx.lineWidth=a[2]; cx.setLineDash(a[3]); cx.beginPath(); cx.moveTo(x0,y); cx.lineTo(x1,y); cx.stroke(); cx.setLineDash([]);
+          if(p.showLabels&&a[4]){ const w=cx.measureText(a[4]).width+8; let lx=x1+3; if(lx+w>W-2) lx=Math.max(2,W-w-2); cx.fillStyle=ocA(a[1],a[1]===p.cStop?.8:.6); cx.fillRect(lx,y-7,w,14); cx.fillStyle='#fff'; cx.textAlign='left'; cx.fillText(a[4],lx+4,y); } });
+        if(p.showLabels){ const y=Y(z.entry); if(y!=null){ const t=z.dir>0?'LONG':'SHORT', w=cx.measureText(t).width+10, by=z.dir>0?y+4:y-18; cx.fillStyle=cl; cx.fillRect(x0-w/2,by,w,14); cx.fillStyle='#fff'; cx.textAlign='center'; cx.fillText(t,x0,by+7); } } }); }
+    if(D.msg){ cx.fillStyle='rgba(255,193,7,.95)'; cx.textAlign='left'; cx.font='11px system-ui,sans-serif'; cx.fillText(D.msg,10,H-14); }
+    if(D.ok&&p.showStats&&D.st){ const S=D.st, rows=[['Trades',String(S.trades)],['Win rate',S.wr.toFixed(1)+' %'],['Net R',S.net.toFixed(1)],['Profit factor',S.pf.toFixed(2)],['Avg R / trade',S.avg.toFixed(2)],['Exit',ocFR(p.statTP)+'R or session close']];
+      cx.font='11px system-ui,sans-serif'; const rh=17; let w0=cx.measureText('OCB \u00b7 estimate').width, w1=cx.measureText('not a backtest').width;
+      rows.forEach(r=>{ w0=Math.max(w0,cx.measureText(r[0]).width); w1=Math.max(w1,cx.measureText(r[1]).width); }); w0+=12; w1+=12; const tw=w0+w1, th=rh*(rows.length+1), pos=p.statPos||'Top right';
+      const tx=pos.indexOf('left')>-1?8:W-tw-8, ty=pos.indexOf('Top')>-1?8:H-th-8;
+      cx.fillStyle='rgba(0,0,0,.72)'; cx.fillRect(tx,ty,tw,th); cx.fillStyle='rgba(41,98,255,.4)'; cx.fillRect(tx,ty,tw,rh); cx.strokeStyle='rgba(140,140,140,.35)'; cx.lineWidth=1; cx.strokeRect(tx+.5,ty+.5,tw,th);
+      cx.fillStyle='#fff'; cx.textAlign='left'; cx.fillText('OCB \u00b7 estimate',tx+6,ty+rh/2); cx.font='9px system-ui,sans-serif'; cx.fillText('not a backtest',tx+w0+6,ty+rh/2); cx.font='11px system-ui,sans-serif';
+      rows.forEach((r,k)=>{ const y=ty+rh*(k+1)+rh/2; cx.fillStyle='#fff'; cx.fillText(r[0],tx+6,y); cx.fillText(r[1],tx+w0+6,y); }); }
+    cx.restore(); }; }
+// alerts: fire once, when the event candle has closed (the newest closed candle), while the app is open
+function ocAlerts(q){ if(candles.length<2) return; const cc=candles[candles.length-2].time, key=sym[0]+'|'+tf[0], KEY={long:'alLong',short:'alShort',skip:'alSkip',close:'alClose'},
+    MSG={long:['OCB LONG','#2e7d32'],short:['OCB SHORT','#c62828'],skip:['OCB no setup today','#546e7a'],close:['OCB session close','#37474f']};
+  inds.forEach(i=>{ if(i.t!=='ocb'||!i._xr||!i._xr.events||!show(i)) return; const P=Object.assign({},OC_DEF,i.p); let quiet=q; if(i._ocK!==key){ i._ocK=key; i._ocLast={}; quiet=true; }
+    const last=i._ocLast||(i._ocLast={});
+    i._xr.events.forEach(e=>{ if(e.time>cc||e.time<=(last[e.type]||0)) return; last[e.type]=e.time;
+      if(quiet||e.time!==cc||!P[KEY[e.type]]) return;
+      toast(MSG[e.type][0]+' \u00b7 '+sym[0]+' '+tf[0]+' \u00b7 Close '+e.price,MSG[e.type][1]);
+      if(P.alSound&&typeof beep==='function') beep(); }); }); }
+{ const _ocRE=recomputeExtras; recomputeExtras=function(){ const q=quietNext; const rv=_ocRE.apply(this,arguments); try{ ocAlerts(q); }catch(e){ console.error('ocb alerts',e); } return rv; }; }
+try{ DESC.ocb='First candle of the session sets the direction: entry at its close, stop at its opposite side, targets at 2R / 5R / 10R, plus a small statistics table'; }catch(e){}
+}catch(err){ console.error('ocb indicator failed',err); window.__ocbErr=err; }
+
 // ---- [mmx] INDICATOR: Market Matrix - port of "Market Matrix (Zeiierman)" (c) Zeiierman, CC BY-NC-SA 4.0 ----
 // Six mini-panels from a higher time frame (candles + MAs + swing anchored VWAP, RSI, MACD, Relative Trend Index, Absolute Strength Index,
 // Range Oscillator) drawn to the right of the price, plus 89 EMA, chart volume, auto Fibonacci and regression channel. Original: tradingview.com
@@ -1036,3 +1272,740 @@ IND.bce={label:BCE_NAME,title:BCE_NAME,cat:'Premium Strategy',cols:[],calc:()=>[
 // ================= end of [bce] Bullish Cross + Bullish Engulfing =================
 try{ DESC.bce='Premium strategy \u00b7 fast / slow EMA cross, then an engulfing candle closes \u2192 small BUY / SELL'; }catch(e){}   // picker description
 }catch(err){ console.error('bce strategy failed',err); window.__bceErr=err; }
+
+// ---- [xlb] PREMIUM STRATEGY · "Buy/Sell Signals XL"  - port of the TradingView Pine v6 indicator "Buy/Sell Signals XL" (self-contained: every name starts with xl / XL) =================
+try{
+// Category: Premium Strategy.  Registered as IND.xlb with the same extras() / draw hook / alerts hook pattern as % Retest Buy & Sell.
+// SIX SIGNAL ENGINES (one runs on the chart, all six run in the Engine Scanner):  OC · Breakout · Donchian · MA Cross · Supertrend · Aroon
+// Every engine has its own stop loss / take profit settings, the shared Enable SL/TP, Exit trigger and ATR length, trade lines, zones, exit X, lookback P/L info box,
+// a multi-timeframe scanner, an engine scanner and alerts.  Scanners use Binance candles of each scanned time frame and read CLOSED candles only.
+// NON-REPAINT (same three modes as the original): Entries + Exits / Entries Only / Off.
+/*XL-ENGINE-BEGIN*/
+const XL_NAME='Buy/Sell Signals XL';
+const XL_MODES=['OC','Breakout','Donchian','MA Cross','Supertrend','Aroon'];
+const XL_POS=['Top Left','Top Center','Top Right','Middle Left','Middle Center','Middle Right','Bottom Left','Bottom Center','Bottom Right'];
+const XL_SZ5=['Tiny','Small','Normal','Large','Huge'];
+const XL_DET=['Micro','Low','Medium','High','Maximum'];
+const XL_TP3=['ATR target','SL multiple','Opposite signal'];
+const XL_DEF={
+  mode:'OC', nrMode:'Entries + Exits',
+  // OC
+  bodyLen:50, bodyMult:3, ocVol:0, ocAlt:true, ocNoOvl:true, ocSlMode:'Candle wick', ocSlBuf:0, ocTpMode:'SL multiple', ocSlMult:1.5, ocTpMult:3, ocTpRMult:1,
+  // Breakout
+  baseMode:'Variable', baseLen:10, varMin:5, varMax:30, baseMult:2, brkMode:'Bar Close (Edge)', minBreak:0, brkVol:0, brkVolLen:50, brkTrend:false, brkTrendLen:200, brkShowTrend:false, brkEmaCol:'#ff9800',
+  brkAlt:true, brkNoOvl:true, noBaseInTrade:true, brkShowBase:true, brkSlMode:'Base edge', brkSlBuf:0, brkTpMode:'Base height', brkSlMult:1.5, brkTpMult:3, brkTpRMult:2, brkTpBMult:1,
+  // Donchian
+  donLen:20, donEntMode:'Bar Close (Edge)', donVol:0, donAlt:true, donNoOvl:true, donShowChan:true, donChanCol:'#787b86', donShade:true, donShowMid:true,
+  donSlMode:'Channel opposite', donSlBuf:0, donTpMode:'SL multiple', donSlMult:2, donTpMult:3, donTpRMult:.5,
+  // MA Cross
+  fastLen:9, slowLen:21, maType:'EMA', maSrc:'Close', minSep:0, maTrend:false, maTrendLen:200, maEntMode:'Bar Close (Edge)', maVol:0, maAlt:false, maNoOvl:true,
+  maShowMAs:true, maFastCol:'#ff9800', maSlowCol:'#9c27b0', maShowFill:true, maTrendCol:'#787b86', maSlMode:'ATR', swingLen:5, maSlBuf:0, slMin:1, maTpMode:'SL multiple', maSlMult:2, maTpMult:3, maTpRMult:1,
+  // Supertrend
+  stLen:10, stMult:3, stEntMode:'Bar Close (Entry)', stNoOvl:true, stShowLine:true, stSlMode:'Supertrend line', stSlBuf:0, stTpMode:'SL multiple', stSlMult:1.5, stTpMult:3, stTpRMult:.5,
+  // Aroon
+  arLen:14, arSigMode:'Crossover', arStrong:70, arSm:'None', arSmLen:3, arVol:0, arVolLen:50, arAlt:true, arNoOvl:true, arSlMode:'ATR', arSlBuf:0, arTpMode:'SL multiple', arSlMult:1.5, arTpMult:3, arTpRMult:1,
+  // shared stop loss / take profit
+  useRisk:true, exitMode:'Wick', atrLen:14,
+  // lookback P/L + info box
+  lookback:20, showTable:false, tablePos:'Top Right', tableSize:'Small', showClosed:0,
+  // scanners
+  showScan:false, scTfList:'5m, 15m, 30m, 1h, 4h, 1d', scMax:6, scPos:'Top Center', scSize:'Small', scDetail:'High',
+  showEng:false, engPos:'Bottom Center', engSize:'Small', engDetail:'Low',
+  // display
+  showLabels:true, lblSize:'Small', buyCol:'#4caf50', sellCol:'#f23645', showEntryMark:true, entryMarkCol:'#2962ff', showAvgDot:true, avgDotCol:'#ffb300', avgDotSize:'Large',
+  showTradeLines:true, entryCol:'#2962ff', slCol:'#f23645', tpCol:'#4caf50', showTradeLbl:true, showX:true, xCol:'#2962ff', showZone:true, slZoneCol:'#f23645', tpZoneCol:'#4caf50', lineW:1,
+  // alerts
+  alBuy:true, alSell:true, alExit:true, alScan:true, alAll:false, alSound:false,
+  inputsStatus:false, valuesStatus:true };
+const XL_NUM={bodyLen:[1,1000,1],bodyMult:[0,100],ocVol:[0,100],ocSlBuf:[0,20],ocSlMult:[.1,50],ocTpMult:[.1,100],ocTpRMult:[.1,100],
+  baseLen:[3,500,1],varMin:[3,200,1],varMax:[3,200,1],baseMult:[.1,50],minBreak:[0,20],brkVol:[0,100],brkVolLen:[1,1000,1],brkTrendLen:[2,1000,1],brkSlBuf:[0,20],brkSlMult:[.1,50],brkTpMult:[.1,100],brkTpRMult:[.1,100],brkTpBMult:[.1,100],
+  donLen:[2,500,1],donVol:[0,100],donSlBuf:[0,20],donSlMult:[.1,50],donTpMult:[.1,100],donTpRMult:[.1,100],
+  fastLen:[1,500,1],slowLen:[2,1000,1],minSep:[0,20],maTrendLen:[2,1000,1],maVol:[0,100],swingLen:[1,200,1],maSlBuf:[0,20],slMin:[0,20],maSlMult:[.1,50],maTpMult:[.1,100],maTpRMult:[.1,100],
+  stLen:[1,200,1],stMult:[.1,50],stSlBuf:[0,20],stSlMult:[.1,50],stTpMult:[.1,100],stTpRMult:[.1,100],
+  arLen:[2,500,1],arStrong:[50,100],arSmLen:[1,200,1],arVol:[0,100],arVolLen:[1,1000,1],arSlBuf:[0,20],arSlMult:[.1,50],arTpMult:[.1,100],arTpRMult:[.1,100],
+  atrLen:[1,500,1],lookback:[1,500,1],showClosed:[0,50,1],scMax:[1,12,1],lineW:[1,4,1]};
+const XL_OPT={mode:XL_MODES,nrMode:['Entries + Exits','Entries Only','Off'],baseMode:['Fixed','Variable'],brkMode:['Bar Close (Edge)','Bar Close (Entry)','Bar Wick (Edge)'],
+  donEntMode:['Bar Close (Entry)','Bar Close (Edge)'],maEntMode:['Bar Close (Entry)','Bar Close (Edge)'],stEntMode:['Bar Close (Entry)','Bar Close (Edge)'],
+  maType:['SMA','EMA','WMA','HMA','RMA'],maSrc:['Close','Open','High','Low','HL2','HLC3','OHLC4'],arSigMode:['Crossover','Strong trend'],arSm:['None','SMA','EMA','RMA','WMA','HMA'],
+  ocSlMode:['ATR','Candle wick','Candle body','None'],ocTpMode:XL_TP3,brkSlMode:['ATR','Base edge'],brkTpMode:['ATR target','SL multiple','Base height'],
+  donSlMode:['ATR','Channel opposite','Channel middle','Candle wick','Candle body','None'],donTpMode:XL_TP3,maSlMode:['ATR','Swing','Candle wick','Candle body','None'],maTpMode:XL_TP3,
+  stSlMode:['Supertrend line','ATR','Candle wick','Candle body','None'],stTpMode:XL_TP3,arSlMode:['ATR','Aroon extreme','Candle wick','Candle body','None'],arTpMode:XL_TP3,
+  exitMode:['Wick','Close'],tablePos:XL_POS,tableSize:XL_SZ5,scPos:XL_POS,scSize:XL_SZ5,scDetail:XL_DET,engPos:XL_POS,engSize:XL_SZ5,engDetail:XL_DET,lblSize:XL_SZ5,avgDotSize:XL_SZ5};
+function xlNorm(p){ const o=Object.assign({},XL_DEF,p||{});
+  for(const k in XL_NUM){ const r=XL_NUM[k]; let v=+o[k]; if(!isFinite(v)) v=XL_DEF[k]; v=Math.min(r[1],Math.max(r[0],v)); o[k]=r[2]?Math.round(v):v; }
+  for(const k in XL_OPT){ if(XL_OPT[k].indexOf(o[k])<0) o[k]=XL_DEF[k]; }
+  o.varMax=Math.max(o.varMax,o.varMin); return o; }
+
+// ---------- [xlb] maths (Pine-compatible: SMA seeded EMA / RMA, NaN-safe) ----------
+const xlN=v=>typeof v==='number'&&isFinite(v);
+function xSma(a,n){ const N=a.length,o=new Array(N).fill(NaN); let s=0,bad=0; for(let i=0;i<N;i++){ const x=a[i]; if(xlN(x)) s+=x; else bad++; if(i>=n){ const y=a[i-n]; if(xlN(y)) s-=y; else bad--; } if(i>=n-1&&bad===0) o[i]=s/n; } return o; }
+function xEma(a,n,rma){ const N=a.length,o=new Array(N).fill(NaN), k=rma?1/n:2/(n+1), sm=xSma(a,n); let p=NaN; for(let i=0;i<N;i++){ const x=a[i]; if(!xlN(x)){ p=NaN; continue; } if(!xlN(p)){ p=sm[i]; if(!xlN(p)) continue; } else p=k*x+(1-k)*p; o[i]=p; } return o; }
+function xWma(a,n){ const N=a.length,o=new Array(N).fill(NaN), d=n*(n+1)/2; for(let i=n-1;i<N;i++){ let s=0,ok=true; for(let j=0;j<n;j++){ const x=a[i-n+1+j]; if(!xlN(x)){ ok=false; break; } s+=x*(j+1); } if(ok) o[i]=s/d; } return o; }
+function xHma(a,n){ const h=xWma(a,Math.max(1,Math.floor(n/2))), f=xWma(a,n), d=a.map((_,i)=>xlN(h[i])&&xlN(f[i])?2*h[i]-f[i]:NaN); return xWma(d,Math.max(1,Math.floor(Math.sqrt(n)))); }
+function xMa(a,n,t){ return t==='SMA'?xSma(a,n):t==='WMA'?xWma(a,n):t==='HMA'?xHma(a,n):t==='RMA'?xEma(a,n,true):xEma(a,n,false); }
+function xAtr(h,l,c,n){ const N=c.length,tr=new Array(N); for(let i=0;i<N;i++) tr[i]=i?Math.max(h[i]-l[i],Math.abs(h[i]-c[i-1]),Math.abs(l[i]-c[i-1])):h[i]-l[i]; return xEma(tr,n,true); }
+function xHL(a,n,hi){ const N=a.length,o=new Array(N).fill(NaN); for(let i=n-1;i<N;i++){ let m=a[i]; for(let j=i-n+1;j<i;j++){ const x=a[j]; if(hi?x>m:x<m) m=x; } o[i]=m; } return o; }
+function xSuper(h,l,c,len,mult){ const N=c.length, atr=xAtr(h,l,c,len), st=new Array(N).fill(NaN), dr=new Array(N).fill(NaN); let fl=NaN,fu=NaN,sp=NaN;
+  for(let i=0;i<N;i++){ const a=atr[i], src=(h[i]+l[i])/2; let up=src+mult*a, lo=src-mult*a; const pl=xlN(fl)?fl:0, pu=xlN(fu)?fu:0, c1=i?c[i-1]:NaN;
+    lo=(lo>pl||c1<pl)?lo:pl; up=(up<pu||c1>pu)?up:pu; let d; if(!i||!xlN(atr[i-1])) d=1; else if(sp===pu) d=c[i]>up?-1:1; else d=c[i]<lo?1:-1;
+    const s=d===-1?lo:up; st[i]=s; dr[i]=d; fl=lo; fu=up; sp=s; }
+  return {st,dr}; }
+function xSrc(x,s){ return s==='Open'?x.open:s==='High'?x.high:s==='Low'?x.low:s==='HL2'?(x.high+x.low)/2:s==='HLC3'?(x.high+x.low+x.close)/3:s==='OHLC4'?(x.open+x.high+x.low+x.close)/4:x.close; }
+const xClamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+const xNz=(v,d)=>xlN(v)?v:d;
+function xVarBase(h,l,i,minLen,capLen,cap){ let bHi=NaN,bLo=NaN,bN=0; if(i<1) return [bHi,bLo,bN]; let rHi=h[i-1],rLo=l[i-1]; const lim=Math.min(capLen,i);
+  if(lim>=minLen&&xlN(cap)){ for(let k=1;k<=lim;k++){ rHi=Math.max(rHi,h[i-k]); rLo=Math.min(rLo,l[i-k]); if(rHi-rLo>cap) break; if(k>=minLen){ bHi=rHi; bLo=rLo; bN=k; } } }
+  return [bHi,bLo,bN]; }
+
+// ---------- [xlb] the engine: one engine (0 OC, 1 Breakout, 2 Donchian, 3 MA Cross, 4 Supertrend, 5 Aroon) over a candle array ----------
+// opt.closedOnly: ignore the forming (last) candle.   opt.nr: Non-repaint mode.   opt.tfSec: seconds per candle (market time).
+function xlEngine(c,m,P,opt){
+  opt=opt||{}; const N=c.length, nUse=opt.closedOnly?Math.max(0,N-1):N, nr=opt.nr||'Entries + Exits', tfSec=opt.tfSec||60;
+  const R={sigs:[],trades:[],cur:null,bases:[],gaps:[],gapsM:[],P,m,N,nUse,vis:{},slAtrX:NaN,lastSigTime:null,lastSigIdx:-1,tfSec};
+  if(nUse<3) return R;
+  const isOC=m===0,isBrk=m===1,isDon=m===2,isMA=m===3,isST=m===4,isAr=m===5;
+  const A=a=>a[m];
+  const slSel=A([P.ocSlMode,P.brkSlMode,P.donSlMode,P.maSlMode,P.stSlMode,P.arSlMode]), tpSel=A([P.ocTpMode,P.brkTpMode,P.donTpMode,P.maTpMode,P.stTpMode,P.arTpMode]);
+  const slBuf=A([P.ocSlBuf,P.brkSlBuf,P.donSlBuf,P.maSlBuf,P.stSlBuf,P.arSlBuf]), slMult=A([P.ocSlMult,P.brkSlMult,P.donSlMult,P.maSlMult,P.stSlMult,P.arSlMult]);
+  const tpMult=A([P.ocTpMult,P.brkTpMult,P.donTpMult,P.maTpMult,P.stTpMult,P.arTpMult]), tpRMult=A([P.ocTpRMult,P.brkTpRMult,P.donTpRMult,P.maTpRMult,P.stTpRMult,P.arTpRMult]);
+  const alternate=A([P.ocAlt,P.brkAlt,P.donAlt,P.maAlt,false,P.arAlt]), noOverlap=A([P.ocNoOvl,P.brkNoOvl,P.donNoOvl,P.maNoOvl,P.stNoOvl,P.arNoOvl]);
+  const slAtrM=slSel==='ATR', slWick=slSel==='Candle wick', slBody=slSel==='Candle body', slEdge=slSel==='Base edge', slOpp=slSel==='Channel opposite', slMid=slSel==='Channel middle', slSwing=slSel==='Swing', slStl=slSel==='Supertrend line', slAroon=slSel==='Aroon extreme';
+  const tpAtr=tpSel==='ATR target', tpBase=tpSel==='Base height', tpOpp=tpSel==='Opposite signal', tpRisk=tpSel==='SL multiple';
+  const hasSl=slSel!=='None', hasTp=!tpOpp&&!(tpRisk&&!hasSl), riskOn=P.useRisk&&(hasSl||hasTp), bothExits=hasSl&&hasTp, exitOnClose=P.exitMode==='Close';
+  const exitLive=nr==='Off'||(nr==='Entries Only'&&!exitOnClose);
+  R.hasSl=hasSl; R.hasTp=hasTp; R.riskOn=riskOn; R.slSel=slSel; R.tpSel=tpSel; R.alternate=alternate; R.noOverlap=noOverlap; R.slMult=slMult; R.tpMult=tpMult; R.tpRMult=tpRMult;
+  const o=new Array(N),h=new Array(N),l=new Array(N),cl=new Array(N),vo=new Array(N),tm=new Array(N);
+  for(let i=0;i<N;i++){ const x=c[i]; o[i]=x.open; h[i]=x.high; l[i]=x.low; cl[i]=x.close; vo[i]=x.volume||0; tm[i]=x.time; }
+  const atr=xAtr(h,l,cl,P.atrLen), nanA=()=>new Array(N).fill(NaN);
+  // ----- series for the selected engine -----
+  let rawBull=null,rawBear=null, upB,loB,midB, fast,slow,trend, swLo,swHi, stLine,stDir, arUp,arDn,arHi,arLo, emaT, fixHi,fixLo, bodyAvg,volAvg;
+  const volOk=(mult,avg,i)=>mult<=0||(xlN(avg[i])&&vo[i]>=avg[i]*mult);
+  if(isOC){ const body=cl.map((x,i)=>Math.abs(x-o[i])); bodyAvg=xSma(body,P.bodyLen); volAvg=xSma(vo,P.bodyLen); rawBull=i=>cl[i]>o[i]&&i>0&&cl[i]>Math.max(o[i-1],cl[i-1])&&body[i]>=bodyAvg[i]*P.bodyMult&&(P.ocVol<=0||vo[i]>=volAvg[i]*P.ocVol);
+    rawBear=i=>cl[i]<o[i]&&i>0&&cl[i]<Math.min(o[i-1],cl[i-1])&&body[i]>=bodyAvg[i]*P.bodyMult&&(P.ocVol<=0||vo[i]>=volAvg[i]*P.ocVol); }
+  else if(isDon){ const hh=xHL(h,P.donLen,true), ll=xHL(l,P.donLen,false); upB=nanA(); loB=nanA(); midB=nanA(); for(let i=1;i<N;i++){ upB[i]=hh[i-1]; loB[i]=ll[i-1]; midB[i]=(upB[i]+loB[i])/2; } volAvg=xSma(vo,P.donLen);
+    rawBull=i=>cl[i]>upB[i]&&(P.donVol<=0||vo[i]>=volAvg[i]*P.donVol); rawBear=i=>cl[i]<loB[i]&&(P.donVol<=0||vo[i]>=volAvg[i]*P.donVol); }
+  else if(isMA){ const px=c.map(x=>xSrc(x,P.maSrc)); fast=xMa(px,P.fastLen,P.maType); slow=xMa(px,P.slowLen,P.maType); trend=P.maTrend?xMa(px,P.maTrendLen,P.maType):nanA(); volAvg=xSma(vo,P.slowLen); swLo=xHL(l,P.swingLen,false); swHi=xHL(h,P.swingLen,true);
+    const sepOk=i=>P.minSep<=0||(xlN(atr[i])&&Math.abs(fast[i]-slow[i])>=atr[i]*P.minSep), vOk=i=>P.maVol<=0||vo[i]>=volAvg[i]*P.maVol;
+    rawBull=i=>i>0&&fast[i]>slow[i]&&fast[i-1]<=slow[i-1]&&vOk(i)&&sepOk(i)&&(!P.maTrend||cl[i]>trend[i]);
+    rawBear=i=>i>0&&fast[i]<slow[i]&&fast[i-1]>=slow[i-1]&&vOk(i)&&sepOk(i)&&(!P.maTrend||cl[i]<trend[i]); }
+  else if(isST){ const s=xSuper(h,l,cl,P.stLen,P.stMult); stLine=s.st; stDir=s.dr; rawBull=i=>i>0&&stDir[i]<0&&stDir[i-1]>0; rawBear=i=>i>0&&stDir[i]>0&&stDir[i-1]<0; }
+  else if(isAr){ const L=P.arLen, u=nanA(), d=nanA(); for(let i=L;i<N;i++){ let bh=i-L,bl=i-L; for(let j=i-L;j<=i;j++){ if(h[j]>=h[bh]) bh=j; if(l[j]<=l[bl]) bl=j; } u[i]=100*(L+(bh-i))/L; d[i]=100*(L+(bl-i))/L; }
+    const sm=P.arSm==='None'?(a=>a):(a=>xMa(a,P.arSm==='HMA'?Math.max(P.arSmLen,2):P.arSmLen,P.arSm)); arUp=sm(u); arDn=sm(d); arHi=xHL(h,L,true); arLo=xHL(l,L,false); volAvg=xSma(vo,P.arVolLen);
+    const sB=i=>arUp[i]>=P.arStrong&&arDn[i]<=100-P.arStrong, sS=i=>arDn[i]>=P.arStrong&&arUp[i]<=100-P.arStrong, vOk=i=>P.arVol<=0||vo[i]>=volAvg[i]*P.arVol;
+    rawBull=i=>i>0&&(P.arSigMode==='Crossover'?(arUp[i]>arDn[i]&&arUp[i-1]<=arDn[i-1]):(sB(i)&&!sB(i-1)))&&vOk(i);
+    rawBear=i=>i>0&&(P.arSigMode==='Crossover'?(arDn[i]>arUp[i]&&arDn[i-1]<=arUp[i-1]):(sS(i)&&!sS(i-1)))&&vOk(i); }
+  else { // Breakout: the base depends on trade state, so it is worked out inside the loop
+    const hh=xHL(h,P.baseLen,true), ll=xHL(l,P.baseLen,false); fixHi=nanA(); fixLo=nanA(); for(let i=1;i<N;i++){ fixHi[i]=hh[i-1]; fixLo[i]=ll[i-1]; }
+    emaT=xEma(cl,P.brkTrendLen,false); volAvg=xSma(vo,P.brkVolLen); }
+  R.vis={atr,upB,loB,midB,fast,slow,trend,stLine,stDir,emaT,arUp,arDn};
+  R.hi=h; R.lo=l;
+  const isVar=isBrk&&P.baseMode==='Variable', wickMode=P.brkMode==='Bar Wick (Edge)', edgeEntry=P.brkMode!=='Bar Close (Entry)';
+  const donEdge=P.donEntMode==='Bar Close (Edge)', maEdge=P.maEntMode==='Bar Close (Edge)', stEdge=P.stEntMode==='Bar Close (Edge)';
+  // ----- trade state -----
+  let dir=0,inTrade=false,lastSigBar=null,lastExitBar=null,lastSigTime=null,mktSigBar=-1,cur=null; const durs=[],dursM=[];
+  const closeTrade=(i,exitPx,reason)=>{ const t=cur, pnl=t.dir===1?(exitPx-t.entry)/t.entry*100:(t.entry-exitPx)/t.entry*100;
+    t.i1=i; t.exit=exitPx; t.reason=reason; t.pnl=pnl; R.trades.push(t); durs.push((tm[i]-t.t0)*1000); dursM.push((i-t.i0)*tfSec*1000); cur=null; };
+  for(let i=0;i<nUse;i++){
+    const last=i===N-1, conf=!last||nr==='Off', exConf=!last||exitLive, a=atr[i];
+    // base (Breakout)
+    let consHi=NaN,consLo=NaN,baseN=0,isBase=false,brkBuf=xlN(a)?P.minBreak*a:0;
+    if(isBrk){ if(isVar){ let cap=Math.max(P.varMax,P.varMin); if(lastSigBar!==null) cap=Math.min(cap,i-lastSigBar-1);
+        if(P.noBaseInTrade&&riskOn) cap=inTrade?0:(lastExitBar===null?cap:Math.min(cap,i-lastExitBar-1));
+        const vb=xVarBase(h,l,i,P.varMin,cap,a*P.baseMult); consHi=vb[0]; consLo=vb[1]; baseN=vb[2]; isBase=baseN>0; }
+      else { consHi=fixHi[i]; consLo=fixLo[i]; baseN=P.baseLen; isBase=(consHi-consLo)<=a*P.baseMult; } }
+    // raw signal
+    let rb=false,rs=false;
+    if(isBrk){ const fresh=isVar||((lastSigBar===null||i-lastSigBar>P.baseLen)&&(!(P.noBaseInTrade&&riskOn)||(!inTrade&&(lastExitBar===null||i-lastExitBar>P.baseLen))));
+      const up=(wickMode?h[i]:cl[i])>consHi+brkBuf, dn=(wickMode?l[i]:cl[i])<consLo-brkBuf, both=up&&dn, vOk=P.brkVol<=0||(xlN(volAvg[i])&&vo[i]>=volAvg[i]*P.brkVol);
+      rb=isBase&&fresh&&up&&(!both||cl[i]>o[i])&&(!P.brkTrend||cl[i]>emaT[i])&&vOk; rs=isBase&&fresh&&dn&&(!both||cl[i]<o[i])&&(!P.brkTrend||cl[i]<emaT[i])&&vOk; }
+    else { rb=!!rawBull(i); rs=!!rawBear(i); }
+    // entry and stop for each direction
+    const bufD=xlN(a)?slBuf*a:0, minD=isMA&&xlN(a)?P.slMin*a:0;
+    const maEntry=xClamp(xNz(isMA?slow[i]:NaN,cl[i]),l[i],h[i]), stEntry=xClamp(xNz(isST&&i?stLine[i-1]:NaN,cl[i]),l[i],h[i]);
+    const entBuy=isBrk?(edgeEntry?consHi+brkBuf:cl[i]):isDon?(donEdge?xNz(upB[i],cl[i]):cl[i]):isMA?(maEdge?maEntry:cl[i]):isST?(stEdge?stEntry:cl[i]):cl[i];
+    const entSell=isBrk?(edgeEntry?consLo-brkBuf:cl[i]):isDon?(donEdge?xNz(loB[i],cl[i]):cl[i]):isMA?(maEdge?maEntry:cl[i]):isST?(stEdge?stEntry:cl[i]):cl[i];
+    const lvB=slWick?l[i]-bufD:slBody?o[i]-bufD:slSwing?swLo[i]-bufD:slEdge?consLo-bufD:slOpp?xNz(loB&&loB[i],l[i])-bufD:slMid?xNz(midB&&midB[i],entBuy)-bufD:slStl?stLine[i]-bufD:slAroon?arLo[i]-bufD:NaN;
+    const lvS=slWick?h[i]+bufD:slBody?o[i]+bufD:slSwing?swHi[i]+bufD:slEdge?consHi+bufD:slOpp?xNz(upB&&upB[i],h[i])+bufD:slMid?xNz(midB&&midB[i],entSell)+bufD:slStl?stLine[i]+bufD:slAroon?arHi[i]+bufD:NaN;
+    const slB=!hasSl?NaN:slAtrM?entBuy-a*slMult:isMA?Math.min(lvB,entBuy-minD):lvB, slS=!hasSl?NaN:slAtrM?entSell+a*slMult:isMA?Math.max(lvS,entSell+minD):lvS;
+    const needStop=P.useRisk&&hasSl, okB=!isBrk||!needStop||(xlN(slB)&&slB<entBuy), okS=!isBrk||!needStop||(xlN(slS)&&slS>entSell);
+    // Supertrend only: a flip on the very bar the open trade is stopped / targeted still fires
+    const slTouch=()=>hasSl&&(exitOnClose?(dir===1?cl[i]<=cur.sl:cl[i]>=cur.sl):(dir===1?l[i]<=cur.sl:h[i]>=cur.sl));
+    const tpTouch=()=>hasTp&&(exitOnClose?(dir===1?cl[i]>=cur.tp:cl[i]<=cur.tp):(dir===1?h[i]>=cur.tp:l[i]<=cur.tp));
+    let stSlPre=false,stTpPre=false; if(isST&&P.useRisk&&inTrade&&exConf){ stSlPre=slTouch(); stTpPre=!stSlPre&&tpTouch(); }
+    const blk=noOverlap&&riskOn&&inTrade&&!(stSlPre||stTpPre);
+    const buy=conf&&rb&&!(blk&&(bothExits||dir===1))&&(!alternate||dir!==1)&&okB, sell=conf&&rs&&!(blk&&(bothExits||dir===-1))&&(!alternate||dir!==-1)&&okS;
+    // 1) SL / TP exit check on the open trade (SL first when both are touched on the same bar)
+    if(P.useRisk&&inTrade&&exConf){ const sh=slTouch(), th=!sh&&tpTouch();
+      if(sh||th){ closeTrade(i,exitOnClose?cl[i]:(sh?cur.sl:cur.tp),sh?-1:1); inTrade=false; lastExitBar=i; } }
+    // 2) new signal: close the open trade (reversal) and open the new one
+    if(buy||sell){
+      if(lastSigTime!==null){ R.gaps.push((tm[i]-lastSigTime)*1000); R.gapsM.push((i-mktSigBar)*tfSec*1000); }
+      lastSigTime=tm[i]; mktSigBar=i;
+      if(inTrade){ closeTrade(i,cl[i],0); }
+      dir=buy?1:-1; lastSigBar=i; inTrade=true;
+      const entry=dir===1?entBuy:entSell, sl=!hasSl?NaN:dir===1?slB:slS, riskDist=Math.abs(entry-sl);
+      R.slAtrX=hasSl&&!slAtrM&&a>0?riskDist/a:NaN;
+      const tpDist=tpAtr?a*tpMult:tpBase?(consHi-consLo)*P.brkTpBMult:riskDist*tpRMult, tp=!hasTp?NaN:dir===1?entry+tpDist:entry-tpDist;
+      let avgBars=0; if(dursM.length){ const k=dursM.slice(-P.lookback); let s=0; k.forEach(x=>s+=x); avgBars=Math.min(499,Math.max(1,Math.round(s/k.length/(tfSec*1000)))); }
+      cur={i0:i,t0:tm[i],dir,entry,sl,tp,i1:-1,exit:NaN,reason:null,pnl:NaN,avgBars,baseHi:consHi,baseLo:consLo,baseN};
+      R.sigs.push({i,time:tm[i],dir,entry,sl,tp}); R.lastSigIdx=i;
+      if(isBrk&&P.brkShowBase) R.bases.push({i0:i-baseN,i1:i,hi:consHi,lo:consLo,dir}); } }
+  R.cur=cur; R.lastSigTime=lastSigTime; R.mktSigBar=mktSigBar; R.durs=durs; R.dursM=dursM; R.tm=tm; R.cl=cl; R.ok=true;
+  return R; }
+
+// ---------- [xlb] lookback statistics over the last N closed trades (compounded, same as the info box) ----------
+function xlStats(R,P,nowClose,nowTime,lastIdx){
+  const n0=R.trades.length, tr=R.trades.slice(Math.max(0,n0-P.lookback)), n=tr.length, S={n,tp:0,sl:0,rev:0,win:0,loss:0,winSum:0,lossSum:0,net:NaN,wr:NaN,avgWin:NaN,avgLoss:NaN,dd:0,avgP:NaN,openPnl:NaN};
+  let eq=1,pk=1,sum=0; tr.forEach(t=>{ if(t.reason===1) S.tp++; else if(t.reason===-1) S.sl++; else S.rev++; if(t.pnl>0){ S.win++; S.winSum+=t.pnl; } else if(t.pnl<0){ S.loss++; S.lossSum+=t.pnl; }
+    eq*=1+t.pnl/100; pk=Math.max(pk,eq); S.dd=Math.min(S.dd,(eq/pk-1)*100); sum+=t.pnl; });
+  if(n){ S.net=(eq-1)*100; S.wr=S.win/n*100; S.avgP=sum/n; } if(S.win) S.avgWin=S.winSum/S.win; if(S.loss) S.avgLoss=S.lossSum/S.loss;
+  const avg=a=>{ const k=a.slice(-P.lookback); if(!k.length) return NaN; let s=0; k.forEach(x=>s+=x); return s/k.length; };
+  S.avgGap=avg(R.gaps); S.avgGapM=avg(R.gapsM); S.avgDur=avg(R.durs); S.avgDurM=avg(R.dursM);
+  const t=R.cur; if(t&&xlN(nowClose)) S.openPnl=t.dir===1?(nowClose-t.entry)/t.entry*100:(t.entry-nowClose)/t.entry*100;
+  if(t&&nowTime!=null){ S.inMs=(nowTime-t.t0)*1000; S.inMsM=(lastIdx-t.i0)*R.tfSec*1000; }
+  if(R.lastSigTime!=null&&nowTime!=null){ S.sinceMs=(nowTime-R.lastSigTime)*1000; S.sinceMsM=(lastIdx-R.mktSigBar)*R.tfSec*1000; }
+  return S; }
+// summary of one engine on one time frame (scanners: closed candles only, state as of the last closed candle)
+function xlSummary(R,P){ const lt=R.cur||R.trades[R.trades.length-1], lastIdx=R.nUse-1, nowC=R.cl?R.cl[lastIdx]:NaN, nowT=R.tm?R.tm[lastIdx]:null, S=xlStats(R,P,nowC,nowT,lastIdx), lc=R.trades[R.trades.length-1];
+  return {dir:lt?lt.dir:0,stat:R.cur?1:(lc?(lc.reason===1?2:lc.reason===-1?3:0):0),entry:lt?lt.entry:NaN,sl:lt?lt.sl:NaN,tp:lt?lt.tp:NaN,isNew:R.lastSigIdx===lastIdx,px:nowC,
+    avgGap:S.avgGap,net:S.net,win:S.win,loss:S.loss,n:S.n,avgP:S.avgP,openPnl:S.openPnl,sigTime:R.lastSigTime,dd:S.dd,nowT}; }
+/*XL-ENGINE-END*/
+
+// ---------- [xlb] scanner data: Binance klines per scanned time frame (one request each, shared by both scanners, refreshed every 30 s) ----------
+const XL_IVS=['1m','3m','5m','15m','30m','1h','2h','4h','6h','8h','12h','1d','3d','1w','1M'];
+const XL_IVSEC={'1m':60,'3m':180,'5m':300,'15m':900,'30m':1800,'1h':3600,'2h':7200,'4h':14400,'6h':21600,'8h':28800,'12h':43200,'1d':86400,'3d':259200,'1w':604800,'1M':2592000};
+const xlK={};
+function xlLoad(sy,iv){ const key=sy+'|'+iv; let d=xlK[key]; if(!d) d=xlK[key]={rows:null,ts:0,busy:false,err:false,sum:{}}; if(d.busy) return d;
+  if(d.rows&&Date.now()-d.ts<30000) return d; if(d.err&&Date.now()-d.ts<15000) return d; d.busy=true;
+  fetch(`${RB(sy)}/klines?symbol=${sy}&interval=${iv}&limit=1000`).then(r=>r.json()).then(a=>{ if(!Array.isArray(a)||!a.length) throw new Error('bad');
+    d.rows=a.map(x=>({time:x[0]/1000,open:+x[1],high:+x[2],low:+x[3],close:+x[4],volume:+x[5]})); d.err=false; }).catch(()=>{ d.err=true; })
+    .then(()=>{ d.busy=false; d.ts=Date.now(); try{ render(); }catch(e){} });
+  return d; }
+// typed list -> Binance intervals.  15 = 15 minutes, 60 = 1h, 4h, 1D, 1W; a capital M is a month.  Unknown entries are skipped.
+function xlParseTf(raw,max){ const out=[]; String(raw||'').split(/[,\n]/).forEach(s=>{ const t=s.trim(); if(!t) return; const m=/^(\d+)\s*([a-zA-Z]?)$/.exec(t); if(!m) return; const n=+m[1], u=m[2]; let iv=null;
+    if(u===''||u==='m') iv=(n>=60&&n%60===0)?(n/60)+'h':n+'m'; else if(u==='h'||u==='H') iv=n+'h'; else if(u==='d'||u==='D') iv=n+'d'; else if(u==='w'||u==='W') iv=n+'w'; else if(u==='M') iv=n+'M';
+    if(iv&&XL_IVS.indexOf(iv)>=0&&out.indexOf(iv)<0) out.push(iv); }); return out.slice(0,max); }
+function xlScanCache(d,tag,pk,fn){ const rows=d.rows, k=pk+'|'+rows.length+'|'+rows[rows.length-1].time; const e=d.sum[tag]; if(e&&e.k===k) return e.v; const v=fn(); d.sum[tag]={k,v}; return v; }
+
+// ---------- [xlb] chart hook ----------
+function xlRun(c,p,inst){
+  const empty={mk:[],boxes:[],labels:[],stat:'',events:[]}; if(!c||c.length<5) return empty;
+  const P=xlNorm(p), m=XL_MODES.indexOf(P.mode), N=c.length, tfS=tf[3]?tf[3]*30*86400:tf[2], pk=JSON.stringify(P), L=c[N-1];
+  const key=pk+'|'+N+'|'+c[0].time+'|'+L.time+'|'+L.open+'|'+L.high+'|'+L.low+'|'+L.close+'|'+L.volume+'|'+tfS;
+  let R; if(inst&&inst._xlC&&inst._xlC.k===key) R=inst._xlC.R; else { R=xlEngine(c,m,P,{nr:P.nrMode,tfSec:tfS}); if(inst) inst._xlC={k:key,R}; }
+  const scan=[], eng=[];
+  if(P.showScan||P.showEng){ xlParseTf(P.scTfList,P.scMax).forEach(iv=>{ const d=xlLoad(sym[0],iv), s=XL_IVSEC[iv], ok=d.rows&&d.rows.length>5;
+      if(P.showScan) scan.push({iv,S:ok?xlScanCache(d,'m'+m,pk,()=>xlSummary(xlEngine(d.rows,m,P,{closedOnly:true,tfSec:s}),P)):null});
+      if(P.showEng) eng.push({iv,S:ok?XL_MODES.map((_,k)=>xlScanCache(d,'e'+k,pk,()=>xlSummary(xlEngine(d.rows,k,P,{closedOnly:true,tfSec:s}),P))):null}); }); }
+  const events=[]; R.sigs.forEach(s=>events.push({type:s.dir>0?'buy':'sell',time:s.time,idx:s.i}));
+  R.trades.forEach(t=>{ if(t.reason===1||t.reason===-1) events.push({type:t.reason===1?'tp':'sl',time:R.tm[t.i1],idx:t.i1}); }); events.sort((a,b)=>a.time-b.time);
+  const S=xlStats(R,P,L.close,L.time,N-1);
+  const stat=P.mode+' \u00b7 '+(R.cur?(R.cur.dir>0?'BUY':'SELL')+' open':'no open trade')+' \u00b7 '+(S.n?('win '+S.wr.toFixed(0)+'% \u00b7 net '+(S.net>=0?'+':'')+S.net.toFixed(2)+'%'):'no closed trades yet');
+  return {mk:[],boxes:[{type:'xlview',pts:[],r:{R,P,scan,eng},o:P}],labels:[],stat,events}; }
+
+// ---------- [xlb] alerts (BUY / SELL / TP-SL exits of the chart engine, optional all-engines alert, scanner alert; only the newest CLOSED candle can fire) ----------
+function xlAlerts(q){
+  if(candles.length<2) return; const cc=candles[candles.length-2].time, key=sym[0]+'|'+tf[0];
+  inds.forEach(i=>{
+    if(i.t!=='xlb'||!i._xr||!i._xr.events||!show(i)) return;
+    const P=xlNorm(i.p); let quiet=q; if(i._xlK!==key){ i._xlK=key; i._xlLast={}; i._xlAllL={}; quiet=true; }
+    if(i._xlSym!==sym[0]){ i._xlSym=sym[0]; i._xlSeen={}; }
+    const last=i._xlLast||(i._xlLast={}), snd=()=>{ if(P.alSound&&typeof beep==='function') beep(); };
+    i._xr.events.forEach(e=>{ if(e.time<=(last[e.type]||0)) return; last[e.type]=e.time;
+      if(quiet||e.time!==cc) return; if(!(e.type==='buy'?P.alBuy:e.type==='sell'?P.alSell:P.alExit)) return;
+      const nm=e.type==='buy'?'BUY':e.type==='sell'?'SELL':e.type==='tp'?'TAKE PROFIT hit':'STOP LOSS hit';
+      toast(nm+' \u00b7 XL '+P.mode+' \u00b7 '+sym[0]+' '+tf[0],e.type==='buy'||e.type==='tp'?'#2e7d32':'#c62828'); snd(); });
+    // all six engines (the chart engine is already covered above)
+    if(P.alAll){ const m=XL_MODES.indexOf(P.mode), tfS=tf[3]?tf[3]*30*86400:tf[2], k2=JSON.stringify(P)+'|'+candles.length+'|'+cc;
+      if(!i._xlAll||i._xlAll.k!==k2){ const ev=[]; XL_MODES.forEach((nm,k)=>{ if(k===m) return; const R=xlEngine(candles,k,P,{closedOnly:true,tfSec:tfS}); R.sigs.forEach(s=>ev.push({type:s.dir>0?'buy':'sell',time:s.time,eng:nm})); }); i._xlAll={k:k2,ev}; }
+      const la=i._xlAllL||(i._xlAllL={});
+      i._xlAll.ev.forEach(e=>{ const kk=e.eng+e.type; if(e.time<=(la[kk]||0)) return; la[kk]=e.time; if(quiet||e.time!==cc) return;
+        toast((e.type==='buy'?'BUY':'SELL')+' \u00b7 XL '+e.eng+' \u00b7 '+sym[0]+' '+tf[0],e.type==='buy'?'#2e7d32':'#c62828'); snd(); }); }
+    // scanned time frames: a new signal on any of them (history is learned silently)
+    if(P.alScan){ const seen=i._xlSeen||(i._xlSeen={}), msgs=[], chk=(tag,iv,S,nm)=>{ if(!S||S.sigTime==null) return; const kk=tag+'|'+iv; if(!(kk in seen)){ seen[kk]=S.sigTime; return; }
+        if(seen[kk]!==S.sigTime){ seen[kk]=S.sigTime; msgs.push(iv+' '+nm+' '+(S.dir>0?'BUY':'SELL')); } };
+      (i._xr.boxes&&i._xr.boxes[0]?i._xr.boxes[0].r.scan:[]).forEach(s=>chk('m',s.iv,s.S,P.mode));
+      (i._xr.boxes&&i._xr.boxes[0]?i._xr.boxes[0].r.eng:[]).forEach(s=>{ if(s.S) s.S.forEach((x,k)=>chk('e'+k,s.iv,x,XL_MODES[k])); });
+      if(msgs.length&&!quiet){ toast('XL scanner \u00b7 '+sym[0]+' \u00b7 '+msgs.slice(0,4).join(' | ')+(msgs.length>4?' ...':''),'#1565c0'); snd(); } }
+  }); }
+{ const _xlPrevRE=recomputeExtras; recomputeExtras=function(){ const q=quietNext; const rv=_xlPrevRE.apply(this,arguments); try{ xlAlerts(q); }catch(e){ console.error('xlb alerts',e); } return rv; }; }
+
+// ---------- [xlb] drawing: indicator lines, base boxes, trade lines / zones / X, BUY-SELL labels, info box, scanners ----------
+const xlFs={Tiny:8,Small:10,Normal:12,Large:14,Huge:16}, xlLb={Tiny:.8,Small:1,Normal:1.25,Large:1.6,Huge:2}, xlDot={Tiny:3,Small:4,Normal:5,Large:7,Huge:9};
+const xlOnC='#4caf50', xlOffC='#f23645', xlHdr='#3b5b92';
+function xlRgba(hex,a){ const h=String(hex||'').replace('#',''); if(h.length<6) return 'rgba(128,128,128,'+a+')'; return 'rgba('+parseInt(h.slice(0,2),16)+','+parseInt(h.slice(2,4),16)+','+parseInt(h.slice(4,6),16)+','+a+')'; }
+const xlFg=hex=>{ const h=String(hex).replace('#',''); if(h.length<6) return '#fff'; return (parseInt(h.slice(0,2),16)*299+parseInt(h.slice(2,4),16)*587+parseInt(h.slice(4,6),16)*114)/1000>150?'#000':'#fff'; };
+function xlRR(x,y,w,h,r){ cx.beginPath(); cx.moveTo(x+r,y); cx.arcTo(x+w,y,x+w,y+h,r); cx.arcTo(x+w,y+h,x,y+h,r); cx.arcTo(x,y+h,x,y,r); cx.arcTo(x,y,x+w,y,r); cx.closePath(); }
+function xlFmt(v){ if(!xlN(v)) return '-'; return Math.abs(v)<1?v.toFixed(6):Math.abs(v)<100?v.toFixed(4):v.toFixed(2); }
+function xlPx(v,ref){ return !xlN(v)?'-':v.toFixed(ref>=1000?2:ref>=20?3:5); }
+const xlPct=v=>!xlN(v)?'n/a':(v>=0?'+':'')+v.toFixed(2)+'%';
+const xlPosC=v=>!xlN(v)?'#fff':v>=0?xlOnC:xlOffC;
+function xlDur(ms){ if(!xlN(ms)) return 'n/a'; const U=[[6e4,'sec',1e3],[36e5,'min',6e4],[864e5,'hr',36e5],[6048e5,'days',864e5],[26298e5,'wks',6048e5],[315576e5,'mo',26298e5]]; for(const u of U) if(ms<u[0]) return (ms/u[2]).toFixed(1)+' '+u[1]; return (ms/315576e5).toFixed(1)+' yrs'; }
+function xlDurC(ms){ if(!xlN(ms)) return 'n/a'; const U=[[6e4,'s',1e3],[36e5,'m',6e4],[864e5,'h',36e5],[6048e5,'d',864e5],[26298e5,'w',6048e5],[315576e5,'mo',26298e5]]; let v,t; for(const u of U){ if(ms<u[0]){ v=ms/u[2]; t=u[1]; break; } } if(t==null){ v=ms/315576e5; t='y'; } return v.toFixed(v>=10?0:1)+t; }
+const xlDual=(a,b)=>!xlN(a)?'n/a':xlDurC(a)+' / '+(xlN(b)?xlDurC(b):'n/a');
+const xlC=(t,c,bg,a,span)=>({t:String(t),c:c||'#fff',bg:bg||null,a:a||'l',span:span||1});
+// draws a table of cells (rows of {t,c,bg,a,span}) at one of the nine chart positions, shrunk to fit narrow screens
+function xlGrid(rows,pos,fs,W,H){ if(!rows.length) return; cx.save(); cx.font=fs+'px system-ui'; const pad=5, rh=fs+7, nc=Math.max.apply(null,rows.map(r=>r.reduce((s,x)=>s+(x.span||1),0))), cw=new Array(nc).fill(0);
+  rows.forEach(r=>{ let c0=0; r.forEach(x=>{ const sp=x.span||1; if(sp===1) cw[c0]=Math.max(cw[c0],cx.measureText(x.t).width+pad*2); c0+=sp; }); });
+  rows.forEach(r=>{ let c0=0; r.forEach(x=>{ const sp=x.span||1; if(sp>1){ let w=0; for(let k=0;k<sp;k++) w+=cw[c0+k]; const need=cx.measureText(x.t).width+pad*2; if(need>w){ const add=(need-w)/sp; for(let k=0;k<sp;k++) cw[c0+k]+=add; } } c0+=sp; }); });
+  const tw=cw.reduce((a,b)=>a+b,0), th=rows.length*rh, sc=Math.max(.35,Math.min(1,(W-12)/tw,(H-40)/th)), w=tw*sc, h=th*sc, narrow=W<700;
+  const x=/Left/.test(pos)?6:/Center/.test(pos)?(W-w)/2:W-w-6, y=/^Top/.test(pos)?(narrow?176:8):/^Middle/.test(pos)?(H-h)/2:H-h-30;
+  cx.translate(x,y); cx.scale(sc,sc); cx.globalAlpha=.9; cx.fillStyle='#131722'; cx.fillRect(0,0,tw,th); cx.globalAlpha=1; cx.textBaseline='middle';
+  rows.forEach((r,ri)=>{ let c0=0; const py=ri*rh; r.forEach(cell=>{ const sp=cell.span||1; let x0=0; for(let k=0;k<c0;k++) x0+=cw[k]; let ww=0; for(let k=0;k<sp;k++) ww+=cw[c0+k];
+      if(cell.bg){ cx.fillStyle=cell.bg; cx.fillRect(x0,py,ww,rh); } cx.strokeStyle='rgba(128,128,128,.35)'; cx.lineWidth=1; cx.strokeRect(x0,py,ww,rh);
+      cx.fillStyle=cell.c; cx.textAlign=cell.a==='r'?'right':cell.a==='c'?'center':'left'; cx.fillText(cell.t,cell.a==='r'?x0+ww-pad:cell.a==='c'?x0+ww/2:x0+pad,py+rh/2+.5); c0+=sp; }); });
+  cx.strokeStyle='rgba(128,128,128,.6)'; cx.strokeRect(0,0,tw,th); cx.restore(); }
+// which trades keep their lines on the chart: the open one, the last closed one (exit X), and the last N closed setups (Show closed trades)
+function xlVisTrades(R,P){ if(!P.useRisk) return []; let keep=[]; const el=R.trades.filter(t=>t.reason!==0?(P.showX||P.showClosed>0):P.showClosed>0);
+  if(P.showClosed>0) keep=el.slice(-P.showClosed); else { const lt=R.trades[R.trades.length-1]; if(!R.cur&&lt&&lt.reason!==0&&P.showX) keep=[lt]; }
+  if(R.cur) keep.push(R.cur); return keep; }
+function xlInfoRows(R,P,S){ const rows=[], hd=t=>rows.push([xlC(t,'#fff',xlHdr,'c',2)]), rw=(l,v,c)=>rows.push([xlC(l),xlC(v,c,null,'r')]), m=R.m, isVar=m===1&&P.baseMode==='Variable';
+  hd('XL - '+P.mode.toUpperCase()+' BUY/SELL SIGNALS'); rw('Timeframe',tf[0],'#fff'); rw('Non-Repaint',P.nrMode,P.nrMode==='Entries + Exits'?xlOnC:P.nrMode==='Entries Only'?'#ff9800':xlOffC);
+  const vol=[P.ocVol,P.brkVol,P.donVol,P.maVol,0,P.arVol][m];
+  if(m===0){ rw('Avg Body Length',P.bodyLen,'#fff'); rw('Min Body',P.bodyMult.toFixed(1)+'x','#fff'); }
+  else if(m===1){ rw('Base Length',isVar?P.varMin+'-'+P.varMax+' bars':P.baseLen+' bars','#fff'); rw('Breakout Entry Mode',P.brkMode,'#fff'); rw('Max Base Height',P.baseMult.toFixed(1)+'x ATR','#fff'); if(P.minBreak>0) rw('Min Breakout',P.minBreak.toFixed(1)+'x ATR','#fff'); }
+  else if(m===2){ rw('Channel Length',P.donLen,'#fff'); rw('Entry Mode',P.donEntMode,'#fff'); }
+  else if(m===3){ rw('Fast / Slow MA',P.maType+' '+P.fastLen+' / '+P.slowLen,'#fff'); rw('Entry Mode',P.maEntMode,'#fff'); if(P.minSep>0) rw('Min Cross Strength',P.minSep.toFixed(2)+'x ATR','#fff'); }
+  else if(m===5){ rw('Aroon Len / Smoothing',P.arLen+(P.arSm!=='None'?' / '+P.arSm+' '+P.arSmLen:''),'#fff'); rw('Signal Mode',P.arSigMode==='Crossover'?'Crossover':'Strong '+P.arStrong.toFixed(0),'#fff'); }
+  else { rw('Supertrend Len / Factor',P.stLen+' / '+P.stMult.toFixed(1),'#fff'); rw('Entry Mode',P.stEntMode,'#fff'); }
+  if(vol>0) rw('Min Volume',vol.toFixed(1)+'x','#fff');
+  if((m===1&&P.brkTrend)||(m===3&&P.maTrend)) rw('Trend Filter',m===1?'EMA '+P.brkTrendLen:P.maType+' '+P.maTrendLen,'#fff');
+  if(m!==4) rw('Alternate Signals',R.alternate?'ON':'OFF',R.alternate?xlOnC:xlOffC);
+  rw('Ignore Signals in Trade',R.noOverlap?'ON':'OFF',R.noOverlap?xlOnC:xlOffC); if(m===1) rw('Ignore Base in Trade',P.noBaseInTrade?'ON':'OFF',P.noBaseInTrade?xlOnC:xlOffC);
+  rw('Exit Trigger',R.riskOn?P.exitMode:'-','#fff');
+  const at=xlN(R.slAtrX)?R.slAtrX.toFixed(1)+'x ATR':'n/a', s=R.slSel;
+  const slTxt=s==='ATR'?R.slMult.toFixed(1)+'x ATR':s==='Aroon extreme'?'AE: '+at:s==='Supertrend line'?'ST: '+at:s==='Swing'?'SW: '+at:s==='Candle wick'?'CW: '+at:s==='Candle body'?'CB: '+at:s==='Base edge'?'BE: '+at:s==='Channel opposite'?'CO: '+at:s==='Channel middle'?'CM: '+at:'None';
+  const t=R.tpSel, tpTxt=t==='ATR target'?R.tpMult.toFixed(1)+'x ATR':t==='Base height'?P.brkTpBMult.toFixed(1)+'x Base':t==='SL multiple'&&R.hasSl?R.tpRMult.toFixed(1)+'x SL':'Opp. Signal';
+  rw('Stop Loss',P.useRisk?slTxt:'OFF',P.useRisk?'#fff':xlOffC); rw('Take Profit',P.useRisk?tpTxt:'OFF',P.useRisk?'#fff':xlOffC);
+  hd('LOOKBACK P/L'); rw('Trades Counted',S.n+' / '+P.lookback,'#fff');
+  rw('Exits TP / SL / Signal',(P.useRisk&&R.hasTp?S.tp:'-')+' / '+(P.useRisk&&R.hasSl?S.sl:'-')+' / '+S.rev,'#fff'); rw('Net P/L',xlPct(S.net),xlPosC(S.net));
+  rw('Win Rate',!xlN(S.wr)?'n/a':S.wr.toFixed(0)+'% ('+S.win+'W/'+S.loss+'L)','#fff'); rw('Avg Win / Loss',xlPct(S.avgWin)+' / '+xlPct(S.avgLoss),'#fff');
+  rw('Max Drawdown',S.n?xlPct(S.dd):'n/a',S.dd<0?xlOffC:'#fff'); rw('Open Trade P/L',xlPct(S.openPnl),xlPosC(S.openPnl));
+  rw('Avg Time/Sig (cal/mkt)',xlDual(S.avgDur,S.avgDurM),'#fff'); rw('Time in Sig (cal/mkt)',xlDual(S.inMs,S.inMsM),'#fff');
+  rw('Time btw Sig (cal/mkt)',xlDual(S.avgGap,S.avgGapM),'#fff'); rw('Time from Sig (cal/mkt)',xlDual(S.sinceMs,S.sinceMsM),'#fff'); return rows; }
+function xlScanRows(r,P,nowT){ const rows=[], cols={Micro:[0,1,2,12],Low:[0,1,2,3,10,12],Medium:[0,1,2,3,8,9,10,12],High:[0,1,2,3,5,6,7,8,9,10,12],Maximum:[0,1,2,3,4,5,6,7,8,9,10,11,12]}[P.scDetail]||[0,1,2,3,5,6,7,8,9,10,12], nc=cols.length;
+  const hdr=['Timeframe','Signal','Status','Avg Between','Last Signal','Entry','SL','TP','Open P/L','Avg P/L','Net P/L','Max DD','Win Rate / '+P.lookback];
+  rows.push([xlC('XL - '+P.mode.toUpperCase()+' BUY/SELL SCANNER ('+sym[0]+' / Standard)','#fff',xlHdr,'c',nc)]);
+  rows.push(cols.map((c,j)=>xlC(hdr[c],'#fff','rgba(59,91,146,.55)',j?'r':'l')));
+  r.scan.forEach(s=>{ const S=s.S, ok=!!S&&xlN(S.px), dd=ok?S.dir:0, has=ok&&dd!==0, hs=ok&&S.n>0, op=ok&&S.stat===1, bg=ok&&S.isNew?xlRgba(dd===1?P.buyCol:P.sellCol,.3):null;
+    const tx=[s.iv,!ok?'n/a':dd===1?'BUY':dd===-1?'SELL':'-',!ok?'-':S.stat===1?'OPEN':S.stat===2?'TP':S.stat===3?'SL':'-',ok&&xlN(S.avgGap)?xlDur(S.avgGap):'-',ok&&S.sigTime!=null?xlDur((S.nowT-S.sigTime)*1000):'-',
+      has?xlPx(S.entry,S.px):'-',has?xlPx(S.sl,S.px):'-',has?xlPx(S.tp,S.px):'-',op?xlPct(S.openPnl):'-',hs?xlPct(S.avgP):'-',hs?xlPct(S.net):'-',hs?xlPct(S.dd):'-',hs?(S.win/S.n*100).toFixed(0)+'% ('+S.win+'W/'+S.loss+'L)':'-'];
+    const tc=['#fff',dd===1?P.buyCol:dd===-1?P.sellCol:'#888',ok&&S.stat===1?'#fff':ok&&S.stat===2?P.buyCol:ok&&S.stat===3?P.sellCol:'#888','#fff','#fff','#fff','#fff','#fff',op?xlPosC(S.openPnl):'#888',hs?xlPosC(S.avgP):'#888',hs?xlPosC(S.net):'#888',hs&&S.dd<0?xlOffC:'#fff',hs&&S.n<P.lookback?xlOffC:'#fff'];
+    rows.push(cols.map((c,j)=>xlC(tx[c],tc[c],bg,j?'r':'l'))); }); return rows; }
+function xlEngRows(r,P){ const rows=[], cols={Micro:[6],Low:[1,6],Medium:[0,1,6],High:[0,1,4,6],Maximum:[0,1,3,4,5,6]}[P.engDetail]||[1,6], ne=cols.length, nc=1+6*ne;
+  const hdr=['Signal','Status','Avg Between','Open P/L','Net P/L','Max DD','Win Rate / '+P.lookback];
+  rows.push([xlC('XL - Engine Scanner ('+sym[0]+' / Standard)','#fff',xlHdr,'c',nc)]);
+  const r1=[xlC('','#fff','rgba(59,91,146,.55)')]; XL_MODES.forEach((n,k)=>r1.push(xlC(n,'#fff',k%2?'#2a4170':xlHdr,'c',ne))); rows.push(r1);
+  const r2=[xlC('Timeframe','#fff','rgba(59,91,146,.55)','l')]; XL_MODES.forEach((n,k)=>cols.forEach(c=>r2.push(xlC(hdr[c],'#fff',k%2?'rgba(42,65,112,.6)':'rgba(59,91,146,.55)','c')))); rows.push(r2);
+  r.eng.forEach(e=>{ const row=[xlC(e.iv,'#fff',null,'l')]; XL_MODES.forEach((n,k)=>{ const S=e.S&&e.S[k], ok=!!S&&xlN(S.px), dd=ok?S.dir:0, hs=ok&&S.n>0, op=ok&&S.stat===1;
+      const tx=[!ok?'n/a':dd===1?'BUY':dd===-1?'SELL':'-',!ok?'-':S.stat===1?'OPEN':S.stat===2?'TP':S.stat===3?'SL':'-',ok&&xlN(S.avgGap)?xlDur(S.avgGap):'-',op?xlPct(S.openPnl):'-',hs?xlPct(S.net):'-',hs?xlPct(S.dd):'-',hs?(S.win/S.n*100).toFixed(0)+'% ('+S.win+'W/'+S.loss+'L)':'-'];
+      const tc=[dd===1?P.buyCol:dd===-1?P.sellCol:'#888',ok&&S.stat===1?'#fff':ok&&S.stat===2?P.buyCol:ok&&S.stat===3?P.sellCol:'#888','#fff',op?xlPosC(S.openPnl):'#888',hs?xlPosC(S.net):'#888',hs&&S.dd<0?xlOffC:'#fff',hs&&S.n<P.lookback?xlOffC:'#fff'];
+      cols.forEach(c=>row.push(xlC(tx[c],tc[c],null,'c'))); }); rows.push(row); }); return rows; }
+
+function xlDraw(d,X,Y,W,H){
+  const r=d.r, P=d.o; if(!r||!r.R||!r.R.ok) return; const R=r.R, N=R.N, m=R.m, V=R.vis;
+  const vr=chart.timeScale().getVisibleLogicalRange(), v0=vr?Math.max(0,Math.floor(vr.from)-2):0, v1=vr?Math.min(N-1,Math.ceil(vr.to)+2):N-1; if(v1<v0) return;
+  cx.save(); cx.beginPath(); cx.rect(0,0,W,H); cx.clip(); cx.setLineDash([]); cx.lineJoin='round'; cx.lineCap='round';
+  const poly=(arr,col,w)=>{ if(!arr) return; cx.strokeStyle=col; cx.lineWidth=w; cx.beginPath(); let pen=false; for(let i=v0;i<=v1;i++){ const v=arr[i]; if(!xlN(v)){ pen=false; continue; } const x=X(i), y=Y(v); if(x==null||y==null){ pen=false; continue; } if(pen) cx.lineTo(x,y); else { cx.moveTo(x,y); pen=true; } } cx.stroke(); };
+  const fillRuns=(up,lo,colAt)=>{ if(!up||!lo) return; let run=[],col=null; const flush=()=>{ if(run.length>1){ cx.fillStyle=col; cx.beginPath(); run.forEach((p,k)=>k?cx.lineTo(p[0],p[1]):cx.moveTo(p[0],p[1])); for(let k=run.length-1;k>=0;k--) cx.lineTo(run[k][0],run[k][2]); cx.closePath(); cx.fill(); } run=[]; };
+    for(let i=v0;i<=v1;i++){ const a=up[i], b=lo[i]; if(!xlN(a)||!xlN(b)){ flush(); col=null; continue; } const x=X(i), ya=Y(a), yb=Y(b); if(x==null||ya==null||yb==null){ flush(); col=null; continue; }
+      const cc=colAt(i); if(cc!==col){ const pv=run[run.length-1]; flush(); col=cc; if(pv) run.push(pv); } run.push([x,ya,yb]); } flush(); };
+  // --- engine lines ---
+  if(m===1&&P.brkShowTrend) poly(V.emaT,P.brkEmaCol,1);
+  if(m===2&&P.donShowChan){ if(P.donShade) fillRuns(V.upB,V.loB,()=>xlRgba(P.donChanCol,.08)); poly(V.upB,P.donChanCol,1); poly(V.loB,P.donChanCol,1); if(P.donShowMid){ cx.globalAlpha=.6; poly(V.midB,P.donChanCol,1); cx.globalAlpha=1; } }
+  if(m===3&&P.maShowMAs){ if(P.maShowFill) fillRuns(V.fast,V.slow,i=>xlRgba(V.fast[i]>=V.slow[i]?P.buyCol:P.sellCol,.15)); poly(V.fast,P.maFastCol,2); poly(V.slow,P.maSlowCol,2); if(P.maTrend) poly(V.trend,P.maTrendCol,2); }
+  if(m===4&&P.stShowLine&&V.stLine){ cx.lineWidth=2; for(let i=Math.max(1,v0);i<=v1;i++){ const a=V.stLine[i-1], b=V.stLine[i]; if(!xlN(a)||!xlN(b)||V.stDir[i]!==V.stDir[i-1]) continue; const x0=X(i-1),x1=X(i),y0=Y(a),y1=Y(b); if(x0==null||x1==null||y0==null||y1==null) continue;
+      cx.strokeStyle=V.stDir[i]<0?P.buyCol:P.sellCol; cx.beginPath(); cx.moveTo(x0,y0); cx.lineTo(x1,y1); cx.stroke(); } }
+  // --- Breakout base boxes ---
+  R.bases.forEach(b=>{ if(b.i1<v0||b.i0>v1) return; const xa=X(b.i0), xb=X(b.i1), ya=Y(b.hi), yb=Y(b.lo); if(xa==null||xb==null||ya==null||yb==null) return; const col=b.dir===1?P.buyCol:P.sellCol;
+    cx.fillStyle=xlRgba(col,.15); cx.fillRect(xa,Math.min(ya,yb),xb-xa,Math.max(1,Math.abs(yb-ya))); cx.strokeStyle=col; cx.lineWidth=1; cx.strokeRect(xa,Math.min(ya,yb),xb-xa,Math.max(1,Math.abs(yb-ya))); });
+  // --- trade lines, zones, exit X, average-time dot ---
+  const lw=P.lineW; cx.font='11px system-ui'; cx.textBaseline='middle';
+  xlVisTrades(R,P).forEach(t=>{ const open=t.i1<0; if(t.i0>v1||(!open&&t.i1<v0)) return; const xa=X(t.i0), xb=open?W:X(t.i1); if(xa==null||xb==null) return; const x0=Math.max(-2,xa), x1=Math.min(W,xb);
+    const yE=Y(t.entry), yS=xlN(t.sl)?Y(t.sl):null, yT=xlN(t.tp)?Y(t.tp):null; if(yE==null) return;
+    if(P.showZone){ if(yS!=null&&x1>x0){ cx.fillStyle=xlRgba(P.slZoneCol,.15); cx.fillRect(x0,Math.min(yE,yS),x1-x0,Math.max(1,Math.abs(yS-yE))); } if(yT!=null&&x1>x0){ cx.fillStyle=xlRgba(P.tpZoneCol,.15); cx.fillRect(x0,Math.min(yE,yT),x1-x0,Math.max(1,Math.abs(yT-yE))); } }
+    if(P.showTradeLines&&x1>x0){ cx.lineWidth=lw; cx.strokeStyle=P.entryCol; cx.beginPath(); cx.moveTo(x0,yE); cx.lineTo(x1,yE); cx.stroke(); cx.setLineDash([5,4]);
+      if(yS!=null){ cx.strokeStyle=P.slCol; cx.beginPath(); cx.moveTo(x0,yS); cx.lineTo(x1,yS); cx.stroke(); } if(yT!=null){ cx.strokeStyle=P.tpCol; cx.beginPath(); cx.moveTo(x0,yT); cx.lineTo(x1,yT); cx.stroke(); } cx.setLineDash([]); }
+    if(P.showTradeLbl){ cx.textAlign='right'; const lx=xa-3; if(lx>20&&lx<W+300){ cx.fillStyle=P.entryCol; cx.fillText('Entry '+xlFmt(t.entry),lx,yE); if(yS!=null){ cx.fillStyle=P.slCol; cx.fillText('SL '+xlFmt(t.sl),lx,yS); } if(yT!=null){ cx.fillStyle=P.tpCol; cx.fillText('TP '+xlFmt(t.tp),lx,yT); } } }
+    if(!open&&P.showX&&t.reason!==0){ const xx=X(t.i1), yy=Y(t.exit); if(xx!=null&&yy!=null){ cx.font='bold 17px system-ui'; cx.textAlign='center'; cx.fillStyle=P.xCol; cx.fillText('\u2715',xx,yy+.5); cx.font='11px system-ui'; } }
+    if(open&&P.showAvgDot&&P.showTradeLines&&t.avgBars>0){ const xd=X(t.i0+t.avgBars); if(xd!=null&&xd>-10&&xd<W+10){ cx.fillStyle=P.avgDotCol; cx.beginPath(); cx.arc(xd,yE,xlDot[P.avgDotSize]||7,0,6.2832); cx.fill(); } } });
+  // --- entry dots + BUY / SELL labels ---
+  const sc=xlLb[P.lblSize]||1; cx.font='bold '+Math.round(11*sc)+'px system-ui'; cx.textAlign='center'; cx.textBaseline='middle';
+  R.sigs.forEach(s=>{ if(s.i<v0||s.i>v1) return; const x=X(s.i); if(x==null||x<-30||x>W+30) return; const buy=s.dir>0;
+    if(P.showEntryMark){ const ye=Y(s.entry); if(ye!=null){ cx.fillStyle=P.entryMarkCol; cx.beginPath(); cx.arc(x,ye,3,0,6.2832); cx.fill(); } }
+    if(P.showLabels){ const y=Y(buy?R.lo[s.i]:R.hi[s.i]); if(y==null) return; const col=buy?P.buyCol:P.sellCol, txt=buy?'BUY':'SELL', w=cx.measureText(txt).width+14*sc, h=17*sc, ar=7*sc, py=buy?y+ar+3:y-ar-3-h;
+      cx.fillStyle=col; cx.beginPath(); if(buy){ cx.moveTo(x,y+3); cx.lineTo(x-4*sc,y+3+ar); cx.lineTo(x+4*sc,y+3+ar); } else { cx.moveTo(x,y-3); cx.lineTo(x-4*sc,y-3-ar); cx.lineTo(x+4*sc,y-3-ar); } cx.closePath(); cx.fill();
+      xlRR(x-w/2,py,w,h,4); cx.fill(); cx.fillStyle=xlFg(col); cx.fillText(txt,x,py+h/2+.5); } });
+  cx.restore();
+  // --- tables ---
+  const cN=candles.length?candles[candles.length-1]:null;
+  if(P.showTable){ const S=xlStats(R,P,cN?cN.close:NaN,cN?cN.time:null,N-1); xlGrid(xlInfoRows(R,P,S),P.tablePos,xlFs[P.tableSize]||10,W,H); }
+  if(P.showScan&&r.scan.length) xlGrid(xlScanRows(r,P),P.scPos,xlFs[P.scSize]||10,W,H);
+  if(P.showEng&&r.eng.length) xlGrid(xlEngRows(r,P),P.engPos,xlFs[P.engSize]||10,W,H);
+}
+{ const _xlPrevDraw=draw; draw=function(d,X,Y,W,H){ if(d&&d.type==='xlview') return xlDraw(d,X,Y,W,H); return _xlPrevDraw.apply(this,arguments); }; }
+
+// ---------- [xlb] settings panel (one collapsible group per engine; the group of the selected Signal mode opens first) ----------
+function xlInputs(b,d){
+  const p=d.p, head=t=>{ const h=document.createElement('div'); h.className='sech'; h.textContent=t; b.appendChild(h); };
+  const note=(box,t)=>box.appendChild(Object.assign(document.createElement('div'),{textContent:t,style:'color:#8a93a6;font-size:13px;line-height:1.45;padding:2px 0 8px'}));
+  const grp=(title,open,fn)=>{ const dt=document.createElement('details'); if(open) dt.open=true; dt.style.cssText='margin:8px 0;border:1px solid #2a3350;border-radius:12px;padding:0 10px';
+    const sm=document.createElement('summary'); sm.textContent=title; sm.style.cssText='padding:11px 2px;font-weight:700;cursor:pointer'; dt.appendChild(sm); const box=document.createElement('div'); box.style.cssText='padding-bottom:8px'; dt.appendChild(box); b.appendChild(dt);
+    fn(box,(k,l,o)=>fld(box,p,k,'num',l,o),(k,l)=>fld(box,p,k,'chk',l),(k,l,opts)=>fld(box,p,k,'sel',l,{opts}),(k,l)=>fld(box,p,k,'txt',l)); };
+  const cur=p.mode||'OC', tp3=XL_TP3;
+  head('A. SIGNAL ENGINE'); fld(b,p,'mode','sel','Signal mode',{opts:XL_MODES}); fld(b,p,'nrMode','sel','Non-repaint',{opts:XL_OPT.nrMode});
+  note(b,'Only the engine chosen as Signal mode runs on the chart. Open the groups below to set each engine (the groups of the other engines are ignored, except by the Engine Scanner). Non-repaint: Entries + Exits = everything waits for the candle to close; Entries Only = signals wait, SL / TP register the moment price touches them (Wick exit trigger); Off = everything live and may repaint. The scanners always read closed candles.');
+  grp('OC mode',cur==='OC',(bx,num,chk,sel)=>{ num('bodyLen','Average body length',{min:1,max:1000,step:1}); num('bodyMult','Min body vs average (x)',{min:0,max:100,step:.5}); num('ocVol','Min volume vs average (x, 0 = off)',{min:0,max:100,step:.5});
+    chk('ocAlt','Alternate signals'); chk('ocNoOvl','Ignore signals while a trade is open'); sel('ocSlMode','Stop loss mode',XL_OPT.ocSlMode); num('ocSlBuf','Stop buffer (x ATR)',{min:0,max:20,step:.05}); sel('ocTpMode','Take profit mode',tp3);
+    num('ocSlMult','Stop loss (x ATR)',{min:.1,max:50,step:.1}); num('ocTpMult','Take profit (x ATR)',{min:.1,max:100,step:.1}); num('ocTpRMult','Take profit (x SL)',{min:.1,max:100,step:.1});
+    note(bx,'A large candle that closes beyond the previous candle\'s body.'); });
+  grp('Breakout mode',cur==='Breakout',(bx,num,chk,sel)=>{ sel('baseMode','Base mode',XL_OPT.baseMode); num('baseLen','Fixed base length (bars)',{min:3,max:500,step:1}); num('varMin','Variable min base (bars)',{min:3,max:200,step:1}); num('varMax','Variable max base (bars)',{min:3,max:200,step:1});
+    num('baseMult','Max base height (x ATR)',{min:.1,max:50,step:.1}); sel('brkMode','Breakout entry mode',XL_OPT.brkMode); num('minBreak','Min breakout strength (x ATR)',{min:0,max:20,step:.1}); num('brkVol','Min volume vs average (x, 0 = off)',{min:0,max:100,step:.5}); num('brkVolLen','Average volume length',{min:1,max:1000,step:1});
+    chk('brkTrend','Trend filter'); num('brkTrendLen','Trend EMA length',{min:2,max:1000,step:1}); chk('brkShowTrend','Show trend EMA'); chk('brkAlt','Alternate signals'); chk('brkNoOvl','Ignore signals while a trade is open'); chk('noBaseInTrade','Ignore base development while a trade is open'); chk('brkShowBase','Show base zones');
+    sel('brkSlMode','Stop loss mode',XL_OPT.brkSlMode); num('brkSlBuf','Stop buffer (x ATR)',{min:0,max:20,step:.05}); sel('brkTpMode','Take profit mode',XL_OPT.brkTpMode); num('brkSlMult','Stop loss (x ATR)',{min:.1,max:50,step:.1}); num('brkTpMult','Take profit (x ATR)',{min:.1,max:100,step:.1});
+    num('brkTpRMult','Take profit (x SL)',{min:.1,max:100,step:.1}); num('brkTpBMult','Take profit (x base height)',{min:.1,max:100,step:.1}); note(bx,'A close (or wick) beyond a tight consolidation base. A base stop that is not beyond the entry skips the signal.'); });
+  grp('Donchian mode',cur==='Donchian',(bx,num,chk,sel)=>{ num('donLen','Channel length',{min:2,max:500,step:1}); sel('donEntMode','Entry mode',XL_OPT.donEntMode); num('donVol','Min volume vs average (x, 0 = off)',{min:0,max:100,step:.5}); chk('donAlt','Alternate signals'); chk('donNoOvl','Ignore signals while a trade is open');
+    chk('donShowChan','Show Donchian channel'); chk('donShade','Show channel shading'); chk('donShowMid','Show middle line'); sel('donSlMode','Stop loss mode',XL_OPT.donSlMode); num('donSlBuf','Stop buffer (x ATR)',{min:0,max:20,step:.05}); sel('donTpMode','Take profit mode',tp3);
+    num('donSlMult','Stop loss (x ATR)',{min:.1,max:50,step:.1}); num('donTpMult','Take profit (x ATR)',{min:.1,max:100,step:.1}); num('donTpRMult','Take profit (x SL)',{min:.1,max:100,step:.1}); });
+  grp('MA Cross mode',cur==='MA Cross',(bx,num,chk,sel)=>{ num('fastLen','Fast MA length',{min:1,max:500,step:1}); num('slowLen','Slow MA length',{min:2,max:1000,step:1}); sel('maType','MA type',XL_OPT.maType); sel('maSrc','MA source',XL_OPT.maSrc);
+    num('minSep','Min cross strength (x ATR, 0 = off)',{min:0,max:20,step:.05}); chk('maTrend','Trend filter'); num('maTrendLen','Trend MA length',{min:2,max:1000,step:1}); sel('maEntMode','Entry mode',XL_OPT.maEntMode); num('maVol','Min volume vs average (x, 0 = off)',{min:0,max:100,step:.5});
+    chk('maAlt','Alternate signals'); chk('maNoOvl','Ignore signals while a trade is open'); chk('maShowMAs','Show moving averages'); chk('maShowFill','Show MA shading'); sel('maSlMode','Stop loss mode',XL_OPT.maSlMode); num('swingLen','Swing length (bars)',{min:1,max:200,step:1});
+    num('maSlBuf','Stop buffer (x ATR)',{min:0,max:20,step:.05}); num('slMin','Min stop distance (x ATR)',{min:0,max:20,step:.05}); sel('maTpMode','Take profit mode',tp3); num('maSlMult','Stop loss (x ATR)',{min:.1,max:50,step:.1}); num('maTpMult','Take profit (x ATR)',{min:.1,max:100,step:.1}); num('maTpRMult','Take profit (x SL)',{min:.1,max:100,step:.1}); });
+  grp('Supertrend mode',cur==='Supertrend',(bx,num,chk,sel)=>{ num('stLen','Supertrend ATR length',{min:1,max:200,step:1}); num('stMult','Supertrend factor',{min:.1,max:50,step:.1}); sel('stEntMode','Entry mode',XL_OPT.stEntMode); chk('stNoOvl','Ignore signals while a trade is open'); chk('stShowLine','Show Supertrend line');
+    sel('stSlMode','Stop loss mode',XL_OPT.stSlMode); num('stSlBuf','Stop buffer (x ATR)',{min:0,max:20,step:.05}); sel('stTpMode','Take profit mode',tp3); num('stSlMult','Stop loss (x ATR)',{min:.1,max:50,step:.1}); num('stTpMult','Take profit (x ATR)',{min:.1,max:100,step:.1}); num('stTpRMult','Take profit (x SL)',{min:.1,max:100,step:.1}); });
+  grp('Aroon mode',cur==='Aroon',(bx,num,chk,sel)=>{ num('arLen','Aroon length',{min:2,max:500,step:1}); sel('arSigMode','Signal mode',XL_OPT.arSigMode); num('arStrong','Strong trend level',{min:50,max:100,step:5}); sel('arSm','Smoothing',XL_OPT.arSm); num('arSmLen','Smoothing length',{min:1,max:200,step:1});
+    num('arVol','Min volume vs average (x, 0 = off)',{min:0,max:100,step:.5}); num('arVolLen','Average volume length',{min:1,max:1000,step:1}); chk('arAlt','Alternate signals'); chk('arNoOvl','Ignore signals while a trade is open'); sel('arSlMode','Stop loss mode',XL_OPT.arSlMode); num('arSlBuf','Stop buffer (x ATR)',{min:0,max:20,step:.05});
+    sel('arTpMode','Take profit mode',tp3); num('arSlMult','Stop loss (x ATR)',{min:.1,max:50,step:.1}); num('arTpMult','Take profit (x ATR)',{min:.1,max:100,step:.1}); num('arTpRMult','Take profit (x SL)',{min:.1,max:100,step:.1}); note(bx,'The Aroon lines are not drawn on the price chart; only the signals are.'); });
+  grp('Stop Loss / Take Profit (shared)',false,(bx,num,chk,sel)=>{ chk('useRisk','Enable SL/TP'); sel('exitMode','Exit trigger',XL_OPT.exitMode); num('atrLen','ATR length',{min:1,max:500,step:1});
+    note(bx,'OFF = pure stop-and-reverse: no lines, trades close only on the next signal. Wick = SL / TP hit when the candle touches the level. Close = only when a candle closes beyond it. If SL and TP are touched on the same candle the SL is assumed first.'); });
+  grp('Lookback P/L and info box',false,(bx,num,chk,sel)=>{ num('lookback','Lookback (last N closed trades)',{min:1,max:500,step:1}); chk('showTable','Show info box'); sel('tablePos','Info box position',XL_POS); sel('tableSize','Info box size',XL_SZ5); num('showClosed','Show closed trades (0 = off)',{min:0,max:50,step:1}); });
+  grp('Multi-Timeframe Scanner',false,(bx,num,chk,sel,txt)=>{ chk('showScan','Show scanner'); txt('scTfList','Timeframes (comma separated)'); num('scMax','Max timeframes',{min:1,max:12,step:1}); sel('scPos','Scanner position',XL_POS); sel('scSize','Scanner size',XL_SZ5); sel('scDetail','Scanner detail',XL_DET);
+    note(bx,'Scans this symbol on each time frame with the selected engine, using Binance candles and closed candles only. Use 15 or 15m for minutes, 4h, 1D, 1W; a capital M is a month. Each time frame is one request, so keep the list short on a phone.'); });
+  grp('Engine Scanner',false,(bx,num,chk,sel)=>{ chk('showEng','Show engine scanner'); sel('engPos','Engine scanner position',XL_POS); sel('engSize','Engine scanner size',XL_SZ5); sel('engDetail','Engine scanner detail',XL_DET);
+    note(bx,'All six engines side by side on each time frame of the list above, each with its own settings and trade history. Keep it away from the info box and the scanner, because only one table fits in each spot.'); });
+  grp('Alerts',false,(bx,num,chk)=>{ chk('alBuy','BUY alert'); chk('alSell','SELL alert'); chk('alExit','Take profit / stop loss hit alert'); chk('alScan','Scanner alert (new signal on a scanned time frame)'); chk('alAll','All-engines alert (BUY / SELL of the other five engines)'); chk('alSound','Play a sound');
+    note(bx,'Alerts fire once, when the candle closes, while the app is open.'); });
+}
+function xlStyle(b,d){
+  const p=d.p, head=t=>{ const h=document.createElement('div'); h.className='sech'; h.textContent=t; b.appendChild(h); };
+  head('SIGNALS'); stRow(b,'BUY label',p,'showLabels','buyCol',[['lblSize',XL_SZ5]]); stRow(b,'SELL label',p,'showLabels','sellCol'); stRow(b,'Entry marker (dot)',p,'showEntryMark','entryMarkCol'); stRow(b,'Avg time marker (dot)',p,'showAvgDot','avgDotCol',[['avgDotSize',XL_SZ5]]);
+  head('TRADE LINES AND ZONES'); stRow(b,'Entry line',p,'showTradeLines','entryCol'); stRow(b,'SL line',p,'showTradeLines','slCol'); stRow(b,'TP line',p,'showTradeLines','tpCol'); stRow(b,'SL zone shading',p,'showZone','slZoneCol'); stRow(b,'TP zone shading',p,'showZone','tpZoneCol');
+  stRow(b,'Exit X',p,'showX','xCol'); fld(b,p,'showTradeLbl','chk','Show Entry / SL / TP price labels'); fld(b,p,'lineW','sel','Line width',{opts:[1,2,3,4],num:true});
+  head('ENGINE LINES'); stRow(b,'Trend EMA (Breakout)',p,'brkShowTrend','brkEmaCol'); stRow(b,'Donchian channel',p,'donShowChan','donChanCol'); stRow(b,'Fast MA (MA Cross)',p,'maShowMAs','maFastCol'); stRow(b,'Slow MA (MA Cross)',p,'maShowMAs','maSlowCol'); stRow(b,'Trend MA (MA Cross)',p,'maShowMAs','maTrendCol'); stRow(b,'Supertrend line (BUY / SELL colors)',p,'stShowLine','buyCol');
+  head('OUTPUT VALUES'); fld(b,p,'valuesStatus','chk','Values in status line'); head('INPUT VALUES'); fld(b,p,'inputsStatus','chk','Inputs in status line');
+}
+
+// ---------- [xlb] registration under "Premium Strategy" ----------
+IND.xlb={label:XL_NAME,title:XL_NAME,cat:'Premium Strategy',cols:[],calc:()=>[],live:true,
+  nm:p=>XL_NAME+(p.inputsStatus?' '+p.mode:''),
+  status:i=>i.p.valuesStatus!==false&&i._xr&&i._xr.stat?'  '+i._xr.stat:'',
+  p:XL_DEF, inputsTab:xlInputs, styleTab:xlStyle, visTab:typeof sbxVis==='function'?sbxVis:undefined,
+  visOk:i=>{ const [u,m]=tfUnit(), v=i.p.vr&&i.p.vr[u]; return !v||(v.on&&m>=v.min&&m<=v.max); },
+  extras:(c,p,inst)=>xlRun(c,p,inst)};
+// ================= end of [xlb] Buy/Sell Signals XL =================
+try{ DESC.xlb='Premium strategy \u00b7 six BUY / SELL engines (OC, Breakout, Donchian, MA Cross, Supertrend, Aroon) with SL / TP lines, lookback P/L box, multi-timeframe and engine scanners'; }catch(e){}   // picker description
+}catch(err){ console.error('xlb strategy failed',err); window.__xlbErr=err; }
+
+// ---- [pfm] INDICATOR: PO3 Fractal Matrix+ - HTF candle block with the C1-C4 sequence, T-Spots, sequence CISD, SMT, PSP, dividers, PDH / PDL and checklist ----
+// The fractal model runs on one higher-time-frame candle, folded from the chart candles: C2 trades through one side of C1 and closes back inside its body (or the C3 closure),
+// the T-Spot is the half of the candle where the next wick should form, a CISD after C2's extreme and a SMT / PSP against correlated assets confirm it.
+try{
+const PF_DEF={htf:'Auto',cnt:5,off:10,wid:3,dayOff:0,dir:'Both',gate:'Wait for xC2',c3:true,spot:'Easy',zone:'EQ',keep3:true,spotEq:true,
+  assets:'Auto',a1:'',a2:'',a3:'',i1:false,i2:false,i3:false,smt:true,smtTfs:'15m,1H,4H,1D',smtLook:4,smtLn:true,smtLbl:true,psp:true,pspAll:false,
+  tags:true,sweep:true,divs:true,pd:true,mid:true,list:true,lpos:'Bottom Center',theme:'Dark',cUp:'#7246CE',cDn:'#8a8f9c'};
+const pfSec=iv=>{ const m=/^(\d+)([mhdwM])$/.exec(iv||''); return m?(+m[1])*({m:60,h:3600,d:86400,w:604800,M:2629800}[m[2]]):0; };
+const pfNm=s=>s>=2419200?Math.round(s/2629800)+'M':s>=604800?Math.round(s/604800)+'W':s>=86400?Math.round(s/86400)+'D':s>=3600&&s%3600===0?(s/3600)+'H':Math.round(s/60)+'m';
+const pfRgba=(c,a)=>{ const m=/^#?([0-9a-f]{6})$/i.exec(String(c||'')); if(!m) return c; const n=parseInt(m[1],16); return 'rgba('+(n>>16&255)+','+(n>>8&255)+','+(n&255)+','+a+')'; };
+const pfFmt=v=>v==null||!isFinite(v)?'-':Math.abs(v)>=1000?v.toFixed(1):Math.abs(v)>=100?v.toFixed(2):v.toPrecision(5);
+const pfKey=(t,s,o)=>{ if(s>=2419200){ const d=new Date((t-o*3600)*1000); return d.getUTCFullYear()*12+d.getUTCMonth(); } return Math.floor((t-o*3600+(s===604800?345600:0))/s); };
+const pfOpenT=(k,s,o)=>{ if(s>=2419200) return Date.UTC(Math.floor(k/12),k%12,1)/1000+o*3600; return k*s-(s===604800?345600:0)+o*3600; };
+const pfExt=(g,s)=>s===-1?g.h:g.l, pfExtT=(g,s)=>s===-1?g.hiT:g.loT, pfExtB=(g,s)=>s===-1?g.hiB:g.loB;
+// assets: other Binance symbols read on the chart interval (fetched once, cached)
+const pfA={};
+function pfAssetList(p){ if(p.assets==='Auto'){ const m=/^(.*?)(USDT|USDC|FDUSD|BUSD)$/.exec(String(sym[0])); if(!m) return []; const b=m[1], q=m[2]; const g=b==='BTC'?['ETH','SOL','BNB']:b==='ETH'?['BTC','SOL','BNB']:[]; return g.map(x=>({s:x+q,inv:false})); }
+  return [[p.a1,p.i1],[p.a2,p.i2],[p.a3,p.i3]].filter(x=>String(x[0]||'').trim()).map(x=>({s:String(x[0]).trim().toUpperCase(),inv:!!x[1]})); }
+function pfAsset(s){ const key=s+'|'+tf[1]; let d=pfA[key]; if(!d) d=pfA[key]={m:null,ts:0,busy:false};
+  if(!d.busy&&Date.now()-d.ts>60000){ d.busy=true; fetch(`${RB(s)}/klines?symbol=${s}&interval=${tf[1]}&limit=1000`).then(r=>r.json()).then(a=>{ if(Array.isArray(a)&&a.length){ const m={}; a.forEach(x=>{ m[x[0]/1000]={o:+x[1],h:+x[2],l:+x[3],c:+x[4]}; }); d.m=m; } }).catch(()=>{}).then(()=>{ d.busy=false; d.ts=Date.now(); try{ render(); }catch(e){} }); }
+  return d.m; }
+function pfCompute(c,p){ const N=c.length, D={ok:false,N}; const cs=pfSec(tf[1]); if(N<30||!cs) return D;
+  // HTF pick
+  const opts=cs<300?[900,3600,14400]:cs<900?[3600,14400,86400]:cs<3600?[14400,86400,604800]:[86400,604800,2629800];
+  let hs=p.htf==='Auto'?0:pfSec(p.htf.toLowerCase().replace('1d','1d')); if(!hs){ hs=opts.find(x=>x/cs>=12)||(opts[2]/cs>1?opts[2]:opts[1]/cs>1?opts[1]:opts[0]); } if(hs<=cs) return D;
+  const al=pfAssetList(p), AM=al.map(a=>pfAsset(a.s)), inv=al.map(a=>a.inv), nA=al.length;
+  const peerAt=(k,t)=>{ const m=AM[k]; const r=m&&m[t]; return r?{o:r.o,h:r.h,l:r.l,c:r.c,seen:true}:null; };
+  const mkPeers=t=>{ const o=[]; for(let k=0;k<nA;k++){ const q=peerAt(k,t); o.push(q||{seen:false}); } return o; };
+  const ingest=(book,key,openT,cap,i)=>{ const b=c[i]; let g=book.length?book[book.length-1]:null;
+    if(!g||g.key!==key){ book.push({key,t:openT,o:b.open,h:b.high,l:b.low,c:b.close,hiB:i,loB:i,hiT:b.time,loT:b.time,oB:i,full:book.length>0,peers:mkPeers(b.time)}); while(book.length>cap) book.shift(); }
+    else { g.c=b.close; if(b.high>g.h){ g.h=b.high; g.hiB=i; g.hiT=b.time; } if(b.low<g.l){ g.l=b.low; g.loB=i; g.loT=b.time; }
+      g.peers.forEach((pr,k)=>{ const q=peerAt(k,b.time); if(!q) return; if(pr.seen){ pr.h=Math.max(pr.h,q.h); pr.l=Math.min(pr.l,q.l); } else { pr.o=q.o; pr.h=q.h; pr.l=q.l; pr.seen=true; } pr.c=q.c; }); } };
+  const thin=g=>Math.abs(g.c-g.o)<(g.h-g.l)*0.1;
+  const psp=g=>{ let rd=0,ag=0; const me=Math.sign(g.c-g.o); g.peers.forEach((pr,k)=>{ if(pr.seen&&pr.o!=null){ rd++; if(Math.sign(pr.c-pr.o)*(inv[k]?-1:1)!==me) ag++; } }); return rd>0&&(p.pspAll?ag===rd:ag>0); };
+  const book=[], rec=[], marks=[], cap=Math.max(17,p.cnt+3);
+  const c1Of=i=>{ if(i>=1&&!thin(book[i-1])) return i-1; if(i>=2&&thin(book[i-1])&&!thin(book[i-2])) return i-2; return -1; };
+  const holds=(i,s)=>{ const e=pfExt(book[i],s); for(let j=i+1;j<book.length;j++){ const x=pfExt(book[j],s); if(s===-1?x>e:x<e) return false; } return true; };
+  const seqAt=(s,i)=>{ const n=book.length, j=c1Of(i); if(j<0) return null; const a=book[j], b=book[i], forming=i===n-1, took=s===-1?b.h>a.h:b.l<a.l, far=s===-1?b.l<a.l:b.h>a.h;
+    const inB=b.c<Math.max(a.o,a.c)&&b.c>Math.min(a.o,a.c);
+    if(took&&(forming||inB)){ if(holds(i,s)) return {side:s,c1:j,c2:i,phase:n-1-i+2,both:far,viaC3:false}; }
+    else if(p.c3&&took&&!forming){ const d=book[i+1], past=s===-1?b.c>a.h:b.c<a.l, back=s===-1?d.c<Math.min(b.o,b.c):d.c>Math.max(b.o,b.c); if(past&&back&&holds(i,s)) return {side:s,c1:j,c2:i,phase:n-1-i+2,both:false,viaC3:true}; }
+    return null; };
+  const evalS=s=>{ const n=book.length; if(n<2) return null; for(let i=n-1;i>=Math.max(1,n-3);i--){ const h=seqAt(s,i); if(h) return h; } return null; };
+  const snap=g=>g?{t:g.t,o:g.o,h:g.h,l:g.l,c:g.c,hiB:g.hiB,loB:g.loB,hiT:g.hiT,loT:g.loT,oB:g.oB,full:g.full}:{};
+  const forming=r=>r.live&&r.phase===(r.viaC3?3:2);
+  const sync=(h,s)=>{ let liveT=null; if(h){ const a=book[h.c1], b=book[h.c2]; liveT=b.t; let r=rec.find(x=>x.side===s&&x.c2.t===b.t);
+      if(!r){ r={side:s,c1:{},c2:{},c3:{},c4:{},phase:0,live:false,both:false,viaC3:false,psp:false,smt:false,spent3:false,spent4:false,cxB:null}; rec.push(r); if(rec.length>10) rec.shift(); }
+      r.c1=snap(a); r.c2=snap(b); r.both=h.both; r.viaC3=h.viaC3; r.phase=Math.max(r.phase,h.phase); r.live=true;
+      if(r.cxB!=null&&r.cxB<=pfExtB(r.c2,s)){ r.cxB=r.cxT=r.cxStartT=r.cxLvl=r.cxBrokeT=null; }
+      if(h.phase>=3) r.c3=snap(book[h.c2+1]); if(h.phase>=4) r.c4=snap(book[h.c2+2]); r.psp=psp(b);
+      // HTF candle SMT at C2: the chart's C2 took C1's extreme, a correlated asset's C2 did not (once C2 has closed)
+      if(nA&&p.smt&&!forming(r)){ const hi=k=>(s===-1)!==inv[k], A1=a.peers, A2=b.peers; let dv=0; for(let k=0;k<nA;k++){ if(A1[k]&&A2[k]&&A1[k].seen&&A2[k].seen){ const r1=hi(k)?A1[k].h:A1[k].l, r2=hi(k)?A2[k].h:A2[k].l; if(hi(k)?r2<=r1:r2>=r1) dv++; } } if(dv>0) r.smt=true; } }
+    rec.forEach(x=>{ if(x.side===s){ const still=h&&x.c2.t===liveT; if(x.live&&!still) x.doneT=1; x.live=!!still; } }); };
+  const zone=(r,w)=>{ const g=w===3?r.c2:r.c3; if((w===3&&r.viaC3)||g.c==null) return null; let far=null,mid=null,top,bot;
+    if(p.zone==='EQ'){ if(w===3){ const ag=r.side===1?g.c<=g.o:g.c>=g.o; far=ag?g.c:pfExt(g,-r.side); mid=ag?(g.c+pfExt(g,r.side))/2:(g.h+g.l)/2; }
+      else if(r.viaC3||(r.side===1?g.c>r.c2.h:g.c<r.c2.l)){ far=pfExt(g,-r.side); mid=(g.h+g.l)/2; } if(far==null) return null; top=Math.max(far,mid); bot=Math.min(far,mid); }
+    else { const dp=(w===3?50:25)/100, inn=g.c-r.side*(g.h-g.l)*dp; top=Math.max(g.c,inn); bot=Math.min(g.c,inn); }
+    return {top,bot,eq:r.side===1?bot:top}; };
+  const strong=r=>{ const sp=r.c1.h-r.c1.l, eq=(r.c1.h+r.c1.l)/2, run=r.side===1?r.c1.l-r.c2.l:r.c2.h-r.c1.h, pa=r.side===1?r.c2.c>eq:r.c2.c<eq; return pa&&sp>0&&run>=sp*0.1; };
+  const spotOk=r=>{ const cx=r.cxB!=null; switch(p.spot){ case 'Easy': return cx||r.smt; case 'Medium': return cx&&r.smt; case 'Hard': return cx&&r.smt&&r.psp; case 'Max': return cx&&r.smt&&r.psp&&!r.both&&strong(r); default: return true; } };
+  const sideOk=s=>p.dir==='Both'||(p.dir==='Bullish only'?s===1:s===-1);
+  const otherAlive=r=>rec.some(o=>o.side===-r.side&&o.c2.t===r.c2.t&&o.live);
+  const visible=r=>{ let ok=sideOk(r.side); if(ok&&r.both&&p.gate==='Wait for xC2') ok=r.live?!otherAlive(r):r.phase>=4; return ok; };
+  const spentNow=(r,w)=>{ const g=w===3?r.c3:r.c4; if(g.t==null) return false; const z=zone(r,w); if(!z) return false; let cl=null;
+    if(p.zone==='EQ'){ const i=book.findIndex(x=>x.t===g.t); if(i>=0&&i<book.length-1) cl=book[i].c; } else if(r.phase>=w) cl=book[book.length-1].c;
+    return cl!=null&&(r.side===1?cl<z.bot:cl>z.top); };
+  // chart SMT timeframes
+  const names={'15m':900,'30m':1800,'1H':3600,'90m':5400,'4H':14400,'6H':21600,'1D':86400}, depthOf={900:4,1800:4,3600:6,5400:6,14400:14,21600:10,86400:10};
+  const lanes=p.smt&&nA?String(p.smtTfs).split(',').map(x=>x.trim()).map(x=>names[x]||names[x.toUpperCase()]||names[x.toLowerCase()]).filter(s=>s&&s/cs>=6&&s/cs<=100).map(s=>({sec:s,depth:p.smtLook?Math.max(p.smtLook,depthOf[s]||6):depthOf[s]||6,book:[]})):[];
+  const untouched=(bk,r,dir)=>{ const lv=pfExt(bk[r],dir); for(let j=r+1;j<=bk.length-2;j++){ const x=pfExt(bk[j],dir); if(dir===-1?x>=lv:x<=lv) return false; } return true; };
+  const scan=(L,i)=>{ const bk=L.book, n=bk.length; if(n<2) return; const take=bk[n-1];
+    [-1,1].forEach(dir=>{ let got=0; const used=[]; for(let back=1;back<=L.depth;back++){ const r=n-1-back; if(r<0||got>=1||!bk[r].full) continue; const ref=bk[r], lv=pfExt(ref,dir);
+      if(!untouched(bk,r,dir)) continue; const took=dir===-1?take.h>lv:take.l<lv; let rd=0,off=0,who=[];
+      for(let k=0;k<nA;k++){ const pr=ref.peers[k], pt=take.peers[k]; if(pr&&pt&&pr.seen&&pt.seen){ rd++; const ad=inv[k]?-dir:dir, tk=ad===-1?pt.h>pr.h:pt.l<pr.l; if(tk!==took){ off++; who.push(al[k].s.replace(/(USDT|USDC|FDUSD|BUSD)$/,'')); } } }
+      if(rd>0&&off>0&&used.every(u=>Math.abs(u-lv)>cs*0)){ got++; used.push(lv); let d=marks.find(x=>x.sec===L.sec&&x.dir===dir&&x.refOpen===ref.t&&x.takeOpen===take.t); if(!d){ d={sec:L.sec,dir,refOpen:ref.t,takeOpen:take.t}; marks.push(d); }
+        Object.assign(d,{refPx:lv,takePx:pfExt(take,dir),refAt:pfExtT(ref,dir),takeAt:pfExtT(take,dir),who:who.join('+'),seen:i}); } } }); };
+  const gone=(d,i)=>{ const L=lanes.find(x=>x.sec===d.sec); if(!L||!L.book.length) return true; const live=d.takeOpen===L.book[L.book.length-1].t, b=c[i];
+    return d.refOpen<L.book[0].t||(live&&d.seen!==i)||(!live&&(d.dir===-1?b.high>Math.max(d.refPx,d.takePx):b.low<Math.min(d.refPx,d.takePx))); };
+  const clean=i=>{ for(let k=marks.length-1;k>=0;k--) if(gone(marks[k],i)) marks.splice(k,1);
+    for(let k=marks.length-1;k>=0;k--){ const a=marks[k]; if(marks.some(b=>b!==a&&b.dir===a.dir&&b.sec>a.sec&&(b.takeAt===a.takeAt&&Math.abs(b.takePx-a.takePx)<=cs*1e-9||b.refAt===a.refAt&&Math.abs(b.refPx-a.refPx)<=cs*1e-9))) marks.splice(k,1); }
+    const seen={}; for(let k=marks.length-1;k>=0;k--){ const d=marks[k], kk=d.sec+'|'+d.dir; if(seen[kk]) marks.splice(k,1); else seen[kk]=1; } };
+  // sequence CISD: a close back through the open of the opposing run before it (2+ candles, within 60 bars)
+  const run={dn:{o:null,b:0,n:0,t:0},up:{o:null,b:0,n:0,t:0}};
+  const step=(r,same,bef,i)=>{ if(same){ if(bef) r.n++; else { r.n=1; r.o=c[i].open; r.b=i; r.t=c[i].time; } } };
+  const lastN=Math.min(N,4000), s0=N-lastN;
+  for(let i=s0;i<N;i++){ const b=c[i], conf=i<N-1; ingest(book,pfKey(b.time,hs,p.dayOff),pfOpenT(pfKey(b.time,hs,p.dayOff),hs,p.dayOff),cap,i);
+    lanes.forEach(L=>{ const k=pfKey(b.time,L.sec,0); ingest(L.book,k,pfOpenT(k,L.sec,0),L.depth+2,i); scan(L,i); }); if(lanes.length) clean(i);
+    const dnB=i>s0&&c[i-1].close<c[i-1].open, upB=i>s0&&c[i-1].close>c[i-1].open; step(run.dn,b.close<b.open,dnB,i); step(run.up,b.close>b.open,upB,i);
+    let cxSide=0,cxLvl=null,cxT0=null;
+    if(conf){ [[run.dn,1],[run.up,-1]].forEach(([r,sd])=>{ if(cxSide===0&&r.o!=null&&r.n>=2&&i-r.b<=60&&(sd===1?b.close>b.open&&b.close>r.o:b.close<b.open&&b.close<r.o)){ cxSide=sd; cxLvl=r.o; cxT0=r.t; r.o=null; r.n=0; } });
+      sync(evalS(-1),-1); sync(evalS(1),1);
+      if(cxSide) rec.forEach(r=>{ if(r.live&&r.side===cxSide&&r.cxB==null&&pfExtB(r.c2,r.side)!=null&&i>pfExtB(r.c2,r.side)){ r.cxB=i; r.cxT=b.time; r.cxStartT=cxT0; r.cxLvl=cxLvl; } }); }
+    rec.forEach(r=>{ if(r.live&&!r.smt&&lanes.length) marks.forEach(d=>{ if(d.dir===r.side&&d.sec<=hs&&d.takeAt>=r.c2.t&&(r.c3.t==null||d.takeAt<r.c3.t)) r.smt=true; });
+      if(r.cxB!=null&&r.cxBrokeT==null&&i>r.cxB&&(r.side===1?b.close<r.cxLvl:b.close>r.cxLvl)) r.cxBrokeT=b.time;
+      r.spent3=r.spent3||spentNow(r,3); r.spent4=r.spent4||spentNow(r,4); }); }
+  // the one sequence drawn: the newest that passes the filter; a running closed one first
+  let shown=null; for(let i=rec.length-1;i>=0&&!shown;i--){ const r=rec[i]; if(r.live&&!forming(r)&&visible(r)&&spotOk(r)) shown=r; }
+  for(let i=rec.length-1;i>=0&&!shown;i--){ const r=rec[i]; if(visible(r)&&(r.live||r.phase>=(r.viaC3?4:3))&&spotOk(r)) shown=r; }
+  const pend=p.gate!=='Immediate'&&!shown&&rec.some(a=>a.live&&rec.some(b=>b!==a&&b.live&&b.c2.t===a.c2.t&&b.side!==a.side));
+  // previous-day high / low on the chart
+  let pdH=null,pdL=null,dh=null,dl=null,dhT=0,dlT=0,pdHT=0,pdLT=0,pdk=null; for(let i=s0;i<N;i++){ const k=Math.floor(c[i].time/86400); if(k!==pdk){ if(pdk!=null){ pdH=dh; pdL=dl; pdHT=dhT; pdLT=dlT; } pdk=k; dh=c[i].high; dl=c[i].low; dhT=dlT=c[i].time; } else { if(c[i].high>dh){ dh=c[i].high; dhT=c[i].time; } if(c[i].low<dl){ dl=c[i].low; dlT=c[i].time; } } }
+  D.pd=hs<86400&&pdH!=null?{h:pdH,l:pdL,hT:pdHT,lT:pdLT,hTk:c.slice(-N).some(x=>x.time>pdHT&&x.high>pdH),lTk:c.slice(-N).some(x=>x.time>pdLT&&x.low<pdL)}:null;
+  Object.assign(D,{ok:true,book,rec,shown,marks,lanes,hs,cs,pend,al,nA,hasData:AM.some(m=>!!m),zone,spotOk,forming:forming(shown||{})}); D.zoneOf=zone; return D; }
+let pfMem=null;
+function pfGet(c,p){ const N=c.length, key=JSON.stringify(p)+'|'+tf[1]+'|'+sym[0]+'|'+N+'|'+(N?c[N-1].time+'|'+c[N-1].close+'|'+c[N-1].high+'|'+c[N-1].low:'')+'|'+Object.keys(pfA).map(k=>pfA[k].m?1:0).join('');
+  if(pfMem&&pfMem.k===key) return pfMem.D; let D; try{ D=pfCompute(c,p); }catch(e){ console.error('pfm calc failed',e); D={ok:false,N}; } pfMem={k:key,D}; return D; }
+IND.pfm={label:'PO3 Fractal Matrix+ \u00b7 C1-C4 sequence, T-Spot, CISD, SMT, PSP',cat:'Trend',nm:()=>'PO3 Fractal Matrix+',p:Object.assign({},PF_DEF),cols:['#7246CE'],
+  fields:[['htf','sel','HTF candle timeframe',{opts:['Auto','15m','1h','4h','1d','1w']}],['cnt','num','HTF candles shown',{min:1,max:15}],['off','num','Bars right of price',{min:2,max:100}],['wid','num','Candle width (bars)',{min:1,max:9,step:2}],['dayOff','num','HTF open offset (hours from UTC)',{min:-12,max:12}],
+    ['dir','sel','Sequence direction',{opts:['Both','Bullish only','Bearish only']}],['gate','sel','C2 through both sides',{opts:['Wait for xC2','Immediate']}],['c3','chk','C3 closures'],
+    ['spot','sel','T-Spot filter',{opts:['Open','Easy','Medium','Hard','Max']}],['zone','sel','T-Spot measured',{opts:['EQ','Depth %']}],['keep3','chk','Keep C3 T-Spot during C4'],['spotEq','chk','T-Spot EQ line'],
+    ['assets','sel','Correlated assets',{opts:['Auto','Manual']}],['a1','txt','Asset 1 (Binance symbol)'],['i1','chk','Asset 1 inverse'],['a2','txt','Asset 2'],['i2','chk','Asset 2 inverse'],['a3','txt','Asset 3'],['i3','chk','Asset 3 inverse'],
+    ['smt','chk','Show SMT'],['smtTfs','txt','SMT time frames (15m,30m,1H,90m,4H,6H,1D)'],['smtLook','num','SMT lookback (candles)',{min:1,max:20}],['smtLn','chk','SMT lines on chart'],['smtLbl','chk','SMT asset labels'],['psp','chk','PSP candles'],['pspAll','chk','Every asset must disagree'],
+    ['tags','chk','C1 / C2 / C3 / C4 tags'],['sweep','chk','C1 sweep line'],['divs','chk','HTF candle dividers'],['pd','chk','PDH / PDL on the chart'],['mid','chk','Candle midpoints'],['list','chk','Checklist'],['lpos','sel','Checklist position',{opts:['Bottom Center','Bottom Right','Bottom Left','Middle Left','Middle Right','Top Left']}],
+    ['theme','sel','Theme',{opts:['Dark','Light']}],['cUp','col','Bullish colour'],['cDn','col','Bearish colour']],
+  calc:()=>[[]],
+  extras:(c,p)=>{ const q=Object.assign({},PF_DEF,p); return {mk:[],boxes:[{type:'pfmview',pts:[],o:q,D:pfGet(c,q)}],labels:[]}; }};
+{ const _D=draw; draw=function(d,X,Y,W,H){ if(!d||d.type!=='pfmview') return _D.apply(this,arguments);
+  const p=d.o, D=d.D, n0=candles.length; if(!D||!D.ok||n0<5) return; const dark=p.theme!=='Light', ink=dark?'#e6e8ee':'#131722', UP=p.cUp, DN=p.cDn, book=D.book;
+  cx.save(); cx.beginPath(); cx.rect(0,0,W,H); cx.clip(); cx.setLineDash([]); cx.textBaseline='middle';
+  const xe=X(n0-1), xp=X(n0-2), bw=(xe!=null&&xp!=null)?Math.max(1,xe-xp):6, xb=i=>(xe==null?W*0.8:xe)+bw*(i-(n0-1));
+  const tIdx=t=>{ let lo=0,hi=n0-1; while(lo<hi){ const m=(lo+hi+1)>>1; if(candles[m].time<=t) lo=m; else hi=m-1; } return lo; }, xt=t=>t<candles[0].time?xb(0):xb(tIdx(t)), xcl=x=>Math.max(-50,Math.min(W+50,x));
+  const ln=(x1,x2,y,col,dash,w)=>{ if(y==null) return; cx.strokeStyle=col; cx.lineWidth=w||1; cx.setLineDash(dash||[]); cx.beginPath(); cx.moveTo(xcl(x1),y); cx.lineTo(xcl(x2),y); cx.stroke(); cx.setLineDash([]); };
+  const sl=(x1,y1,x2,y2,col,dash)=>{ if(y1==null||y2==null) return; cx.strokeStyle=col; cx.lineWidth=1; cx.setLineDash(dash||[]); cx.beginPath(); cx.moveTo(x1,y1); cx.lineTo(x2,y2); cx.stroke(); cx.setLineDash([]); };
+  const tx=(t,x,y,col,al,fs,b)=>{ cx.font=(b?'bold ':'')+(fs||9)+'px system-ui'; cx.fillStyle=col||ink; cx.textAlign=al||'center'; cx.fillText(t,x,y); };
+  const box=(x1,y1,x2,y2,col,al)=>{ if(y1==null||y2==null) return; cx.fillStyle=pfRgba(col,al); cx.fillRect(Math.min(x1,x2),Math.min(y1,y2),Math.abs(x2-x1),Math.max(1,Math.abs(y2-y1))); };
+  const n=book.length, sh=D.shown, S=sh?sh.side:0, ci=t=>book.findIndex(g=>g.t===t), step=p.wid+1, half=(p.wid-1)/2, nS=Math.min(Math.max(p.cnt,sh?n-ci(sh.c1.t):0),n);
+  const x0b=n0-1+p.off, xr=xb(x0b+nS*step+7), edge=xb(n0-1+Math.max(1,p.off-7));
+  // chart marks of the drawn sequence
+  const tag=(t,x,y,up)=>{ if(y==null) return; tx(t,x,y+(up?11:-11),ink,'center',9,true); };
+  if(sh){ const s=sh.side, up=s===1; const t1=pfExtT(sh.c1,s), t2=pfExtT(sh.c2,s), p1=pfExt(sh.c1,s), p2=pfExt(sh.c2,s);
+    if(p.sweep&&t1!=null){ const to=sh.phase>=3&&sh.c3.t!=null?sh.c3.t:candles[n0-1].time; ln(xt(t1),xt(to),Y(p1),ink,[],1); }
+    if(p.tags&&t1!=null&&t2!=null){ tag('C2'+(sh.both?'':'')+(D.nA&&sh.smt?'+SMT':'')+(sh.live&&sh.phase===(sh.viaC3?3:2)&&!sh.viaC3?'?':'')+(sh.psp&&p.psp?' PSP':''),xt(t2),Y(p2),up); tag('C1',xt(t1),Y(p1),up);
+      const hc=D.hs/D.cs/2*bw; if(sh.phase>=3&&sh.c3.t!=null&&pfExtT(sh.c3,s)!=null) tag('C3',xt(sh.c3.t)+hc,Y(pfExt(sh.c3,s)),up); if(sh.phase>=4&&sh.c4.t!=null&&pfExtT(sh.c4,s)!=null) tag('C4',xt(sh.c4.t)+hc,Y(pfExt(sh.c4,s)),up); }
+    // T-Spots
+    [3,4].forEach(w=>{ const g=w===3?sh.c3:sh.c4, spent=w===3?sh.spent3:sh.spent4; if(g.t==null) return; let xe2=w===3&&sh.phase>=4&&sh.c4.t!=null?xt(sh.c4.t):edge; const z=D.zoneOf(sh,w); if(!z||xe2<=xt(g.t)) return; const xs=xt(g.t), eq=z.eq, col=sh.side===1?UP:DN;
+      if(spent&&p.spot!=='Open'){ ln(xs,xe2,Y(eq),DN,[2,3],1); tx('XC'+w,xs+4,Y(eq)+(s===1?9:-9),DN,'left',8); }
+      else if(sh.phase>=w&&(w===4||sh.phase<4||p.keep3)){ box(xs,Y(z.top),xe2,Y(z.bot),col,dark?0.22:0.14); if(p.spotEq) ln(xs,xe2,Y(eq),col,[],1); tx('C'+w+' T-Spot',xe2+3,Y((z.top+z.bot)/2),ink,'left',8); } });
+    // sequence CISD
+    if(sh.cxB!=null&&sh.cxStartT!=null){ const col=sh.side===1?UP:DN; ln(xt(sh.cxStartT),xt(sh.cxT)+bw*3,Y(sh.cxLvl),col,sh.cxBrokeT?[2,3]:[],1); tx('CISD',xt(sh.cxT)+bw*3+3,Y(sh.cxLvl),ink,'left',8); } }
+  // SMT lines
+  if(p.smt&&p.smtLn) D.marks.forEach(m=>{ if(m.takeAt<=m.refAt) return; const x1=xt(m.refAt), x2=xt(m.takeAt), y1=Y(m.refPx), y2=Y(m.takePx); sl(x1,y1,x2,y2,UP); if(y1!=null){ cx.fillStyle=UP; cx.beginPath(); cx.arc(x1,y1,2,0,6.3); cx.fill(); }
+    if(p.smtLbl&&y2!=null) tx(m.who||(pfNm(m.sec)+' SMT'),x2,y2+(m.dir===-1?-9:9),UP,'center',8); });
+  // dividers
+  if(p.divs&&n>1){ const vis=book.slice(-p.cnt); let hi=-Infinity,lo=Infinity; vis.forEach(g=>{ hi=Math.max(hi,g.h); lo=Math.min(lo,g.l); }); vis.forEach(g=>{ if(g.t<candles[0].time) return; const x=xt(g.t), y1=Y(hi), y2=Y(lo); if(y1==null||y2==null) return; ln2(x,y1,y2); if(D.hs>=86400) tx(new Date(g.t*1000).toUTCString().slice(0,3),x,y1-8,ink,'center',8); else tx(new Date(g.t*1000).toISOString().slice(11,16),x,y2+9,ink,'center',8); }); }
+  function ln2(x,y1,y2){ cx.strokeStyle=pfRgba(ink,0.45); cx.lineWidth=1; cx.setLineDash([1,3]); cx.beginPath(); cx.moveTo(x,y1); cx.lineTo(x,y2); cx.stroke(); cx.setLineDash([]); }
+  // PDH / PDL
+  if(p.pd&&D.pd){ const q=D.pd, xR=xb(n0+2); [['PDH',q.h,q.hT,q.hTk],['PDL',q.l,q.lT,q.lTk]].forEach(a=>{ const y=Y(a[1]); ln(xt(a[2]),xR,y,ink,a[3]?[2,3]:[],1); tx(a[0],xR+3,y,ink,'left',9); }); }
+  // HTF candle block
+  const bwc=(i)=>xb(x0b+i*step+half), bt=[]; const pspOf=(k)=>{ const g=book[k], pv=book[k-1]; return p.psp&&k>=1&&pv&&(g.h>pv.h||g.l<pv.l)&&hasPsp(g); };
+  function hasPsp(g){ let rd=0,ag=0; const me=Math.sign(g.c-g.o); g.peers.forEach((pr,k)=>{ if(pr.seen&&pr.o!=null){ rd++; const th=Math.sign(pr.c-pr.o)*(p['i'+(k+1)]&&p.assets==='Manual'?-1:1); if(th!==me) ag++; } }); return rd>0&&(p.pspAll?ag===rd:ag>0); }
+  let hiV=-Infinity,loV=Infinity; const tagAt={}; if(sh){ const mp={}; [['c1','C1'],['c2',null],['c3','C3'],['c4','C4']].forEach(([k,nm])=>{ const g=sh[k]; if(g.t==null) return; const j=ci(g.t); if(j<0) return; if(k==='c2') tagAt[j]='C2'+(D.nA&&sh.smt?'+SMT':'')+(sh.psp&&p.psp?' PSP':''); else if(!tagAt[j]||k==='c1') tagAt[j]=nm; }); }
+  for(let i=0;i<nS;i++){ const k=n-nS+i, g=book[k]; if(!g) continue; const x=bwc(i), bull=g.c>=g.o, b1=Math.max(g.o,g.c), b2=Math.min(g.o,g.c), yb1=Y(b1), yb2=Y(b2), yh=Y(g.h), yl=Y(g.l); if(yb1==null||yb2==null||yh==null||yl==null) continue;
+    const w=bw*(p.wid), xl=x-w/2; const fill=pspOf(k)?pfRgba(bull?UP:DN,0.55):bull?(dark?'#e6e8ee':'#ffffff'):(dark?'#4b5060':'#505050');
+    cx.fillStyle=fill; cx.fillRect(xl,Math.min(yb1,yb2),w,Math.max(1,Math.abs(yb2-yb1))); cx.strokeStyle=k===n-1?UP:ink; cx.lineWidth=1; cx.strokeRect(xl,Math.min(yb1,yb2),w,Math.max(1,Math.abs(yb2-yb1)));
+    cx.strokeStyle=ink; cx.beginPath(); cx.moveTo(x,yh); cx.lineTo(x,Math.min(yb1,yb2)); cx.moveTo(x,Math.max(yb1,yb2)); cx.lineTo(x,yl); cx.stroke();
+    if(p.mid) ln(xl-bw,xl+w+bw,Y((g.h+g.l)/2),pfRgba(ink,0.5),[1,2],1);
+    hiV=Math.max(hiV,g.h); loV=Math.min(loV,g.l); if(p.tags&&tagAt[k]) tx(tagAt[k],x,yl+11,ink,'center',9,true); }
+  const hiY=Y(hiV), loY=Y(loV); if(hiY!=null){ const last=book[n-1], left=Math.max(0,last.t+D.hs-candles[n0-1].time-D.cs), nm=pfNm(D.hs), mm=Math.floor(left/60), cd=left>=86400?Math.floor(left/86400)+'d '+Math.floor(left%86400/3600)+'h':Math.floor(left/3600)+':'+String(mm%60).padStart(2,'0');
+    tx('\u25cc '+nm+' \u00b7 '+cd,bwc(nS/2-0.5),hiY-9,ink,'center',10,true); tx(nm,bwc(nS/2-0.5),loY+(Object.keys(tagAt).length?24:10),ink,'center',10,true); }
+  // previous candle high / low and the live T-Spot on the block
+  if(n>=2){ const pv=book[n-2], nm=D.hs>=86400?(D.hs>=2419200?'PM':D.hs>=604800?'PW':'PD'):pfNm(D.hs)+' ', xs=bwc(nS-2), xR2=xb(x0b+nS*step); [['H',pv.h],['L',pv.l]].forEach(a=>{ ln(xs,xR2+bw,Y(a[1]),ink,[],1); tx(nm+a[0],xR2+bw+3,Y(a[1]),ink,'left',9); }); }
+  if(sh&&p.spot!=='Open'||sh){ const w=sh.phase>=4?4:3, g=w===4?sh.c4:sh.c3, z=D.zoneOf(sh,w), j=g.t!=null?ci(g.t):-1, dead=w===4?sh.spent4:sh.spent3; if(z&&j>=0&&!(dead&&p.spot!=='Open')){ const i=j-(n-nS), col=sh.side===1?UP:DN; if(i>=0){ box(bwc(i)-bw*step/2,Y(z.top),xR2f(),Y(z.bot),col,dark?0.22:0.14); if(p.spotEq) ln(bwc(i)-bw*step/2,xR2f(),Y(z.eq),col,[],1); } } }
+  function xR2f(){ return xb(x0b+nS*step); }
+  // checklist
+  if(p.list){ const dr=sh, ph=!D.hasData&&D.nA?'':'', rows=[['PO3 Fractalized',!dr?'WAITING':dr.live?'\u25cf LIVE':'DONE'],['PHASE',dr?(dr.side===1?'\u2191 ':'\u2193 ')+(D.forming?(dr.viaC3?'C3?':dr.both?'xC2?':'C2?'):dr.both&&dr.phase===3?'xC2':'C'+dr.phase)+(dr.live?'':' done'):D.pend?'xC2 both sides':'none'],
+      [dr&&dr.viaC3?'C3 CLOSED':'C2 CLOSED',dr&&!D.forming&&dr.phase>=3?'\u2713':'\u00d7'],['CISD',dr&&dr.cxB!=null?'\u2713':'\u00d7'],['SMT',dr&&dr.smt?'\u2713':'\u00d7'],['PSP',dr&&dr.psp?'\u2713':'\u00d7'],
+      ['T-SPOT',dr&&dr.phase>=3?((dr.phase>=4?dr.spent4:dr.spent3)?'spent':'live'):'--'],['ASSETS',D.nA?D.al.map(a=>a.s.replace(/(USDT|USDC|FDUSD|BUSD)$/,'')+(a.inv?' inv':'')).join(' \u00b7 ')+(D.hasData?'':' (loading)'):'none']];
+    const fs=10,rh=fs+8,m=6; cx.font=fs+'px system-ui'; let w1=0,w2=0; rows.forEach(r=>{ w1=Math.max(w1,cx.measureText(r[0]).width); w2=Math.max(w2,cx.measureText(r[1]).width); }); const pw=w1+w2+32, phh=rows.length*rh, lp=p.lpos;
+    const x0=/Left/.test(lp)?m:/Center/.test(lp)?(W-pw)/2:W-pw-m, y0=/Top/.test(lp)?m+34:/Bottom/.test(lp)?H-phh-m-24:(H-phh)/2;
+    cx.fillStyle=dark?'rgba(14,17,26,.88)':'rgba(255,255,255,.92)'; cx.fillRect(x0,y0,pw,phh); rows.forEach((r,k)=>{ const y=y0+k*rh+rh/2; tx(r[0],x0+8,y,ink,'left',fs,k===0); tx(r[1],x0+pw-8,y,k===0?'#7246CE':ink,'right',fs,k===0); });
+    cx.strokeStyle='rgba(128,128,128,.4)'; cx.lineWidth=1; cx.strokeRect(x0,y0,pw,phh); }
+  cx.restore(); }; }
+try{ DESC.pfm='PO3 fractal model on a higher-time-frame candle: C1-C4 sequence, T-Spots, sequence CISD, SMT and PSP against correlated assets, dividers, PDH / PDL and a checklist'; }catch(e){}
+}catch(err){ console.error('pfm indicator failed',err); window.__pfmErr=err; }
+
+// ---- [f17] INDICATOR: DrFX God Mode X - Fusion17 Adaptive Consensus - 17 weighted engine votes, confirmed LONG / SHORT signals, structure, FVGs, risk geometry and HUD ----
+// Each of the 17 engines gives a bounded vote in [-1,+1]; the weighted agreement is a rule score (not a probability). Signals print on closed candles only.
+try{
+const F7_DEF={fastLen:21,slowLen:55,biasLen:200,pivotLen:5,minScore:62,minEdge:20,cool:8,regLen:24,reqTrend:true,noChop:true,gate:false,minBr:7,adapt:true,
+  showFVG:true,fvgAtr:0.22,maxGaps:6,showSw:true,showStr:true,showCloud:true,showPD:true,showRisk:true,atrStop:1.8,rr1:1.5,rr2:3,proj:22,hud:true,hpos:'Top Right',life:true,theme:'Dark',cUp:'#1ae7a0',cDn:'#ff4f7a'};
+const F7_N=['APEX Control','Crypto Hunter','Dark Knight','Fury FX','FX Pro Adaptive','GOD / Prop Hunt','ICT Structure','QMAE Entropy','RAPTOR Wave','SW Force','Trader Scalper','TRH Zones','VENOM Fusion','VP Vision','Volume Trader','Diamond HTF','AtroNox VWAP'];
+const F7_W=[1.25,1,1.1,.8,1,.75,1.2,.75,.9,.7,.9,1,.55,.7,.75,.65,.6];
+const f7c=(x,a,b)=>Math.min(b,Math.max(a,x)), f7v=x=>x==null||!isFinite(x)?null:f7c(x,-1,1), nz=(x,d)=>x==null||!isFinite(x)?(d==null?0:d):x;
+function f7ema(v,n){ const k=2/(n+1), o=new Array(v.length).fill(null); let p=null; for(let i=0;i<v.length;i++){ if(v[i]==null) continue; p=p==null?v[i]:k*v[i]+(1-k)*p; o[i]=p; } return o; }
+function f7rma(v,n){ const o=new Array(v.length).fill(null); let p=null,s=0,c=0; for(let i=0;i<v.length;i++){ if(v[i]==null) continue; if(p==null){ s+=v[i]; c++; if(c===n){ p=s/n; o[i]=p; } } else { p=(p*(n-1)+v[i])/n; o[i]=p; } } return o; }
+function f7sma(v,n){ const o=new Array(v.length).fill(null); for(let i=n-1;i<v.length;i++){ let s=0,ok=true; for(let j=i-n+1;j<=i;j++){ if(v[j]==null){ ok=false; break; } s+=v[j]; } if(ok) o[i]=s/n; } return o; }
+function f7sd(v,n){ const o=new Array(v.length).fill(null); for(let i=n-1;i<v.length;i++){ let s=0,q=0,ok=true; for(let j=i-n+1;j<=i;j++){ if(v[j]==null){ ok=false; break; } s+=v[j]; q+=v[j]*v[j]; } if(ok) o[i]=Math.sqrt(Math.max(0,q/n-(s/n)*(s/n))); } return o; }
+function f7lin(v,n,off){ const o=new Array(v.length).fill(null); for(let i=n-1+off;i<v.length;i++){ const e=i-off; let sx=0,sy=0,sxy=0,sxx=0,ok=true; for(let j=0;j<n;j++){ const y=v[e-n+1+j]; if(y==null){ ok=false; break; } sx+=j; sy+=y; sxy+=j*y; sxx+=j*j; } if(!ok) continue; const b=(n*sxy-sx*sy)/(n*sxx-sx*sx), a=(sy-b*sx)/n; o[i]=a+b*(n-1); } return o; }
+const f7hi=(v,i,n)=>{ let m=-Infinity; for(let j=Math.max(0,i-n+1);j<=i;j++) if(v[j]>m) m=v[j]; return m; }, f7lo=(v,i,n)=>{ let m=Infinity; for(let j=Math.max(0,i-n+1);j<=i;j++) if(v[j]<m) m=v[j]; return m; };
+function f7htf(c,sec,cs){ // last CLOSED higher-time-frame close and its EMA50 on that candle's close, per bar
+  const o=new Array(c.length).fill(null); if(sec<=cs) return o; const cl=[]; let key=null,last=null; const E=[]; let e=null;
+  for(let i=0;i<c.length;i++){ const k=Math.floor(c[i].time/sec); if(key!=null&&k!==key){ cl.push(last); e=e==null?last:last*(2/51)+e*(1-2/51); E.push(e); } key=k; last=c[i].close; if(E.length) o[i]={c:cl[cl.length-1],e:E[E.length-1],ok:cl.length>=2}; } return o; }
+function f7calc(c,p){ const N=c.length, D={ok:false,N}; if(N<60) return D; const cs=c.length>1?c[N-1].time-c[N-2].time:60;
+  const O=c.map(x=>x.open),H=c.map(x=>x.high),L=c.map(x=>x.low),C=c.map(x=>x.close),V=c.map(x=>x.volume),hasV=V.some(x=>x>0),T=c.map(x=>x.time);
+  const tr=C.map((_,i)=>i?Math.max(H[i]-L[i],Math.abs(H[i]-C[i-1]),Math.abs(L[i]-C[i-1])):H[i]-L[i]); const atr=f7rma(tr,14), atrA=f7sma(atr,50), mt=1e-9;
+  const eF=f7ema(C,p.fastLen), eS=f7ema(C,p.slowLen), eB=f7ema(C,p.biasLen), hlc=C.map((_,i)=>(H[i]+L[i]+C[i])/3);
+  // RSI, MACD, DMI/ADX
+  const chg=C.map((x,i)=>i?x-C[i-1]:null), rsiG=f7rma(chg.map(x=>x==null?null:Math.max(x,0)),14), rsiL=f7rma(chg.map(x=>x==null?null:Math.max(-x,0)),14), rsi=rsiG.map((g,i)=>g==null||rsiL[i]==null?null:rsiL[i]===0?100:100-100/(1+g/rsiL[i]));
+  const e12=f7ema(C,12), e26=f7ema(C,26), ml=C.map((_,i)=>e12[i]-e26[i]), sg=f7ema(ml,9), mh=ml.map((x,i)=>x-sg[i]);
+  const pdm=C.map((_,i)=>i?(H[i]-H[i-1]>L[i-1]-L[i]&&H[i]-H[i-1]>0?H[i]-H[i-1]:0):null), mdm=C.map((_,i)=>i?(L[i-1]-L[i]>H[i]-H[i-1]&&L[i-1]-L[i]>0?L[i-1]-L[i]:0):null);
+  const tr14=f7rma(tr,14), pD=f7rma(pdm,14).map((x,i)=>x==null||!tr14[i]?null:100*x/tr14[i]), mD=f7rma(mdm,14).map((x,i)=>x==null||!tr14[i]?null:100*x/tr14[i]), dx=pD.map((x,i)=>x==null||mD[i]==null||x+mD[i]===0?null:100*Math.abs(x-mD[i])/(x+mD[i])), adx=f7rma(dx,14);
+  // Supertrend(2.7, 11): up = true when bullish
+  const a11=f7rma(tr,11), stUp=new Array(N).fill(true); { let fu=null,fl=null,up=true; for(let i=0;i<N;i++){ if(a11[i]==null) continue; const m=(H[i]+L[i])/2, bu=m+2.7*a11[i], bl=m-2.7*a11[i]; fu=(fu==null||bu<fu||C[i-1]>fu)?bu:fu; fl=(fl==null||bl>fl||C[i-1]<fl)?bl:fl; if(up&&C[i]<fl) up=false; else if(!up&&C[i]>fu) up=true; stUp[i]=up; } }
+  const vm=f7sma(V,20), rv=V.map((x,i)=>hasV&&vm[i]?x/vm[i]:null), vpr=V.map((x,i)=>hasV?x*(C[i]-O[i])/Math.max(H[i]-L[i],mt):null), fS=f7ema(vpr,5), vE=f7ema(V,5), flow=fS.map((x,i)=>hasV&&x!=null&&vE[i]?100*x/Math.max(vE[i],1):null);
+  const aCh=f7sma(chg.map(x=>x==null?null:Math.abs(x)),p.regLen);
+  const rs=C.map((_,i)=>(H[i]-L[i])||mt), cp=C.map((_,i)=>(C[i]-O[i])/rs[i]), press=f7ema(cp,8);
+  // KAMA
+  const kam=new Array(N).fill(null); { let k=null; for(let i=0;i<N;i++){ if(i<10||aCh[i]==null){ continue; } const dl=Math.abs(C[i]-C[i-10]); let nz2=0; for(let j=0;j<10;j++) nz2+=Math.abs(C[i-j]-C[i-j-1]); const er=nz2>0?dl/nz2:0, sc=Math.pow(er*(2/3-2/31)+2/31,2); k=k==null?C[i]:k+sc*(C[i]-k); kam[i]=k; } }
+  const mfiA=(()=>{ const o=new Array(N).fill(null); for(let i=14;i<N;i++){ let pu=0,pd=0; for(let j=i-13;j<=i;j++){ const f=hlc[j]*V[j]; if(hlc[j]>hlc[j-1]) pu+=f; else if(hlc[j]<hlc[j-1]) pd+=f; } o[i]=pd===0?100:100-100/(1+pu/pd); } return o; })();
+  const vw=(()=>{ const o=new Array(N).fill(null); for(let i=33;i<N;i++){ let s=0,w=0; for(let j=i-33;j<=i;j++){ s+=C[j]*V[j]; w+=V[j]; } o[i]=w>0?s/w:null; } return o; })();
+  const ls30=f7lin(C,30,0), ls34=f7lin(C,34,0), hl34=f7ema(hlc,34), sd34=f7sd(hlc,34), e34=f7ema(C,34), chn=C.map((_,i)=>i>=p.fastLen?{u:f7hi(H,i-1,21),l:f7lo(L,i-1,21)}:null), roc7=C.map((x,i)=>i>=7?100*(x/C[i-7]-1):null);
+  // previous day high / low (UTC day), session VWAP
+  const pdH=new Array(N).fill(null), pdL=new Array(N).fill(null), vwp=new Array(N).fill(null); { let dk=null,dh=0,dl=0,ph=null,pl=null,sv=0,sw=0; for(let i=0;i<N;i++){ const k=Math.floor(T[i]/86400); if(k!==dk){ if(dk!=null){ ph=dh; pl=dl; } dk=k; dh=H[i]; dl=L[i]; sv=0; sw=0; } else { dh=Math.max(dh,H[i]); dl=Math.min(dl,L[i]); } sv+=hlc[i]*V[i]; sw+=V[i]; pdH[i]=ph; pdL[i]=pl; vwp[i]=hasV&&sw>0?sv/sw:null; } }
+  const h1=f7htf(c,3600,cs), h2=f7htf(c,14400,cs), intraday=cs<86400;
+  // structure, FVG, signals
+  let lsh=null,lsl=null,ms=0,lastSig=-1e9,dem=null,sup=null; const sig=[], marks=[], gaps=[], pv=p.pivotLen; let last=null, entropyHist=0;
+  for(let i=0;i<N;i++){ const A=atr[i]; if(i>=2*pv){ const q=i-pv; let ph=true,pl=true; for(let j=q-pv;j<=q+pv;j++){ if(j===q) continue; if(H[j]>H[q]||(j>q&&H[j]===H[q])) ph=false; if(L[j]<L[q]||(j>q&&L[j]===L[q])) pl=false; } if(ph) lsh=H[q]; if(pl) lsl=L[q]; }
+    const bullBreak=i>0&&lsh!=null&&C[i]>lsh&&C[i-1]<=lsh, bearBreak=i>0&&lsl!=null&&C[i]<lsl&&C[i-1]>=lsl, bullCh=bullBreak&&ms===-1, bearCh=bearBreak&&ms===1; if(bullBreak) ms=1; if(bearBreak) ms=-1;
+    const swL=lsl!=null&&L[i]<lsl&&C[i]>lsl, swH=lsh!=null&&H[i]>lsh&&C[i]<lsh; if(A==null) { continue; }
+    if(p.showStr&&(bullBreak||bearBreak)) marks.push({i,t:bullCh?'CHoCH':bearCh?'CHoCH':'BOS',up:bullBreak,k:1}); if(p.showSw&&(swL||swH)) marks.push({i,t:'SWP',up:swL,k:2});
+    const bullF=i>=2&&L[i]>H[i-2]&&(L[i]-H[i-2])>=A*p.fvgAtr, bearF=i>=2&&H[i]<L[i-2]&&(L[i-2]-H[i])>=A*p.fvgAtr;
+    for(const g of gaps){ if(g.end==null&&(g.bull?L[i]<=g.bot:H[i]>=g.top)) g.end=i; } if(bullF) gaps.push({i:i-2,top:L[i],bot:H[i-2],bull:true,end:null}); if(bearF) gaps.push({i:i-2,top:L[i-2],bot:H[i],bull:false,end:null});
+    if(bullBreak){ dem=null; for(let k=1;k<=8&&i-k>=0;k++) if(C[i-k]<O[i-k]){ dem={top:Math.max(O[i-k],C[i-k]),bot:L[i-k]}; break; } } if(bearBreak){ sup=null; for(let k=1;k<=8&&i-k>=0;k++) if(C[i-k]>O[i-k]){ sup={top:H[i-k],bot:Math.min(O[i-k],C[i-k])}; break; } }
+    if(dem&&C[i]<dem.bot) dem=null; if(sup&&C[i]>sup.top) sup=null;
+    if(adx[i]==null||eB[i]==null||rsi[i]==null||i<p.biasLen||kam[i]==null) continue;
+    const trending=adx[i]>=23, eff=(()=>{ const d=Math.abs(C[i]-C[Math.max(0,i-p.regLen)]), t=nz(aCh[i])*p.regLen; return t>0?f7c(d/t,0,1):0; })(), tnd=adx[i]>=23&&eff>=.28, chop=adx[i]<17||eff<.17;
+    // entropy
+    let su=0,sf=0,sd=0; const W=28; for(let n=0;n<W;n++){ const m=C[i-n]-C[i-n-1], b=Math.max(nz(atr[i-n],mt),mt)*.16; if(m>b) su++; else if(m<-b) sd++; else sf++; }
+    const up=su/W,fp=sf/W,dp=sd/W, sh=-(up>0?up*Math.log(up):0)-(fp>0?fp*Math.log(fp):0)-(dp>0?dp*Math.log(dp):0), ent=f7c(sh/Math.log(3),0,1), entC=1-ent;
+    const a=Math.max(A,mt), v=new Array(17).fill(null);
+    v[0]=f7v(((eF[i]-eS[i])/a)*.65+((C[i]-eB[i])/a)*.25);
+    const ch=chn[i]; v[1]=ch?f7v((C[i]>ch.u?.6:C[i]<ch.l?-.6:0)+(nz(roc7[i])/Math.max(100*a/Math.max(Math.abs(C[i]),mt),.1))*.12):null;
+    v[2]=f7v((stUp[i]?1:-1)*f7c(adx[i]/27,.2,1));
+    v[3]=hasV?f7v(nz(flow[i])/55*.6+nz(press[i])*.4):null;
+    v[4]=f7v(((C[i]-kam[i])/a)*.35+((kam[i]-nz(kam[i-3],kam[i]))/a)*.8);
+    const pH=pdH[i],pL=pdL[i]; v[5]=intraday&&pH!=null?f7v((C[i]>pH?.85:C[i]<pL?-.85:(C[i]-(pH+pL)/2)/Math.max(pH-pL,mt))*.95):null;
+    const bF=bullF?.35:bearF?-.35:swL?.3:swH?-.3:0; v[6]=f7v((ms===1?.48:ms===-1?-.48:0)+bF);
+    v[7]=f7v((up-dp)*(.42+entC));
+    const wS=(C[i]-C[i-2])/a, wL=(C[i-2]-C[i-4])/a; const spec=wS-wL, reg=ls30[i], regS=reg==null?0:(reg-nz(ls30[i-4],reg))/a; v[8]=f7v(.45*spec+.55*regS);
+    const force=cp[i]*(hasV?f7c(nz(rv[i]),0,2.5)/1.4:1); v[9]=f7v(force);
+    const bE=C[i]>O[i]&&C[i-1]<O[i-1]&&C[i]>=O[i-1]&&O[i]<=C[i-1], rE=C[i]<O[i]&&C[i-1]>O[i-1]&&C[i]<=O[i-1]&&O[i]>=C[i-1]; v[10]=f7v((C[i]-e34[i])/a*.52+(bE?.42:rE?-.42:0));
+    const dsp=Math.abs(C[i]-O[i])/a; v[11]=f7v((dem&&L[i]<=dem.top+A*.5&&C[i]>dem.bot?.55:sup&&H[i]>=sup.bot-A*.5&&C[i]<sup.top?-.55:0)+(bullBreak?.45:bearBreak?-.45:0)*f7c(dsp,.25,1.4));
+    v[12]=f7v(((eF[i]>eS[i]?1:-1)+(stUp[i]?1:-1)+(mh[i]>0?1:-1))/3*f7c(adx[i]/23,.35,1));
+    v[13]=hasV&&vw[i]!=null?f7v((C[i]-vw[i])/a*.58):null;
+    v[14]=hasV&&mfiA[i]!=null?f7v(((mfiA[i]-50)/50)*.8+f7c(nz(rv[i])-1,-1,1)*cp[i]*.2):null;
+    let hs=0,hn=0; [h1[i],h2[i]].forEach((h,k)=>{ if(h&&h.ok&&[3600,14400][k]>cs){ hs+=h.c>h.e?1:-1; hn++; } }); v[15]=hn?f7v(hs/hn):null;
+    const vv=intraday&&vwp[i]!=null?(C[i]>vwp[i]?1:-1):(C[i]>eB[i]?1:-1); v[16]=f7v((vv+(rsi[i]>50?1:-1)+(eS[i]>eS[i-3]?1:-1))/3);
+    const w=F7_W.slice(); let bp=0,rp=0,pp=0,wi=0,nm=0,bb=0,rb=0; const drift=0;
+    for(let k=0;k<17;k++){ if(p.adapt){ if(chop&&[0,1,2,8,12].includes(k)) w[k]*=.72; if(tnd&&(k===6||k===11)) w[k]*=1.14; if(ent>.92&&(k===1||k===8)) w[k]*=.79; } const x=v[k]; if(x==null) continue; bp+=f7c((x+.12)/1.12,0,1)*w[k]; rp+=f7c((-x+.12)/1.12,0,1)*w[k]; pp+=w[k]; wi+=x*w[k]; nm++; if(x>.24) bb++; if(x<-.24) rb++; }
+    const bull=pp>0?100*bp/pp:0, bear=pp>0?100*rp/pp:0, edge=bull-bear, chopVeto=p.noChop&&chop&&ent>.89;
+    const tl=!p.reqTrend||(eF[i]>eS[i]&&C[i]>=eB[i]), ts=!p.reqTrend||(eF[i]<eS[i]&&C[i]<=eB[i]);
+    const upX=C[i]>eF[i]&&C[i-1]<=eF[i-1], dnX=C[i]<eF[i]&&C[i-1]>=eF[i-1], eU=eF[i]>eS[i]&&eF[i-1]<=eS[i-1], eD=eF[i]<eS[i]&&eF[i-1]>=eS[i-1], sU=stUp[i]&&!stUp[i-1], sD=!stUp[i]&&stUp[i-1];
+    const lt=upX||eU||bullBreak||bullF||sU||(bE&&C[i]>kam[i])||(ch&&C[i]>ch.u&&C[i-1]<=nz(chn[i-1]&&chn[i-1].u,ch.u)), st=dnX||eD||bearBreak||bearF||sD||(rE&&C[i]<kam[i])||(ch&&C[i]<ch.l&&C[i-1]>=nz(chn[i-1]&&chn[i-1].l,ch.l));
+    const okc=i-lastSig>p.cool&&i<N-1&&!chopVeto, L2=okc&&lt&&tl&&bull>=p.minScore&&edge>=p.minEdge&&(!p.gate||bb>=p.minBr), S2=okc&&st&&ts&&bear>=p.minScore&&edge<=-p.minEdge&&(!p.gate||rb>=p.minBr);
+    if(L2||S2){ lastSig=i; const r=A*p.atrStop, d=L2?1:-1; sig.push({i,d,score:L2?bull:bear,e:C[i],sl:C[i]-d*r,t1:C[i]+d*r*p.rr1,t2:C[i]+d*r*p.rr2,ch:L2?bullCh:bearCh}); }
+    if(i===N-1) last={v,w,bull,bear,edge,nm,bb,rb,adx:adx[i],ent,eff,tnd,chop,chopVeto,atr:A,imp:pp>0?wi/pp:0,ms,swL,swH,bullF,bearF,rv:rv[i],mfi:mfiA[i],vwma:vw[i],hs:hn?hs/hn:null}; }
+  if(!last) return D;
+  // reference lifecycle of the newest signal
+  let ref='NO REFERENCE'; const sg0=sig[sig.length-1]; if(sg0){ ref='ACTIVE REFERENCE'; for(let i=sg0.i+1;i<N-1;i++){ const sT=sg0.d===1?L[i]<=sg0.sl:H[i]>=sg0.sl, tT=sg0.d===1?H[i]>=sg0.t1:L[i]<=sg0.t1; if(sT&&tT){ ref='AMBIGUOUS PATH'; break; } if(sT){ ref='STOP REFERENCE TOUCHED'; break; } if(tT){ ref='TP1 REFERENCE TOUCHED'; break; } } }
+  Object.assign(D,{ok:true,eF,eS,eB,sig,marks,gaps,last,ref,pdH:pdH[N-1],pdL:pdL[N-1],intraday,hasV}); return D; }
+let f7m=null;
+function f7get(c,p){ const N=c.length, key=JSON.stringify(p)+'|'+sym[0]+'|'+tf[1]+'|'+N+'|'+(N?c[N-1].time+'|'+c[N-1].close+'|'+c[N-1].high+'|'+c[N-1].low:''); if(f7m&&f7m.k===key) return f7m.D; let D; try{ D=f7calc(c,p); }catch(e){ console.error('f17 calc failed',e); D={ok:false}; } f7m={k:key,D}; return D; }
+IND.f17={label:'DrFX God Mode X \u00b7 Fusion17 Adaptive Consensus (17 engines)',cat:'Trend',nm:()=>'DrFX Fusion17',p:Object.assign({},F7_DEF),cols:['#23deea'],
+  fields:[['fastLen','num','Fast EMA',{min:2,max:200}],['slowLen','num','Slow EMA',{min:3,max:300}],['biasLen','num','Macro EMA',{min:20,max:500}],['pivotLen','num','Confirmed swing depth',{min:2,max:20}],['minScore','num','Minimum 17-engine agreement',{min:35,max:95}],['minEdge','num','Minimum long / short score edge',{min:0,max:70}],['cool','num','Bars between signals',{min:0,max:100}],['regLen','num','Regime lookback',{min:8,max:100}],
+    ['reqTrend','chk','Require trend alignment'],['noChop','chk','Avoid signals in strong chop'],['gate','chk','Require directional engine breadth'],['minBr','num','Minimum engine breadth',{min:3,max:15}],['adapt','chk','Adjust engine weights by regime'],
+    ['showFVG','chk','Fair value gaps'],['fvgAtr','num','Minimum FVG width (ATR)',{min:0.05,max:2,step:0.01}],['maxGaps','num','Live gaps per side',{min:1,max:15}],['showSw','chk','Liquidity sweep markers'],['showStr','chk','BOS / CHoCH markers'],['showCloud','chk','Trend cloud'],['showPD','chk','Previous day high / low'],
+    ['showRisk','chk','Draw last signal risk geometry'],['atrStop','num','Stop distance (ATR)',{min:0.3,max:6,step:0.1}],['rr1','num','Take profit 1 (R)',{min:0.5,max:8,step:0.25}],['rr2','num','Take profit 2 (R)',{min:1,max:15,step:0.25}],['proj','num','Projection width (bars)',{min:5,max:100}],['life','chk','Monitor last signal outcome'],
+    ['hud','chk','Show dashboard'],['hpos','sel','Dashboard position',{opts:['Top Right','Top Left','Bottom Right','Bottom Left','Middle Right']}],['theme','sel','Theme',{opts:['Dark','Light']}],['cUp','col','Bullish colour'],['cDn','col','Bearish colour']],
+  calc:()=>[[]],
+  extras:(c,p)=>{ const q=Object.assign({},F7_DEF,p), D=f7get(c,q); return {mk:[],boxes:[{type:'f17view',pts:[],o:q,D}],labels:[]}; }};
+{ const _D=draw; draw=function(d,X,Y,W,H){ if(!d||d.type!=='f17view') return _D.apply(this,arguments);
+  const p=d.o, D=d.D, n0=candles.length; if(!D||!D.ok||n0<5) return; const dark=p.theme!=='Light', fg=dark?'#e6f4fb':'#131722', mute=dark?'#7f9cb2':'#5b6784', UP=p.cUp, DN=p.cDn, i0=Math.max(0,n0-1500);
+  cx.save(); cx.beginPath(); cx.rect(0,0,W,H); cx.clip(); cx.setLineDash([]); cx.textBaseline='middle';
+  const xe=X(n0-1), xp=X(n0-2), bw=(xe!=null&&xp!=null)?Math.max(1,xe-xp):6, xb=i=>(xe==null?W*.8:xe)+bw*(i-(n0-1)), vis=i=>{ const x=xb(i); return x>-20&&x<W+20; };
+  const path=(arr,col,w)=>{ cx.strokeStyle=col; cx.lineWidth=w; cx.beginPath(); let on=false; for(let i=i0;i<n0;i++){ const v=arr[i], x=xb(i); if(v==null||x<-20||x>W+20){ on=false; continue; } const y=Y(v); if(y==null){ on=false; continue; } if(on) cx.lineTo(x,y); else { cx.moveTo(x,y); on=true; } } cx.stroke(); };
+  const tx=(t,x,y,col,fs,b)=>{ cx.font=(b?'bold ':'')+(fs||9)+'px system-ui'; cx.fillStyle=col; cx.textAlign='center'; cx.fillText(t,x,y); };
+  if(p.showCloud){ cx.fillStyle=D.eF[n0-1]>=D.eS[n0-1]?'rgba(26,231,160,.12)':'rgba(255,79,122,.12)'; cx.beginPath(); let st=false, last=null; for(let i=i0;i<n0;i++){ const a=D.eF[i], b=D.eS[i], x=xb(i); if(a==null||b==null||x<-20||x>W+20) continue; const y=Y(a); if(y==null) continue; if(!st){ cx.moveTo(x,y); st=true; } else cx.lineTo(x,y); last=i; }
+    for(let i=last==null?-1:last;i>=i0;i--){ const b=D.eS[i], x=xb(i); if(b==null||x<-20||x>W+20) continue; const y=Y(b); if(y!=null) cx.lineTo(x,y); } cx.fill(); path(D.eF,'rgba(35,222,234,.95)',2); path(D.eS,'rgba(147,114,255,.95)',2); }
+  path(D.eB,'rgba(253,193,85,.8)',2);
+  // FVGs
+  if(p.showFVG){ [true,false].forEach(bl=>{ const g=D.gaps.filter(x=>x.bull===bl&&x.end==null).slice(-p.maxGaps); g.forEach(x=>{ const y1=Y(x.top), y2=Y(x.bot); if(y1==null||y2==null) return; const x0=xb(x.i); cx.fillStyle=bl?'rgba(26,231,160,.14)':'rgba(255,79,122,.14)'; cx.fillRect(x0,Math.min(y1,y2),W-x0,Math.max(1,Math.abs(y2-y1))); }); }); }
+  if(p.showPD&&D.intraday&&D.pdH!=null){ [[D.pdH,'PD H'],[D.pdL,'PD L']].forEach(a=>{ const y=Y(a[0]); if(y==null) return; cx.strokeStyle='rgba(253,193,85,.6)'; cx.setLineDash([2,3]); cx.beginPath(); cx.moveTo(0,y); cx.lineTo(W,y); cx.stroke(); cx.setLineDash([]); cx.font='9px system-ui'; cx.fillStyle='#fdc155'; cx.textAlign='right'; cx.fillText(a[1],W-4,y-6); }); }
+  D.marks.forEach(m=>{ if(m.i<i0||!vis(m.i)) return; const cd=candles[m.i], x=xb(m.i), y=Y(m.up?cd.low:cd.high); if(y==null) return; tx(m.t,x,y+(m.up?10:-10),m.k===1?(m.up?'#23deea':'#fdc155'):'#9372ff',8); });
+  D.sig.forEach(s=>{ if(s.i<i0||!vis(s.i)) return; const cd=candles[s.i], x=xb(s.i), up=s.d===1, y=Y(up?cd.low:cd.high); if(y==null) return; const col=up?UP:DN, t=(up?'\u25b2 LONG ':'\u25bc SHORT ')+Math.round(s.score), yy=y+(up?8:-8); cx.font='bold 9px system-ui'; const w=cx.measureText(t).width+8; cx.fillStyle=col; cx.fillRect(x-w/2,up?yy:yy-14,w,14); cx.fillStyle=dark?'#080d1b':'#fff'; cx.textAlign='center'; cx.fillText(t,x,up?yy+7:yy-7); });
+  const sg=D.sig[D.sig.length-1]; if(p.showRisk&&sg){ const x1=xb(sg.i), x2=xb(sg.i+p.proj), ys=Y(sg.sl), ye=Y(sg.e), y1=Y(sg.t1), y2=Y(sg.t2); if(ye!=null&&ys!=null&&y2!=null){ cx.fillStyle='rgba(255,79,122,.10)'; cx.fillRect(x1,Math.min(ye,ys),x2-x1,Math.abs(ys-ye)); cx.fillStyle='rgba(26,231,160,.10)'; cx.fillRect(x1,Math.min(ye,y2),x2-x1,Math.abs(y2-ye));
+      [[ye,fg,[],'ENTRY '+sg.e.toPrecision(6)],[ys,'#ff4f7a',[5,4],'STOP '+sg.sl.toPrecision(6)],[y1,'#1ae7a0',[2,3],'TP1 '+sg.t1.toPrecision(6)],[y2,'#23deea',[5,4],'TP2 '+sg.t2.toPrecision(6)]].forEach(a=>{ if(a[0]==null) return; cx.strokeStyle=a[1]; cx.lineWidth=1.5; cx.setLineDash(a[2]); cx.beginPath(); cx.moveTo(x1,a[0]); cx.lineTo(x2,a[0]); cx.stroke(); cx.setLineDash([]); cx.font='9px system-ui'; cx.fillStyle=a[1]; cx.textAlign='left'; cx.fillText(a[3],x2+3,a[0]); }); } }
+  // dashboard
+  if(p.hud){ const L=D.last, fs=9, rh=fs+7, m=6, sgn=v=>v>=.24?'\u25b2 BULL':v<=-.24?'\u25bc BEAR':'\u25c6 NEUTRAL', col=v=>v>=.24?'#1ae7a0':v<=-.24?'#ff4f7a':'#fdc155', bar=v=>{ const n=Math.round(f7c(Math.abs(v),0,1)*8); return '\u25b0'.repeat(n)+'\u25b1'.repeat(8-n); };
+    const bias=L.edge>18?'BULLISH CONFLUENCE':L.edge<-18?'BEARISH CONFLUENCE':'MIXED / NEUTRAL', bc=L.edge>18?'#1ae7a0':L.edge<-18?'#ff4f7a':'#fdc155';
+    const rows=[['DRFX GOD MODE X \u00b7 FUSION 17','',bc,true],['REGIME '+(L.chopVeto?'CHOP FILTER':L.tnd?'DIRECTIONAL':L.chop?'RANGE / CHOP':'TRANSITION'),'ADX '+L.adx.toFixed(1)+' \u00b7 ENT '+L.ent.toFixed(2),'#23deea',false],['BULL '+L.bull.toFixed(1),'BEAR '+L.bear.toFixed(1),fg,true]];
+    F7_N.forEach((n,k)=>{ const v=L.v[k]; rows.push([String(k+1).padStart(2,'0')+' '+n,v==null?'N/A':bar(v)+' '+v.toFixed(2)+' '+sgn(v),v==null?mute:col(v),false]); });
+    rows.push(['EDGE '+L.edge.toFixed(1)+' pts \u00b7 '+bias,L.nm+' / 17 computed',bc,true],['STRUCTURE '+(L.ms===1?'BULLISH':L.ms===-1?'BEARISH':'UNDEFINED'),'BREADTH '+Math.max(L.bb,L.rb),fg,false]);
+    if(p.life&&sg) rows.push([(sg.d===1?'LAST: LONG ':'LAST: SHORT ')+sg.e.toPrecision(6),D.ref,fg,false]); rows.push(['INDICATOR ONLY \u00b7 RULE AGREEMENT, NOT A PROBABILITY','',mute,false]);
+    cx.font=fs+'px system-ui'; let w1=0,w2=0; rows.forEach(r=>{ w1=Math.max(w1,cx.measureText(r[0]).width); w2=Math.max(w2,cx.measureText(r[1]).width); }); const pw=Math.min(W-2*m,w1+w2+28), ph=rows.length*rh, lp=p.hpos, x0=/Left/.test(lp)?m:W-pw-m, y0=/Top/.test(lp)?m+34:/Bottom/.test(lp)?H-ph-m-24:(H-ph)/2;
+    cx.fillStyle=dark?'rgba(8,13,27,.9)':'rgba(255,255,255,.93)'; cx.fillRect(x0,y0,pw,ph); rows.forEach((r,k)=>{ const y=y0+k*rh+rh/2; cx.font=(r[3]?'bold ':'')+fs+'px system-ui'; cx.fillStyle=r[2]; cx.textAlign='left'; cx.fillText(r[0],x0+7,y); cx.textAlign='right'; cx.fillText(r[1],x0+pw-7,y); }); cx.strokeStyle='rgba(60,100,130,.6)'; cx.strokeRect(x0,y0,pw,ph); }
+  cx.restore(); }; }
+// alert: a new confirmed LONG / SHORT, once, when its candle has closed
+function f7Alerts(q){ if(candles.length<2) return; const cc=candles[candles.length-2].time, key=sym[0]+'|'+tf[0];
+  inds.forEach(i=>{ if(i.t!=='f17'||!i._xr||!i._xr.sigs||!show(i)) return; let quiet=q; if(i._f7K!==key){ i._f7K=key; i._f7L=0; quiet=true; } i._xr.sigs.forEach(s=>{ const t=candles[s.i]&&candles[s.i].time; if(!t||t>cc||t<=(i._f7L||0)) return; i._f7L=t; if(quiet||t!==cc) return; toast('DrFX Fusion17 \u00b7 '+(s.d===1?'LONG':'SHORT')+' \u00b7 '+Math.round(s.score)+' \u00b7 '+sym[0]+' '+tf[0],s.d===1?'#2e7d32':'#c62828'); }); }); }
+{ const _e=IND.f17.extras; IND.f17.extras=(c,p)=>{ const r=_e(c,p); r.sigs=r.boxes[0].D.ok?r.boxes[0].D.sig:[]; return r; }; }
+{ const _R=recomputeExtras; recomputeExtras=function(){ const q=quietNext; const rv=_R.apply(this,arguments); try{ f7Alerts(q); }catch(e){ console.error('f17 alerts',e); } return rv; }; }
+try{ DESC.f17='17 weighted engine votes into one rule score, confirmed LONG / SHORT signals with risk geometry, BOS / CHoCH, sweeps, FVGs, trend cloud and a diagnostic dashboard'; }catch(e){}
+}catch(err){ console.error('f17 indicator failed',err); window.__f17Err=err; }
