@@ -2009,3 +2009,85 @@ function f7Alerts(q){ if(candles.length<2) return; const cc=candles[candles.leng
 { const _R=recomputeExtras; recomputeExtras=function(){ const q=quietNext; const rv=_R.apply(this,arguments); try{ f7Alerts(q); }catch(e){ console.error('f17 alerts',e); } return rv; }; }
 try{ DESC.f17='17 weighted engine votes into one rule score, confirmed LONG / SHORT signals with risk geometry, BOS / CHoCH, sweeps, FVGs, trend cloud and a diagnostic dashboard'; }catch(e){}
 }catch(err){ console.error('f17 indicator failed',err); window.__f17Err=err; }
+
+// ---- [sxl] INDICATOR: Sessions [LuxAlgo] - port of the Pine v6 script "Sessions [LuxAlgo]" (c) LuxAlgo, CC BY-NC-SA 4.0 ----
+// Four trading sessions (default New York, London, Tokyo, Sydney). Each one can draw a range box (high to low), a linear-regression trendline, the running mean,
+// a session VWAP and its Max / Min extended until the next session. Optional dashboard (status; advanced adds trend correlation, volume and sigma),
+// session dividers along the bottom and a daily divider with the weekday name. Needs an intraday chart. Session hours are read at a fixed UTC offset.
+try{
+const SX_K=['a','b','c','d'];
+const SX_DEF={utc:0,exch:false,transp:90,outline:true,rlabel:true,aCol:'#ff5d00',bCol:'#2157f3',cCol:'#e91e63',dCol:'#ffeb3b',
+  dash:false,adv:false,dpos:'Top Right',dsize:'Small',sdiv:false,ddiv:true};
+[['New York','1300-2200'],['London','0700-1600'],['Tokyo','0000-0900'],['Sydney','2100-0600']].forEach((a,j)=>{ const k=SX_K[j]; SX_DEF[k+'On']=true; SX_DEF[k+'Name']=a[0]; SX_DEF[k+'Hrs']=a[1]; SX_DEF[k+'Rng']=true; SX_DEF[k+'Trd']=false; SX_DEF[k+'Mean']=false; SX_DEF[k+'Vwap']=false; SX_DEF[k+'Mm']=false; });
+const SX_MIN=[[780,1320],[420,960],[0,540],[1260,360]];
+const SX_FS={Tiny:8,Small:10,Normal:12,Large:14,Huge:18};
+const SX_DAY=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function sxSess(s,d){ const m=/^\s*(\d{1,2}):?(\d{2})\s*-\s*(\d{1,2}):?(\d{2})\s*$/.exec(String(s||'')); return m?[(+m[1])*60+(+m[2]),(+m[3])*60+(+m[4])]:d; }
+const sxIn=(m,s)=>s[0]<=s[1]?(m>=s[0]&&m<s[1]):(m>=s[0]||m<s[1]);
+function sxIv(c){ let m=0; for(let i=c.length-1;i>0&&i>c.length-40;i--){ const d=c[i].time-c[i-1].time; if(d>0&&(m===0||d<m)) m=d; } return m; }
+function sxA(hex,a){ const m=/^#?([0-9a-f]{6})$/i.exec(hex||''); if(!m) return hex||'#888'; const n=parseInt(m[1],16); return 'rgba('+(n>>16&255)+','+(n>>8&255)+','+(n&255)+','+a+')'; }
+function sxVol(v){ if(v==null||!isFinite(v)) return '-'; const a=Math.abs(v); return a>=1e9?(v/1e9).toFixed(2)+'B':a>=1e6?(v/1e6).toFixed(2)+'M':a>=1e3?(v/1e3).toFixed(2)+'K':v.toFixed(2); }
+function sxCompute(c,p,iv){ const N=c.length, D={N,ok:false,msg:'',S:[]}; if(N<2||!iv) return D;
+  if(iv>=86400){ D.msg='Sessions needs an intraday chart'; return D; }
+  const off=p.exch?0:Math.max(-12,Math.min(14,Math.round(+p.utc)||0)), mins=new Array(N);
+  for(let i=0;i<N;i++) mins[i]=(((Math.floor(c[i].time/60)+off*60)%1440)+1440)%1440;
+  SX_K.forEach((k,j)=>{ const s=sxSess(p[k+'Hrs'],SX_MIN[j]), on=!!p[k+'On'], act=new Uint8Array(N), runs=[], vw=on&&p[k+'Vwap']?new Array(N).fill(null):null; let cur=null;
+    for(let i=0;i<N;i++){ const a=on&&sxIn(mins[i],s)?1:0; act[i]=a; if(!a){ cur=null; continue; } const b=c[i], v=b.volume||0;
+      if(!cur){ cur={a:i,b:i,hi:b.high,lo:b.low,n:0,sY:0,sXY:0,sY2:0,nu:0,de:0}; runs.push(cur); }
+      cur.b=i; if(b.high>cur.hi) cur.hi=b.high; if(b.low<cur.lo) cur.lo=b.low; cur.n++; cur.sY+=b.close; cur.sXY+=b.close*cur.n; cur.sY2+=b.close*b.close; cur.nu+=b.close*v; cur.de+=v;
+      if(vw) vw[i]=cur.de!==0?cur.nu/cur.de:null; }
+    runs.forEach(r=>{ const n=r.n, avg=r.sY/n, wa=r.sXY/(n*(n+1)/2), cov=(wa-avg)*(n+1)/2, vr=Math.max(r.sY2/n-avg*avg,0), den=Math.sqrt(vr)*(Math.sqrt(n*n-1)/(2*Math.sqrt(3)));
+      r.mean=avg; r.dev=Math.sqrt(vr); r.cor=n>1&&den!==0?cov/den:null; r.f=n>1?4*avg-3*wa:r.sY; r.l=n>1?3*wa-2*avg:r.sY; });
+    D.S.push({k,j,on,act,runs,vw,last:runs.length?runs[runs.length-1]:null,live:N>0&&act[N-1]===1}); });
+  D.ok=true; return D; }
+let sxMem=null;
+function sxGet(c,p){ const N=c.length, iv=sxIv(c), key=JSON.stringify(p)+'|'+sym[0]+'|'+tf[0]+'|'+N+'|'+(N?c[0].time+'|'+c[N-1].time+'|'+c[N-1].close+'|'+c[N-1].high+'|'+c[N-1].low+'|'+(c[N-1].volume||0):''); if(sxMem&&sxMem.k===key) return sxMem.D;
+  let D; try{ D=sxCompute(c,p,iv); }catch(e){ console.error('sxl calc failed',e); D={N,ok:false,msg:'',S:[]}; } sxMem={k:key,D}; return D; }
+const sxF=[];
+SX_K.forEach((k,j)=>{ const g='Session '+k.toUpperCase()+' \u00b7 '; sxF.push([k+'On','chk',g+'Enable'],[k+'Name','txt',g+'Name'],[k+'Hrs','txt',g+'Hours (e.g. 1300-2200)'],[k+'Rng','chk',g+'Range box'],[k+'Trd','chk',g+'Trendline'],[k+'Mean','chk',g+'Mean'],[k+'Vwap','chk',g+'VWAP'],[k+'Mm','chk',g+'Max / Min'],[k+'Col','col',g+'Colour']); });
+IND.sxl={label:'Sessions [LuxAlgo]',cat:'Trend',nm:()=>'Sessions [LuxAlgo]',p:Object.assign({},SX_DEF),cols:['#ff5d00'],
+  fields:sxF.concat([['utc','num','Timezone: UTC offset (+/-)',{min:-12,max:14}],['exch','chk','Use exchange timezone (crypto data is UTC)'],
+    ['transp','num','Range area transparency (0 solid, 100 invisible)',{min:0,max:100}],['outline','chk','Range outline'],['rlabel','chk','Range label'],
+    ['dash','chk','Dashboard'],['adv','chk','Dashboard: advanced (trend, volume, sigma)'],['dpos','sel','Dashboard position',{opts:['Top Right','Bottom Right','Bottom Left']}],['dsize','sel','Dashboard size',{opts:['Tiny','Small','Normal','Large','Huge']}],
+    ['sdiv','chk','Show sessions divider (bottom of chart)'],['ddiv','chk','Show daily divider']]),
+  calc:(c,p)=>[[]],
+  extras:(c,p)=>{ const q=Object.assign({},SX_DEF,p), D=sxGet(c,q); return {mk:[],boxes:[{type:'sxlview',pts:[],o:q,D}],labels:[],events:[]}; }};
+{ const _D=draw; draw=function(d,X,Y,W,H){ if(!d||d.type!=='sxlview') return _D.apply(this,arguments);
+    const p=d.o, D=d.D, N=candles.length; if(!D||!N) return;
+    cx.save(); cx.beginPath(); cx.rect(0,0,W,H); cx.clip(); cx.textBaseline='middle';
+    if(D.msg){ cx.fillStyle='rgba(255,193,7,.95)'; cx.textAlign='left'; cx.font='11px system-ui,sans-serif'; cx.fillText(D.msg,10,H-14); }
+    if(D.ok){ const xa=X(0), xb=X(N-1); let i0=0, i1=N-1;
+      if(xa!=null&&xb!=null&&N>1){ const dx=(xb-xa)/(N-1); if(dx>0){ i0=Math.max(0,Math.floor((-30-xa)/dx)); i1=Math.min(N-1,Math.ceil((W+30-xa)/dx)); } }
+      D.S.forEach(S=>{ if(!S.on) return; const col=p[S.k+'Col'], name=p[S.k+'Name'];
+        S.runs.forEach((r,ri)=>{ if(r.b<i0||r.a>i1) return; const x0=X(r.a), x1=X(r.b); if(x0==null||x1==null) return;
+          if(p[S.k+'Rng']){ const yT=Y(r.hi), yB=Y(r.lo); if(yT!=null&&yB!=null){ cx.fillStyle=sxA(col,Math.max(0,Math.min(1,1-(+p.transp||0)/100))); cx.fillRect(x0,yT,Math.max(1,x1-x0),yB-yT);
+              if(p.outline){ cx.strokeStyle=col; cx.lineWidth=1; cx.setLineDash([1,3]); cx.strokeRect(x0+.5,yT+.5,Math.max(1,x1-x0),yB-yT); cx.setLineDash([]); }
+              if(p.rlabel){ cx.font='9px system-ui,sans-serif'; cx.fillStyle=col; cx.textAlign='center'; cx.textBaseline='bottom'; cx.fillText(name,(x0+x1)/2,yT-2); cx.textBaseline='middle'; } } }
+          if(p[S.k+'Trd']){ const y0=Y(r.f), y1=Y(r.l); if(y0!=null&&y1!=null){ cx.strokeStyle=col; cx.lineWidth=1; cx.beginPath(); cx.moveTo(x0,y0); cx.lineTo(x1,y1); cx.stroke(); } }
+          if(p[S.k+'Mean']){ const y=Y(r.mean); if(y!=null){ cx.strokeStyle=col; cx.lineWidth=1; cx.beginPath(); cx.moveTo(x0,y); cx.lineTo(x1,y); cx.stroke(); } } });
+        if(S.vw){ cx.strokeStyle=col; cx.lineWidth=1; cx.beginPath(); let pen=false; for(let i=Math.max(0,i0-1);i<=i1;i++){ const v=S.vw[i]; if(v==null){ pen=false; continue; } const x=X(i), y=Y(v); if(x==null||y==null){ pen=false; continue; } if(pen) cx.lineTo(x,y); else{ cx.moveTo(x,y); pen=true; } } cx.stroke(); }
+        if(p[S.k+'Mm']) S.runs.forEach((r,ri)=>{ const nx=S.runs[ri+1], e=nx?nx.a-1:N-1, a=r.b+1; if(a>e||e<i0||a>i1) return; const xs=X(a), xe=X(e); if(xs==null||xe==null) return; cx.strokeStyle=col; cx.lineWidth=1; [r.hi,r.lo].forEach(v=>{ const y=Y(v); if(y==null) return; cx.beginPath(); cx.moveTo(xs,y); cx.lineTo(xe,y); cx.stroke(); }); }); });
+      // session dividers: a dot on every active bar and a bar mark at each start / end, along the bottom
+      if(p.sdiv){ cx.font='9px system-ui,sans-serif'; cx.textAlign='center'; D.S.forEach(S=>{ if(!S.on) return; const col=p[S.k+'Col'], y=H-8-S.j*8; for(let i=Math.max(0,i0);i<=i1;i++){ const a=S.act[i], pa=i>0?S.act[i-1]:0, x=X(i); if(x==null) continue;
+          if(a){ cx.fillStyle=col; cx.beginPath(); cx.arc(x,y,1.3,0,6.2832); cx.fill(); } if(a!==pa){ cx.fillStyle=col; cx.fillText('\u275a',x,y-3); } } }); }
+      // daily divider with the weekday name (new day at 00:00 UTC)
+      if(p.ddiv){ cx.strokeStyle='rgba(158,158,158,.8)'; cx.lineWidth=1; cx.setLineDash([5,4]); cx.font='9px system-ui,sans-serif'; cx.textAlign='center'; cx.fillStyle='#9e9e9e';
+        for(let i=Math.max(1,i0);i<=i1;i++){ const dw=new Date(candles[i].time*1000).getUTCDay(); if(dw===new Date(candles[i-1].time*1000).getUTCDay()) continue; const x=X(i); if(x==null) continue; cx.beginPath(); cx.moveTo(x,0); cx.lineTo(x,H); cx.stroke(); cx.setLineDash([]); cx.fillText(SX_DAY[dw],x,10); cx.setLineDash([5,4]); }
+        cx.setLineDash([]); }
+      // dashboard
+      if(p.dash){ const fs=SX_FS[p.dsize]||10, rh=fs+8, adv=!!p.adv, cols=adv?5:2, heads=['Session','Status','Trend','Volume','\u03c3'], rows=D.S.map(S=>{ const on=S.on, st=on?(S.live?'Active':'Inactive'):'Disabled', la=S.last;
+          const cor=la&&la.cor!=null?(Math.round(la.cor*100)/100).toString():'-', dev=la?la.dev.toFixed(4):'-', vol=la?sxVol(la.de):'-';
+          return {name:p[S.k+'Name'],nc:p[S.k+'Col'],st,sc:on?(S.live?'#089981':'#f23645'):'#808080',cor,cc:la&&la.cor!=null?(la.cor>=0?'#089981':'#f23645'):null,dev,vol}; });
+        cx.font=fs+'px system-ui,sans-serif'; const cw=new Array(cols).fill(0); const meas=(i,t)=>{ cw[i]=Math.max(cw[i],cx.measureText(t).width+12); };
+        heads.slice(0,cols).forEach((h,i)=>meas(i,h)); rows.forEach(r=>{ meas(0,r.name); meas(1,r.st); if(adv){ meas(2,r.cor); meas(3,r.vol); meas(4,r.dev); } });
+        const tw=cw.reduce((a,b)=>a+b,0), th=rh*(rows.length+2), pos=p.dpos||'Top Right', tx=pos==='Bottom Left'?8:W-tw-8, ty=pos==='Top Right'?8:H-th-8;
+        cx.fillStyle='#161616'; cx.fillRect(tx,ty,tw,th); cx.strokeStyle='#2E2E2E'; cx.lineWidth=1; cx.strokeRect(tx+.5,ty+.5,tw,th);
+        cx.fillStyle='#DBDBDB'; cx.textAlign='center'; cx.fillText('Sessions [LuxAlgo]',tx+tw/2,ty+rh/2);
+        cx.strokeStyle='#2E2E2E'; cx.beginPath(); cx.moveTo(tx,ty+rh); cx.lineTo(tx+tw,ty+rh); cx.stroke();
+        let x=tx; heads.slice(0,cols).forEach((h,i)=>{ cx.fillStyle='#808080'; if(i===0){ cx.textAlign='left'; cx.fillText(h,x+6,ty+rh*1.5); } else{ cx.textAlign='right'; cx.fillText(h,x+cw[i]-6,ty+rh*1.5); } x+=cw[i]; });
+        rows.forEach((r,k)=>{ const y=ty+rh*(k+2)+rh/2; let x2=tx; const cells=[[r.name,r.nc,null],[r.st,'#DBDBDB',r.sc],[r.cor,'#DBDBDB',r.cc],[r.vol,'#DBDBDB',null],[r.dev,'#DBDBDB',null]];
+          cells.slice(0,cols).forEach((cl,i)=>{ if(cl[2]){ cx.fillStyle=cl[2]; cx.fillRect(x2,y-rh/2,cw[i],rh); } cx.fillStyle=cl[1]; if(i===0){ cx.textAlign='left'; cx.fillText(cl[0],x2+6,y); } else{ cx.textAlign='right'; cx.fillText(cl[0],x2+cw[i]-6,y); } x2+=cw[i]; }); }); } }
+    cx.restore(); }; }
+try{ DESC.sxl='Four trading sessions (New York, London, Tokyo, Sydney): range boxes, trendline, mean, VWAP, Max / Min, a dashboard, session dividers and a daily divider'; }catch(e){}
+}catch(err){ console.error('sxl indicator failed',err); window.__sxlErr=err; }
+
