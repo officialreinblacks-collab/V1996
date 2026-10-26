@@ -4,10 +4,9 @@
   var SB_KEY = 'sb_publishable_qjmaCvag0XhnMlipWFHCeA_fwt3CqST';
   var WA_NUM = '254711691608', WA_SHOW = '+254 711 691608';   // support WhatsApp (digits only for the link)
   var SUPPORT = 'marketplusview@gmail.com';            // support email shown to clients
-  // NOWPayments (crypto) pay links, one per plan. Leave a plan empty until its own NOWPayments invoice exists.
-  var NOWPAY = { silver: 'https://nowpayments.io/payment/?iid=4645727622&source=button', gold: 'https://nowpayments.io/payment/?iid=4317860823&source=button', metal: 'https://nowpayments.io/payment/?iid=5561351398&source=button' };
-  window.mpvPayLinks = NOWPAY;   // the activation form in index.html reads the same links
-  var NOW_IMG = 'https://nowpayments.io/images/embeds/payments-button-white.svg';
+  // Payments are now manual (Equity bank transfer / Paybill): the form in index.html shows the details. NOWPayments is no longer used.
+  var NOWPAY = {};
+  window.mpvPayLinks = NOWPAY;
   var PAY = { silver: '', gold: '', metal: '' };                   // paste your card payment link (e.g. Stripe Payment Link) for each plan
   var LS = 'mpvAccess', root = document.documentElement, sb, pill, timer;
   var S = { email: '', plan: '', exp: null, admin: false, trialUsed: false, guest: false }, triedTrial = false;
@@ -15,8 +14,8 @@
   var setMode = function (m) { try { localStorage.setItem('mpvMode', m); } catch (e) {} };
   var PLANS = {
     silver: { n: 'Silver', p: '$20 per month', t: 'For beginners and budget-conscious traders', d: ['Live charts and standard indicators', 'Drawing tools, price alerts and watchlist', 'Limited premium tools: Supply Demand Legs & Entry Zones', 'Limited strategies: selected buy / sell strategies', 'Order book, position size calculator and market mood', '7-day free trial (one per person)'] },
-    gold: { n: 'Gold', p: '$40 per month', t: 'For active traders who need more analysis tools', d: ['Everything in Silver', 'Selected premium tools: Reversal Probability Profile', 'More buy / sell signal strategies', 'Bar replay', 'Compare markets'] },
-    metal: { n: 'Metal', p: '$80 per month', t: 'For serious traders who want the full toolkit', d: ['Everything in Gold', 'All premium tools and strategies', 'Second chart', 'Backups', 'Exclusive Metal-only tools and future premium releases', 'Priority support', 'AI market analysis when launched'] }
+    gold: { n: 'Full access', p: '$20 per month', t: 'Everything included', d: ['Everything in the Full access plan'] },
+    metal: { n: 'Full access', p: '$20 per month', t: 'One plan. Everything included.', d: ['All premium tools and strategies', 'Bar replay and compare markets', 'Second chart and backups', 'Future premium releases', 'Priority support', 'AI market analysis when launched'] }
   };
   // Plan names stored in Supabase -> tier. The free trial is Silver access. Old plans: starter = Silver, pro = Metal (so nobody loses access).
   var ALIAS = { trial: 'silver', starter: 'silver', silver: 'silver', gold: 'gold', pro: 'metal', metal: 'metal' };
@@ -186,22 +185,12 @@
   var BRAND = '<div class="mpv-logo">Market<span style="color:#ef4444">Plus</span><span style="color:#60a5fa">View</span></div>';
 
   function plansHtml(buy) {
-    var SHORT = { silver: 'Starter', gold: 'Active traders', metal: 'Full toolkit' };   // edit or add info shown on the small plan tiles
-    var h = '<div class="mpv-plans"><div class="mpv-pick">';
-    ['silver', 'gold', 'metal'].forEach(function (k, i) {
-      var p = PLANS[k];
-      h += '<button type="button" class="mpv-pk ' + k + (i ? '' : ' sel') + '" data-k="' + k + '"><b>' + p.n + '</b><span class="pr">' + p.p.replace(' per month', '') + '<small>/mo</small></span><span class="sh">' + (SHORT[k] || '') + '</span></button>';
-    });
-    h += '</div><p class="mpv-hint">Tap a plan to see what\u2019s included</p>';
-    ['silver', 'gold', 'metal'].forEach(function (k, i) {
-      var p = PLANS[k];
-      h += '<div class="mpv-plan ' + k + (i ? '' : ' sel') + '" data-k="' + k + '"><div class="top"><b>' + p.n + '</b><span>' + p.p + '</span></div><div class="mpv-sub" style="margin:0 0 6px;font-size:13px">' + p.t + '</div>' + p.d.map(function (x) { return '<div class="li">✓ ' + x + '</div>'; }).join('');
-      if (buy && k === 'silver' && !S.trialUsed) h += '<button class="mpv-btn" id="mpvTr">Get your free trial code</button>';
-      if (buy && NOWPAY[k]) h += '<a class="mpv-now" href="' + NOWPAY[k] + '" target="_blank" rel="noreferrer noopener"><img src="' + NOW_IMG + '" alt="Cryptocurrency &amp; Bitcoin payment button by NOWPayments"></a><button class="mpv-btn ghost pay" data-plan="' + k + '">Already paid? Get your code</button>';
-      else if (buy) h += '<button class="mpv-btn blue pay" data-plan="' + k + '">Get ' + p.n + '</button>';
-      h += '</div>';
-    });
-    return h + '</div><div class="mpv-pay">One free 7-day Silver trial per person.<br>Gold and Metal require a paid subscription.<br>Payments are currently accepted in cryptocurrency only, processed securely by NOWPayments.</div>';
+    var p = PLANS.metal;
+    var h = '<div class="mpv-plans"><div class="mpv-plan metal sel" data-k="metal"><div class="top"><b>Invite membership</b><span>$20 / month</span></div><div class="mpv-sub" style="margin:0 0 6px;font-size:13px">Kenya: KES 2,600 / month. ' + p.t + '</div>' + p.d.map(function (x) { return '<div class="li">\u2713 ' + x + '</div>'; }).join('');
+    if (buy && !S.trialUsed) h += '<button class="mpv-btn" id="mpvTr">Get your free trial code</button>';
+    if (buy) h += '<button class="mpv-btn blue pay" data-plan="metal">Pay and get your invite code</button>';
+    h += '</div>';
+    return h + '</div><div class="mpv-pay">One free 7-day trial per person.<br>Paid access is a monthly invite, renewed manually.<br>Pay by Equity Bank transfer (global) or Paybill (Kenya). Codes are confirmed in about 5 to 10 minutes.</div>';
   }
   function extraParts(buy) {
     return {
@@ -313,7 +302,7 @@
     var p = PLANS[k], url = PAY[k];
     if (url) { location.href = url + (url.indexOf('?') < 0 ? '?' : '&') + 'prefilled_email=' + enc(S.email); return; }
     if (typeof window.mpvOpenUnlock === 'function') { try { window.mpvOpenUnlock(p.n); return; } catch (e) {} }   // activation form, opens with this plan selected
-    card('<h1>Get ' + p.n + '</h1><p class="mpv-sub">' + p.n + ' plan · ' + p.p + '</p><p class="mpv-sub">We will email you the payment details. After payment is confirmed, we send your access code.</p>' +
+    card('<h1>Get ' + p.n + '</h1><p class="mpv-sub">' + p.n + ' plan · ' + p.p + '</p><p class="mpv-sub">Pay by Equity Bank transfer ($20) or Paybill (KES 2,600), then send us your confirmation. After payment is confirmed, we send your invite code.</p>' +
       '<button class="mpv-btn" id="mpvMail">Request payment details</button><div class="mpv-links"><a id="mpvBk">Back</a></div>');
     $('mpvBk').onclick = function () { check(); };
     $('mpvMail').onclick = function () { location.href = 'mailto:' + SUPPORT + '?subject=' + enc('MarketPlusView ' + p.n + ' plan') + '&body=' + enc('Hello, I would like the ' + p.n + ' plan (' + p.p + '). My account email: ' + S.email); };
