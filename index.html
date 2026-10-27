@@ -2806,6 +2806,92 @@ function mrAlerts(q){ if(candles.length<2) return; const cc=candles[candles.leng
 try{ DESC.mrs='Premium strategy \u00b7 price stretches outside the Bollinger Band (and / or RSI 70 / 30), closes back inside \u2192 BUY / SELL with SL beyond the extreme wick and TP at the mean, ranging-market and news-spike filters'; }catch(e){}
 }catch(err){ console.error('mrs strategy failed',err); window.__mrsErr=err; }
 
+// ---- [mfp] INDICATOR: Money Flow Profile [LuxAlgo] - volume / money flow profile, sentiment profile, heatmap, level of significance, consolidation zones (self-contained: every name starts with mfp / MFP) ----
+// Looks at the last N bars (Lookback Length) and splits their high-low range into rows. Every bar's volume (or money flow = volume x typical price) is spread over the rows it touches.
+//  1. VOLUME / MONEY FLOW PROFILE - one bar per row on the right. Rows at or above the High threshold (% of the busiest row) are High Traded Nodes, at or below the Low threshold Low Traded Nodes, the rest Average.
+//  2. SENTIMENT PROFILE           - net buy minus sell per row (bars growing left of the price column). Bar Polarity: close vs open. Bar Trend: close vs the previous close.
+//  3. HEATMAP                     - the rows shaded across the whole range, by the volume profile or by the sentiment profile.
+//  4. LEVEL OF SIGNIFICANCE       - the busiest row (point of control) as a zone or a line.   HIGHEST SENTIMENT ZONE - the row with the biggest net buy / sell, dotted outline.
+//  5. CONSOLIDATION ZONES         - the connected rows around the busiest one that hold at least the threshold % of its volume.
+// Information tool: it prints no buy / sell signals. Closed and running bars both count, so the running bar moves the profile slightly. Nothing else on the chart is touched.
+try{
+const MFP_DEF={len:500,src:'Volume',vpOn:true,hiCol:'#fbc02d',hiThr:53,avgCol:'#2962ff',loCol:'#e53935',loThr:37,
+  spOn:true,pol:'Bar Polarity',bullCol:'#009688',bearCol:'#e53935',hmOn:true,hmSrc:'Volume/Money Flow Profile',hmTr:73,
+  los:'Last(Zone)',consOn:false,consThr:25,consCol:'#ffeb3b',hszOn:true,plvOn:true,plvCol:'#4dabf7',plvSize:'Small',bgOn:true,bgCol:'#009688',bgTr:90,
+  rows:25,wPct:13,tsize:'Auto',hOff:13,barTr:55};
+const MFP_FS={Tiny:7,Small:9,Normal:11,Large:13,Huge:16};
+function mfpA(hex,a){ const m=/^#?([0-9a-f]{6})$/i.exec(hex||''); if(!m) return hex||'#888'; const n=parseInt(m[1],16); return 'rgba('+(n>>16&255)+','+(n>>8&255)+','+(n&255)+','+Math.max(0,Math.min(1,a))+')'; }
+function mfpNum(v){ const a=Math.abs(v); return a>=1e9?(v/1e9).toFixed(3)+'B':a>=1e6?(v/1e6).toFixed(3)+'M':a>=1e3?(v/1e3).toFixed(3)+'K':v.toFixed(2); }
+function mfpPx(v){ return v==null||!isFinite(v)?'-':Math.abs(v)>=1000?v.toFixed(2):Number(v.toPrecision(6)).toString(); }
+function mfpCompute(c,p){ const N=c.length, D={ok:false,msg:''}; if(N<2){ D.msg='Money Flow Profile: not enough candles'; return D; }
+  const L=Math.max(10,Math.min(5000,Math.round(+p.len)||500)), i0=Math.max(0,N-L), R=Math.max(5,Math.min(100,Math.round(+p.rows)||25));
+  let hi=-Infinity, lo=Infinity; for(let i=i0;i<N;i++){ if(c[i].high>hi) hi=c[i].high; if(c[i].low<lo) lo=c[i].low; }
+  const step=(hi-lo)/R; if(!(step>0)){ D.msg='Money Flow Profile: the range has no height'; return D; }
+  const up=new Float64Array(R), dn=new Float64Array(R), mf=p.src==='Money Flow', trend=p.pol==='Bar Trend';
+  for(let i=i0;i<N;i++){ const b=c[i]; let v=b.volume||0; if(mf) v*=(b.high+b.low+b.close)/3; if(!(v>0)) continue;
+    const ref=trend?(i>0?c[i-1].close:b.open):b.open, fu=b.close>ref?1:b.close<ref?0:0.5, rg=b.high-b.low;
+    if(rg<=0){ const r=Math.max(0,Math.min(R-1,Math.floor((b.close-lo)/step))); up[r]+=v*fu; dn[r]+=v*(1-fu); }
+    else{ const r0=Math.max(0,Math.floor((b.low-lo)/step)), r1=Math.min(R-1,Math.floor((b.high-lo)/step));
+      for(let r=r0;r<=r1;r++){ const bl=lo+r*step, ov=Math.min(b.high,bl+step)-Math.max(b.low,bl); if(ov>0){ const f=v*ov/rg; up[r]+=f*fu; dn[r]+=f*(1-fu); } } } }
+  const tot=new Array(R), net=new Array(R); let mx=0, poc=0, sum=0, mxA=0, hsz=0, sumA=0;
+  for(let r=0;r<R;r++){ tot[r]=up[r]+dn[r]; net[r]=up[r]-dn[r]; sum+=tot[r]; const a=Math.abs(net[r]); sumA+=a; if(tot[r]>mx){ mx=tot[r]; poc=r; } if(a>mxA){ mxA=a; hsz=r; } }
+  if(!(mx>0)){ D.msg='Money Flow Profile: no volume data for this symbol'; return D; }
+  const hT=Math.max(0,+p.hiThr||53)/100, lT=Math.max(0,+p.loThr||37)/100, cls=tot.map(v=>{ const q=v/mx; return q>=hT?2:q<=lT?0:1; });
+  const cT=Math.max(0,+p.consThr||25)/100; let ca=poc, cb=poc; while(ca>0&&tot[ca-1]/mx>=cT) ca--; while(cb<R-1&&tot[cb+1]/mx>=cT) cb++;
+  Object.assign(D,{ok:true,N,i0,R,hi,lo,step,tot,net,sum,sumA,mx,mxA,poc,hsz,cls,ca,cb}); return D; }
+let mfpMem=null;
+function mfpGet(c,p){ const N=c.length, L=N?c[N-1]:null, key=JSON.stringify([p.len,p.src,p.pol,p.rows,p.hiThr,p.loThr,p.consThr])+'|'+sym[0]+'|'+tf[0]+'|'+N+'|'+(N?c[0].time+'|'+L.time+'|'+L.close+'|'+L.high+'|'+L.low+'|'+(L.volume||0):''); if(mfpMem&&mfpMem.k===key) return mfpMem.D;
+  let D; try{ D=mfpCompute(c,p); }catch(e){ console.error('mfp calc failed',e); D={ok:false,msg:'Money Flow Profile: calculation failed'}; } mfpMem={k:key,D}; return D; }
+IND.mfp={label:'Money Flow Profile [LuxAlgo]',cat:'Volume',nm:()=>'Money Flow Profile [LuxAlgo]',p:Object.assign({},MFP_DEF),cols:['#fbc02d'],
+  fields:[['len','num','Lookback Length / Fixed Range (bars)',{min:10,max:5000}],['src','sel','Profile Source',{opts:['Volume','Money Flow']}],
+    ['vpOn','chk','Volume / Money Flow Profile'],['hiCol','col','High Traded Nodes'],['hiThr','num','High Traded Nodes: threshold %',{min:0,max:100}],['avgCol','col','Average Traded Nodes'],['loCol','col','Low Traded Nodes'],['loThr','num','Low Traded Nodes: threshold %',{min:0,max:100}],
+    ['spOn','chk','Sentiment Profile'],['pol','sel','Sentiment Polarity Method',{opts:['Bar Polarity','Bar Trend']}],['bullCol','col','Bullish Nodes'],['bearCol','col','Bearish Nodes'],
+    ['hmOn','chk','Profile Heatmap'],['hmSrc','sel','Heatmap Source',{opts:['Volume/Money Flow Profile','Sentiment Profile']}],['hmTr','num','Heatmap Transparency (0 solid, 100 invisible)',{min:0,max:100}],
+    ['los','sel','Level of Significance',{opts:['Last(Zone)','Last(Line)','Off']}],['consOn','chk','Consolidation Zones'],['consThr','num','Consolidation Threshold %',{min:0,max:100}],['consCol','col','Consolidation Zones colour'],
+    ['hszOn','chk','Highest Sentiment Zone'],['plvOn','chk','Profile Price Levels'],['plvCol','col','Profile Price Levels colour'],['plvSize','sel','Profile Price Levels size',{opts:['Tiny','Small','Normal','Large']}],
+    ['bgOn','chk','Profile Range Background Fill'],['bgCol','col','Profile Range Background colour'],['bgTr','num','Profile Range Background transparency',{min:0,max:100}],
+    ['rows','num','Number of Rows',{min:5,max:100}],['wPct','num','Profile Width %',{min:2,max:50}],['tsize','sel','Profile Text Size',{opts:['Auto','Tiny','Small','Normal','Large','Huge']}],['hOff','num','Profile Horizontal Offset (bars)',{min:0,max:200}],['barTr','num','Profile bar transparency',{min:0,max:100}]],
+  calc:(c,p)=>[[]],
+  extras:(c,p)=>{ const q=Object.assign({},MFP_DEF,p), D=mfpGet(c,q); return {mk:[],boxes:[{type:'mfpview',pts:[],o:q,D}],labels:[],events:[]}; }};
+{ const _D=draw; draw=function(d,X,Y,W,H){ if(!d||d.type!=='mfpview') return _D.apply(this,arguments);
+    const p=d.o, D=d.D, N=candles.length; if(!D||!N) return;
+    cx.save(); cx.beginPath(); cx.rect(0,0,W,H); cx.clip(); cx.setLineDash([]); cx.textBaseline='middle';
+    if(!D.ok||D.N!==N){ if(D.msg){ cx.fillStyle='rgba(255,193,7,.95)'; cx.textAlign='left'; cx.font='11px system-ui,sans-serif'; cx.fillText(D.msg,10,H-14); } cx.restore(); return; }
+    const xa=X(D.i0), xb=X(N-1), yT=Y(D.hi), yB=Y(D.lo); if(xa==null||xb==null||yT==null||yB==null){ cx.restore(); return; }
+    const R=D.R, ry=r=>Y(D.lo+r*D.step), rowH=Math.abs(ry(1)-ry(0)), span=N-1-D.i0, bw=span>0&&xb>xa?(xb-xa)/span:6, rw=Math.max(1,xb-xa);
+    const colOf=r=>D.cls[r]===2?p.hiCol:D.cls[r]===0?p.loCol:p.avgCol, snCol=r=>D.net[r]>=0?p.bullCol:p.bearCol;
+    // range background + heatmap rows
+    if(p.bgOn){ cx.fillStyle=mfpA(p.bgCol,1-(+p.bgTr||0)/100); cx.fillRect(xa,Math.min(yT,yB),rw,Math.abs(yB-yT)); }
+    if(p.hmOn){ const bs=p.hmSrc==='Sentiment Profile', a0=1-(+p.hmTr||0)/100;
+      for(let r=0;r<R;r++){ const y0=ry(r+1), y1=ry(r); if(y0==null||y1==null) continue; const q=bs?(D.mxA>0?Math.abs(D.net[r])/D.mxA:0):D.tot[r]/D.mx, col=bs?snCol(r):colOf(r);
+        cx.fillStyle=mfpA(col,a0*(0.35+0.65*q)); cx.fillRect(xa,Math.min(y0,y1),rw,Math.abs(y1-y0)); cx.fillStyle=mfpA(col,Math.min(1,a0*0.9)); cx.fillRect(xa,y1-0.5,rw,1); } }
+    // profile geometry (price column in the middle, sentiment grows left of it, volume grows right of it)
+    const fsA=Math.max(6,Math.min(11,rowH*0.62)), fs=p.tsize==='Auto'?fsA:(MFP_FS[p.tsize]||fsA), pfs=Math.max(6,Math.min(12,(MFP_FS[p.plvSize]||9)));
+    const showPc=!!p.plvOn&&rowH>=pfs-1, pcW=showPc?Math.round(pfs*5.6+8):0, off=Math.max(0,+p.hOff||0)*bw;
+    let side=Math.max(12,(Math.max(2,+p.wPct||13)/100)*rw); side=Math.min(side,Math.max(12,(W*0.42-pcW)/2)); const total=side*2+pcW;
+    let x0=xb+off; if(x0+total>W-3) x0=Math.max(2,W-3-total); const sB=x0+side, vB=sB+pcW;
+    // consolidation zone, level of significance, highest sentiment zone (drawn across the range, dotted into the profile)
+    const band=(ra,rb)=>{ const y0=ry(rb+1), y1=ry(ra); return y0==null||y1==null?null:[Math.min(y0,y1),Math.abs(y1-y0)]; };
+    if(p.consOn){ const b=band(D.ca,D.cb); if(b){ cx.fillStyle=mfpA(p.consCol,0.14); cx.fillRect(xa,b[0],rw,b[1]); cx.strokeStyle=mfpA(p.consCol,0.7); cx.lineWidth=1; cx.setLineDash([4,3]); cx.strokeRect(xa+.5,b[0]+.5,rw,b[1]); cx.setLineDash([]); } }
+    if(p.los!=='Off'){ const b=band(D.poc,D.poc); if(b){ const col=p.hiCol, zone=/Zone/.test(p.los);
+        if(zone){ cx.fillStyle=mfpA(col,0.3); cx.fillRect(xa,b[0],rw,b[1]); cx.strokeStyle=col; cx.lineWidth=1.2; cx.beginPath(); cx.moveTo(xa,b[0]); cx.lineTo(xb,b[0]); cx.moveTo(xa,b[0]+b[1]); cx.lineTo(xb,b[0]+b[1]); cx.stroke(); }
+        else{ const ym=b[0]+b[1]/2; cx.strokeStyle=col; cx.lineWidth=1.5; cx.beginPath(); cx.moveTo(xa,ym); cx.lineTo(xb,ym); cx.stroke(); }
+        cx.strokeStyle=mfpA(col,0.85); cx.lineWidth=1; cx.setLineDash([2,3]); cx.beginPath(); const yy=zone?[b[0],b[0]+b[1]]:[b[0]+b[1]/2]; yy.forEach(y=>{ cx.moveTo(xb,y); cx.lineTo(x0,y); }); cx.stroke(); cx.setLineDash([]); } }
+    if(p.hszOn&&D.mxA>0){ const b=band(D.hsz,D.hsz); if(b){ const col=snCol(D.hsz); cx.strokeStyle=mfpA(col,0.95); cx.lineWidth=1; cx.setLineDash([2,3]); cx.strokeRect(xa+.5,b[0]+.5,rw,b[1]); cx.beginPath(); cx.moveTo(xb,b[0]); cx.lineTo(x0,b[0]); cx.moveTo(xb,b[0]+b[1]); cx.lineTo(x0,b[0]+b[1]); cx.stroke(); cx.setLineDash([]); } }
+    // profile rows
+    const fill=1-(+p.barTr||0)/100, fnt=s=>{ cx.font=s+'px system-ui,sans-serif'; }, bh=Math.max(1,rowH-1);
+    for(let r=0;r<R;r++){ const y0=ry(r+1), y1=ry(r); if(y0==null||y1==null) continue; const top=Math.min(y0,y1), h=Math.max(1,Math.abs(y1-y0)-1), ym=top+h/2;
+      if(p.spOn&&D.mxA>0){ const v=D.net[r], len=Math.abs(v)/D.mxA*side, col=snCol(r); if(len>0){ cx.fillStyle=mfpA(col,fill); cx.fillRect(sB-len,top,len,h); cx.strokeStyle=mfpA(col,0.95); cx.lineWidth=(p.hszOn&&r===D.hsz)?2:1; cx.strokeRect(sB-len+.5,top+.5,Math.max(1,len-1),Math.max(1,h-1));
+          if(rowH>=fs+1){ fnt(fs); const t=(v<0?'-':'')+mfpNum(Math.abs(v))+' ('+(D.sumA>0?(Math.abs(v)/D.sumA*100).toFixed(2):'0')+'%)'; if(cx.measureText(t).width+6<=len){ cx.fillStyle='#e8eaed'; cx.textAlign='right'; cx.fillText(t,sB-3,ym); } } } }
+      if(p.vpOn){ const v=D.tot[r], len=v/D.mx*side, col=colOf(r); if(len>0){ cx.fillStyle=mfpA(col,fill); cx.fillRect(vB,top,len,h); cx.strokeStyle=mfpA(col,0.95); cx.lineWidth=(p.los!=='Off'&&r===D.poc)?2:1; cx.strokeRect(vB+.5,top+.5,Math.max(1,len-1),Math.max(1,h-1));
+          if(rowH>=fs+1){ fnt(fs); const t=mfpNum(v)+(p.src==='Money Flow'&&/USDT$/i.test(String(sym[0]))?' USDT':'')+' ('+(D.sum>0?(v/D.sum*100).toFixed(2):'0')+'%)'; if(cx.measureText(t).width+6<=len){ cx.fillStyle='#e8eaed'; cx.textAlign='left'; cx.fillText(t,vB+3,ym); } } } }
+      if(showPc){ cx.fillStyle='rgba(18,20,26,.85)'; cx.fillRect(sB,top,pcW,h); cx.strokeStyle='#2e3340'; cx.lineWidth=1; cx.strokeRect(sB+.5,top+.5,pcW-1,Math.max(1,h-1)); fnt(pfs); cx.fillStyle='#d1d4dc'; cx.textAlign='center'; cx.fillText(mfpPx(D.lo+(r+0.5)*D.step),sB+pcW/2,ym); } }
+    // range high / low labels
+    if(p.plvOn){ fnt(pfs+1); cx.fillStyle=p.plvCol; cx.textAlign='left'; cx.textBaseline='bottom'; cx.fillText(mfpPx(D.hi),Math.min(xb+4,W-60),Math.min(yT,yB)-2); cx.textBaseline='top'; cx.fillText(mfpPx(D.lo),Math.min(xb+4,W-60),Math.max(yT,yB)+3); cx.textBaseline='middle'; }
+    cx.restore(); }; }
+try{ DESC.mfp='Volume / money flow profile with high, average and low traded nodes, a buy minus sell sentiment profile, a heatmap, level of significance, highest sentiment zone and consolidation zones'; }catch(e){}
+}catch(err){ console.error('mfp indicator failed',err); window.__mfpErr=err; }
+
 </script>
 <div id="splash"><img id="spImg" alt="" src="https://res.cloudinary.com/wfypjzyt/image/upload/v1791143890/file_00000000b0e882118146e28bda6201fd.png?v=2"></div>
 <div id="stage">
@@ -16474,7 +16560,7 @@ const RCS_NAMES={hrm:'Harmonics',pcr:'Adjustable Pro Plus Ranging Channel',ccp:'
     btn.style.cssText='width:100%;padding:10px 12px;border-radius:12px;border:1px solid #e53950;background:linear-gradient(135deg,#0b2a6f,#1f4fd1);color:#fff;font:700 13px system-ui,sans-serif;cursor:pointer;box-shadow:0 0 0 2px rgba(229,57,80,.35) inset';
     btn.onclick=ev=>{ ev.preventDefault(); ev.stopPropagation(); window.rcScriptOpen(k,n); }; w.appendChild(btn); b.appendChild(w); };
   // Indicators that only have a plain "fields" list (no inputsTab of their own): button first, then the usual fields
-  const RCI_NAMES={tto:'TheStrat TTO',hvf:'HTF Volume Footprint',lsp:'Liquidity Sweep Pro',lsr:'Liquidity Sweep Reversal & Targets',dpr:'Dual-Phase Reversal (DGT)',fvs:'FVG Sessions',ppa:'Price Action 2',tpo:'TPO - Market Profile (letters)',sbx:'Super Buys',rzr:'RSI Zone Reversal',afib:'Auto Fibonacci',wvadp:'Williams Variable A/D Pressure (WVADP)',mvp:'MOYA Sessions & Volume Profile',wt:'WaveTrend Oscillator',lsv:'Liquidity Spectrum Visualizer',lqh:'Liquidity Heatmap',brk:'Breakout Trading Strategy',fpd:'50 Pips a Day',oht:'One-Hour Breakout Strategy',tlt:'Trendline Trading 4hrs +',svt:'Strength & Volatility',slo:'Shaakuni Levels & Order Blocks',mmx:'Market Matrix (Zeiierman)',bce:'Bullish Cross + Bullish Engulfing',xlb:'Buy/Sell Signals XL',ocb:'Opening Candle Breakout [OCB]',orbnb:"Jilly's ORB + Noise Band",pfm:'PO3 Fractal Matrix+',f17:'DrFX God Mode X \u00b7 Fusion17',sxl:'Sessions [LuxAlgo]',mrs:'Mean Reversion Strategy',trf:'Trend Following \u00b7 200 EMA Pullback'};
+  const RCI_NAMES={tto:'TheStrat TTO',hvf:'HTF Volume Footprint',lsp:'Liquidity Sweep Pro',lsr:'Liquidity Sweep Reversal & Targets',dpr:'Dual-Phase Reversal (DGT)',fvs:'FVG Sessions',ppa:'Price Action 2',tpo:'TPO - Market Profile (letters)',sbx:'Super Buys',rzr:'RSI Zone Reversal',afib:'Auto Fibonacci',wvadp:'Williams Variable A/D Pressure (WVADP)',mvp:'MOYA Sessions & Volume Profile',wt:'WaveTrend Oscillator',lsv:'Liquidity Spectrum Visualizer',lqh:'Liquidity Heatmap',brk:'Breakout Trading Strategy',fpd:'50 Pips a Day',oht:'One-Hour Breakout Strategy',tlt:'Trendline Trading 4hrs +',svt:'Strength & Volatility',slo:'Shaakuni Levels & Order Blocks',mmx:'Market Matrix (Zeiierman)',bce:'Bullish Cross + Bullish Engulfing',xlb:'Buy/Sell Signals XL',ocb:'Opening Candle Breakout [OCB]',orbnb:"Jilly's ORB + Noise Band",pfm:'PO3 Fractal Matrix+',f17:'DrFX God Mode X \u00b7 Fusion17',sxl:'Sessions [LuxAlgo]',mfp:'Money Flow Profile [LuxAlgo]',mrs:'Mean Reversion Strategy',trf:'Trend Following \u00b7 200 EMA Pullback'};
   Object.keys(RCI_NAMES).forEach(k=>{ try{ const I=IND[k]; if(!I||I.__rcs) return; I.__rcs=true; const oi=I.inputsTab; const F=I.fields;
     I.inputsTab=function(b,d){ const w=document.createElement('div'); w.style.cssText='margin:6px 0 10px';
       const btn=document.createElement('button'); btn.type='button'; btn.textContent='\ud83d\udcd6 Read script \u00b7 how to use \u00b7 set up';
