@@ -2868,8 +2868,8 @@ IND.mfp={label:'Money Flow Profile [LuxAlgo]',cat:'Volume',nm:()=>'Money Flow Pr
     // profile geometry (price column in the middle, sentiment grows left of it, volume grows right of it)
     const fsA=Math.max(6,Math.min(11,rowH*0.62)), fs=p.tsize==='Auto'?fsA:(MFP_FS[p.tsize]||fsA), pfs=Math.max(6,Math.min(12,(MFP_FS[p.plvSize]||9)));
     const showPc=!!p.plvOn&&rowH>=pfs-1, pcW=showPc?Math.round(pfs*5.6+8):0, off=Math.max(0,+p.hOff||0)*bw;
-    let side=Math.max(12,(Math.max(2,+p.wPct||13)/100)*rw); side=Math.min(side,Math.max(12,(W*0.42-pcW)/2)); const total=side*2+pcW;
-    let x0=xb+off; if(x0+total>W-3) x0=Math.max(2,W-3-total); const sB=x0+side, vB=sB+pcW;
+    const side=Math.max(12,(Math.max(2,+p.wPct||13)/100)*rw), total=side*2+pcW;   // locked to the chart: anchored to the last bar + offset, scrolls and zooms with time and price
+    const x0=xb+off, sB=x0+side, vB=sB+pcW;
     // consolidation zone, level of significance, highest sentiment zone (drawn across the range, dotted into the profile)
     const band=(ra,rb)=>{ const y0=ry(rb+1), y1=ry(ra); return y0==null||y1==null?null:[Math.min(y0,y1),Math.abs(y1-y0)]; };
     if(p.consOn){ const b=band(D.ca,D.cb); if(b){ cx.fillStyle=mfpA(p.consCol,0.14); cx.fillRect(xa,b[0],rw,b[1]); cx.strokeStyle=mfpA(p.consCol,0.7); cx.lineWidth=1; cx.setLineDash([4,3]); cx.strokeRect(xa+.5,b[0]+.5,rw,b[1]); cx.setLineDash([]); } }
@@ -2887,7 +2887,7 @@ IND.mfp={label:'Money Flow Profile [LuxAlgo]',cat:'Volume',nm:()=>'Money Flow Pr
           if(rowH>=fs+1){ fnt(fs); const t=mfpNum(v)+(p.src==='Money Flow'&&/USDT$/i.test(String(sym[0]))?' USDT':'')+' ('+(D.sum>0?(v/D.sum*100).toFixed(2):'0')+'%)'; if(cx.measureText(t).width+6<=len){ cx.fillStyle='#e8eaed'; cx.textAlign='left'; cx.fillText(t,vB+3,ym); } } } }
       if(showPc){ cx.fillStyle='rgba(18,20,26,.85)'; cx.fillRect(sB,top,pcW,h); cx.strokeStyle='#2e3340'; cx.lineWidth=1; cx.strokeRect(sB+.5,top+.5,pcW-1,Math.max(1,h-1)); fnt(pfs); cx.fillStyle='#d1d4dc'; cx.textAlign='center'; cx.fillText(mfpPx(D.lo+(r+0.5)*D.step),sB+pcW/2,ym); } }
     // range high / low labels
-    if(p.plvOn){ fnt(pfs+1); cx.fillStyle=p.plvCol; cx.textAlign='left'; cx.textBaseline='bottom'; cx.fillText(mfpPx(D.hi),Math.min(xb+4,W-60),Math.min(yT,yB)-2); cx.textBaseline='top'; cx.fillText(mfpPx(D.lo),Math.min(xb+4,W-60),Math.max(yT,yB)+3); cx.textBaseline='middle'; }
+    if(p.plvOn){ fnt(pfs+1); cx.fillStyle=p.plvCol; cx.textAlign='left'; cx.textBaseline='bottom'; cx.fillText(mfpPx(D.hi),xb+4,Math.min(yT,yB)-2); cx.textBaseline='top'; cx.fillText(mfpPx(D.lo),xb+4,Math.max(yT,yB)+3); cx.textBaseline='middle'; }
     cx.restore(); }; }
 try{ DESC.mfp='Volume / money flow profile with high, average and low traded nodes, a buy minus sell sentiment profile, a heatmap, level of significance, highest sentiment zone and consolidation zones'; }catch(e){}
 }catch(err){ console.error('mfp indicator failed',err); window.__mfpErr=err; }
