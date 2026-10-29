@@ -354,7 +354,22 @@
       '<p>MarketPlusView is a fast trading view tool that helps traders and investors analyse the market with live crypto charts, indicators, buy / sell signals, alerts and more. Our aim is to help you experience different markets.</p>' +
       '<div class="k">Version</div><p>' + APP_VER + '</p>' +
       '<div class="k">What you get</div><ul><li>Live crypto charts with many chart types and time frames</li><li>Indicators, strategies and drawing tools</li><li>BUY / SELL signals with stop loss and take-profit levels</li><li>Price alerts and push alerts</li><li>Watchlists, replay, scanner and trade calculator</li></ul>' +
-      '<div class="mpv-ceo"><div class="k">Meet The C.E.O</div><img class="ph" src="https://res.cloudinary.com/datfuxotx/image/upload/v1793259581/file_00000000712c8243b7da213b8c35d2fc_gauco9.png" alt="Reinhard Mugambi (Reinblacks)" loading="lazy"><h2>Meet the Founder \u2014 Reinhard Mugambi (Reinblacks)</h2>' +
+      '<div class="k">Chief Executive Officer</div><p>' + BIZ.owner + '</p>' +
+      '<div class="k">Registered under</div><p>' + BIZ.name + '</p>' +
+      '<div class="k">Business No.</div><p>' + BIZ.no + '</p>' +
+      '<div class="k">Location</div><p>' + BIZ.loc + '</p>' +
+      '<div class="k">Please note</div><p>MarketPlusView provides trading analysis tools only. We are not a broker, we do not hold, manage or send money, and nothing here is financial advice. Trading involves risk; no tool guarantees profits. Signals are based on past prices and can be wrong.</p>' +
+      '<div class="k">Data and credits</div><p>Market data comes from public exchange feeds and may be delayed or incorrect. Charts are drawn with TradingView Lightweight Charts (Apache 2.0, \u00a9 TradingView, Inc., tradingview.com). Some indicators are our own ports of open scripts by their authors, who keep their credit: for example MarkitTick, LuxAlgo and others named inside each tool\u2019s guide.</p>' +
+      '<div class="k">Legal</div><p><a href="#" id="mpvAbT" style="color:#93b4ff">Terms and conditions</a> \u00b7 <a href="#" id="mpvAbP" style="color:#93b4ff">Privacy policy</a> \u00b7 <a href="#" id="mpvAbF" style="color:#93b4ff">Questions and answers</a></p>' +
+      '<div class="k">Contact</div><p><a href="mailto:' + SUPPORT + '" style="color:#93b4ff">' + SUPPORT + '</a><br><a href="https://wa.me/' + WA_NUM + '" target="_blank" rel="noopener" style="color:#93b4ff">WhatsApp ' + WA_SHOW + '</a></p>');
+    var t = $('mpvAbT'), p = $('mpvAbP'), f = $('mpvAbF');
+    if (t) t.onclick = function (e) { e.preventDefault(); termsView(); };
+    if (p) p.onclick = function (e) { e.preventDefault(); privacyView(); };
+    if (f) f.onclick = function (e) { e.preventDefault(); faqView(); };
+  }
+  function ceoView() {
+    infoView('Meet The C.E.O',
+      '<div class="mpv-ceo"><img class="ph" src="https://res.cloudinary.com/datfuxotx/image/upload/v1793259581/file_00000000712c8243b7da213b8c35d2fc_gauco9.png" alt="Reinhard Mugambi (Reinblacks)" loading="lazy"><h2>Meet the Founder \u2014 Reinhard Mugambi (Reinblacks)</h2>' +
       '<p>Hello, my name is Reinhard Mugambi, popularly known as Reinblacks. I was born on 8 August 1996 in Nairobi, Kenya.</p>' +
       '<p>I am an AI Coding Engineer and Crypto Investor, the founder of \u201cMarketPlusView.com\u201d (<a href="https://marketplusview.com" target="_blank" rel="noopener">https://marketplusview.com</a>) and \u201cReinblacksCreativz.com\u201d (<a href="https://reinblackscreativz.com" target="_blank" rel="noopener">https://reinblackscreativz.com</a>), and the CEO of Reinblacks Digital.</p>' +
       '<p>I don\u2019t claim to know everything, and I don\u2019t believe perfection is a requirement for growth. I believe in learning through experience, exploring new possibilities, and continuously expanding my knowledge. One principle has always guided me: the more information you have, the more you can understand.</p>' +
@@ -374,19 +389,7 @@
       '<p>Never assume that what you see is everything there is to see. Sometimes, a different perspective can change the way you understand the entire market.</p>' +
       '<p>Your journey. Your strategy. Your perspective.</p>' +
       '<p>Wishing you all the best in your trading and investment journey.</p>' +
-      '<p class="sig">Reinhard Mugambi (Reinblacks)<span>Founder of MarketPlusView.com</span><span>Founder of Reinblacks Creativz</span><span>CEO of Reinblacks Digital</span></p></div>' +
-      '<div class="k">Chief Executive Officer</div><p>' + BIZ.owner + '</p>' +
-      '<div class="k">Registered under</div><p>' + BIZ.name + '</p>' +
-      '<div class="k">Business No.</div><p>' + BIZ.no + '</p>' +
-      '<div class="k">Location</div><p>' + BIZ.loc + '</p>' +
-      '<div class="k">Please note</div><p>MarketPlusView provides trading analysis tools only. We are not a broker, we do not hold, manage or send money, and nothing here is financial advice. Trading involves risk; no tool guarantees profits. Signals are based on past prices and can be wrong.</p>' +
-      '<div class="k">Data and credits</div><p>Market data comes from public exchange feeds and may be delayed or incorrect. Charts are drawn with TradingView Lightweight Charts (Apache 2.0, \u00a9 TradingView, Inc., tradingview.com). Some indicators are our own ports of open scripts by their authors, who keep their credit: for example MarkitTick, LuxAlgo and others named inside each tool\u2019s guide.</p>' +
-      '<div class="k">Legal</div><p><a href="#" id="mpvAbT" style="color:#93b4ff">Terms and conditions</a> \u00b7 <a href="#" id="mpvAbP" style="color:#93b4ff">Privacy policy</a> \u00b7 <a href="#" id="mpvAbF" style="color:#93b4ff">Questions and answers</a></p>' +
-      '<div class="k">Contact</div><p><a href="mailto:' + SUPPORT + '" style="color:#93b4ff">' + SUPPORT + '</a><br><a href="https://wa.me/' + WA_NUM + '" target="_blank" rel="noopener" style="color:#93b4ff">WhatsApp ' + WA_SHOW + '</a></p>');
-    var t = $('mpvAbT'), p = $('mpvAbP'), f = $('mpvAbF');
-    if (t) t.onclick = function (e) { e.preventDefault(); termsView(); };
-    if (p) p.onclick = function (e) { e.preventDefault(); privacyView(); };
-    if (f) f.onclick = function (e) { e.preventDefault(); faqView(); };
+      '<p class="sig">Reinhard Mugambi (Reinblacks)<span>Founder of MarketPlusView.com</span><span>Founder of Reinblacks Creativz</span><span>CEO of Reinblacks Digital</span></p></div>');
   }
   function faqView() {
     var Q = [
@@ -468,7 +471,7 @@
     var T = PLANS[tierOf(S.plan)], nm = shownName(S.email);
     var badge = S.admin ? 'ADMIN' : S.plan === 'trial' ? 'FREE TRIAL' : (T ? T.n.toUpperCase() : '');
     var stat = S.admin ? 'Full access' : (T ? T.n + ' access · ' : '') + days + (days === 1 ? ' day' : ' days') + ' left' + (S.exp ? ' · until ' + new Date(S.exp).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '');
-    var rows = [['pw', 'Change password'], ['help', 'Help Center'], ['faq', 'Questions and answers'], ['about', 'About'], ['terms', 'Terms and conditions'], ['privacy', 'Privacy policy'], ['lic', 'Licence'], ['del', 'Delete account']];
+    var rows = [['pw', 'Change password'], ['help', 'Help Center'], ['faq', 'Questions and answers'], ['about', 'About'], ['ceo', 'Meet The C.E.O'], ['terms', 'Terms and conditions'], ['privacy', 'Privacy policy'], ['lic', 'Licence'], ['del', 'Delete account']];
     if (S.admin) rows.push(['admin', 'Admin page']);
     openOv(
       '<div class="mpv-top"><div class="mpv-brand"><img class="mpv-lg" src="' + LOGO_URL + '" alt=""><span>Market<span style="color:#ef4444">Plus</span><span style="color:#60a5fa">View</span></span></div><button class="mpv-x" id="mpvCl" aria-label="Close">✕</button></div>' +
@@ -479,7 +482,7 @@
       '</div><div class="mpv-c2">' +
       '<div class="mpv-card mpv-list">' + rows.map(function (r) { return '<button class="mpv-item" data-go="' + r[0] + '">' + r[1] + '<span>›</span></button>'; }).join('') + '</div>' +
       '<div class="mpv-card mpv-list"><button class="mpv-item out" data-go="out">Sign out</button></div></div></div>', 'mpv-acct');
-    var go = { plans: plansView, code: function () { codeView(S.email, '', true); }, pw: changePwView, help: helpView, faq: faqView, about: aboutView, terms: termsView, privacy: privacyView, del: deleteView, lic: licenceView, admin: function () { location.href = 'admin.html'; }, out: signOut };
+    var go = { plans: plansView, code: function () { codeView(S.email, '', true); }, pw: changePwView, help: helpView, faq: faqView, about: aboutView, ceo: ceoView, terms: termsView, privacy: privacyView, del: deleteView, lic: licenceView, admin: function () { location.href = 'admin.html'; }, out: signOut };
     [].forEach.call(ov.querySelectorAll('[data-go]'), function (b) { b.onclick = function () { go[b.getAttribute('data-go')](); }; });
     $('mpvCl').onclick = close; msg(m, ok);
     var im = ov.querySelector('.mpv-lg'); if (im) im.onerror = function () { this.style.display = 'none'; };
