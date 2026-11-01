@@ -4,7 +4,7 @@ let pass=0,fail=0; const ok=(c,m)=>{ if(c) pass++; else { fail++; console.log('F
 // stub app globals (test data is a deterministic test fixture, not market data)
 global.localStorage={getItem:()=>null,setItem:()=>{}}; global.fmt=v=>(+v).toFixed(2); global.render=()=>{};
 const opts={candle:{},line:{}}; global.candle={applyOptions:o=>Object.assign(opts.candle,o)}; global.lineS={applyOptions:o=>Object.assign(opts.line,o)};
-global.window={}; eval(code+'\nglobal.HLC=window.mpHLC;'); const HLC=global.HLC;
+global.window={}; eval(code+'\nglobal.HLC=window.mpHLC;'); const HLC=global.HLC; HLC.cfg().mode='band';
 let seed=5; const R=()=>{ seed=(seed*1664525+1013904223)>>>0; return seed/4294967296; };
 const cs=[]; let px=65000; for(let i=0;i<120;i++){ const o=px, c=o+(R()-0.5)*600, hi=Math.max(o,c)+R()*250, lo=Math.min(o,c)-R()*250; cs.push({time:1.7e9+i*3600,open:o,high:hi,low:lo,close:c,volume:100+R()*900}); px=c; }
 const W=900,H=480, from=40,to=110; const pmin=Math.min(...cs.slice(40).map(c=>c.low))-100, pmax=Math.max(...cs.slice(40).map(c=>c.high))+100;
@@ -39,4 +39,12 @@ HLC.style(); ok(opts.candle.upColor==='rgba(0,0,0,0)'&&opts.candle.wickVisible==
 HLC.cfg().prec=2; HLC.style(); ok(opts.candle.priceFormat.precision===2&&opts.line.priceFormat.precision===2,'precision'); HLC.leave(); ok(opts.line.visible===false&&opts.line.color==='#4dabf7','leave restores line');
 // 6 tooltip row has exact H L C Vol
 const row=HLC.row({high:101.5,low:99.25,close:100,open:100,volume:1234.5},{close:99}); ok(/H<\/span> 101.50/.test(row)&&/L<\/span> 99.25/.test(row)&&/C<\/span> 100.00/.test(row)&&/Vol 1.23K/.test(row)&&/Range 2.25/.test(row),'row: '+row.replace(/<[^>]+>/g,''));
+// 7 bars mode: vertical line Low->High and a RIGHT close tick, nothing for open
+HLC.cfg().mode='bars'; HLC.cfg().dir=false; cx=mk(); HLC.draw(cx,ts,s,W,H,cs);
+const st=cx.strokes[0]; const segs=[]; for(let i=0;i<st.path.length;i+=2) segs.push([st.path[i],st.path[i+1]]);
+ok(segs.length===2*n,'bars: 2 segments per period (hl line + close tick): '+segs.length);
+let eb=0,ok2=true; for(let i=0;i<n;i++){ const c=cs[a+i], v=segs[2*i], tk=segs[2*i+1]; eb=Math.max(eb,Math.abs(v[0][2]-s.priceToCoordinate(c.high)),Math.abs(v[1][2]-s.priceToCoordinate(c.low)),Math.abs(tk[0][2]-s.priceToCoordinate(c.close))); if(!(tk[1][1]>tk[0][1])||Math.abs(tk[0][1]-v[0][1])>1e-9) ok2=false; }
+ok(eb<1e-9,'bars: high/low/close y exact (err '+eb+')'); ok(ok2,'bars: close tick starts on the bar and points right');
+HLC.cfg().dir=true; cx=mk(); HLC.draw(cx,ts,s,W,H,cs); ok(cx.strokes.length===2&&cx.strokes.map(q=>q.style).sort().join()==='#2dd4a7,#ff5d7a','bars: rising / falling colours');
+HLC.style(); ok(opts.line.lineVisible===false&&opts.line.lastValueVisible===true,'bars: native line only supplies price label');
 console.log('pass',pass,'fail',fail); process.exit(fail?1:0);
