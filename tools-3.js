@@ -1,5 +1,5 @@
 /* tools-3.js — MarketPlusView tool code. index.html loads this file and runs it inside start() at the spot where this code used to be (same order, same scope).
-   Keep the file name. Tools in this file: IND.afib, IND.smc, IND.srh, IND.wvadp, IND.ppa */
+   Keep the file name. Tools in this file: IND.afib, IND.smc, IND.srh, IND.wvadp, IND.amfc, IND.ppa */
 try{
 // =====================================================================================
 // UPGRADE PACK (isolated): [wlx] watchlist · [afx] Auto Fibonacci · [fbx] Fib drawing · [avx] Anchored VWAP
@@ -805,6 +805,223 @@ IND.wvadp={label:'Williams Variable A/D Pressure (WVADP)',title:'Williams Variab
   extras:(c,p)=>{ const R=wvpRun(c,p); return {mk:[],ev:R.ev||[],boxes:[{type:'wvpview',pts:[],r:R,o:p}],labels:[]}; }};
 try{ if(typeof DESC!=='undefined') DESC.wvadp='WVAD line, BULL/BEAR signals, SL/TP levels, heatmap candles, dashboard'; }catch(e){}
 }catch(err){ console.error('wvp failed',err); window.__wvpErr=err; }
+
+
+try{
+// =====================================================================================
+// [amf] AROON MONEY FLOW CONFLUENCE (AMFC) - isolated block (names start with amf / AMF_).
+// Indicator. Aroon Oscillator line + Chaikin Money Flow columns in their own pane; a LONG / SHORT
+// appears when Aroon and money flow agree (Aroon may flip first, money flow follows within a
+// confirm window). ATR stop, TP1-3 levels, optional candle colouring and a dashboard on the chart.
+// =====================================================================================
+const AMF_DEF={ aroonLen:14, cmfLen:20, flowBuf:.05, autoConfirm:true, confirmBars:0,
+  useHtf:false, htf:'1h', useAdx:false, adxLen:14, adxMin:20, smooth:'None', smoothLen:10,
+  lock:false, atrLen:14, slM:1.5, tp1:1, tp2:2, tp3:3,
+  levels:true, showMarks:true, candles:false, showAroon:true, showCmf:true, dash:true, dashPos:'Top Right',
+  bull:'#26a69a', bear:'#ef5350', cNeut:'#787b86', cmfUp:'#26a69a', cmfDn:'#ef5350',
+  slCol:'#ef5350', entCol:'#2196f3', tpCol:'#26a69a', lockT:0 };
+const AMF_SMOOTH=['None','EMA','RMA','WMA','HMA','KAMA','Kalman'];
+const AMF_HTF={'1m':60,'5m':300,'15m':900,'30m':1800,'1h':3600,'2h':7200,'4h':14400,'1D':86400,'1W':604800};
+const amfHex=(h,a)=>{ const m=/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(h||''); return m?`rgba(${parseInt(m[1],16)},${parseInt(m[2],16)},${parseInt(m[3],16)},${a})`:h; };
+const amfFirst=v=>{ for(let i=0;i<v.length;i++) if(v[i]!=null&&isFinite(v[i])) return i; return -1; };
+function amfSma(v,len){ const n=v.length,o=new Array(n).fill(null),f=amfFirst(v); if(f<0) return o; let s=0;
+  for(let i=f;i<n;i++){ s+=v[i]||0; if(i-f>=len) s-=v[i-len]||0; if(i-f>=len-1) o[i]=s/len; } return o; }
+function amfEma(v,len,a){ const n=v.length,o=new Array(n).fill(null),f=amfFirst(v); if(f<0||n-f<len) return o;
+  let s=0; for(let i=f;i<f+len;i++) s+=v[i]; let prev=s/len; o[f+len-1]=prev;
+  for(let i=f+len;i<n;i++){ prev=a*v[i]+(1-a)*prev; o[i]=prev; } return o; }
+const amfRma=(v,len)=>amfEma(v,len,1/len), amfEmaP=(v,len)=>amfEma(v,len,2/(len+1));
+function amfWma(v,len){ const n=v.length,o=new Array(n).fill(null),f=amfFirst(v); if(f<0) return o; const d=len*(len+1)/2;
+  for(let i=f+len-1;i<n;i++){ let s=0; for(let k=0;k<len;k++) s+=(v[i-len+1+k]||0)*(k+1); o[i]=s/d; } return o; }
+function amfHma(v,len){ const a=amfWma(v,Math.max(1,Math.floor(len/2))), b=amfWma(v,len);
+  return amfWma(v.map((_,i)=>a[i]!=null&&b[i]!=null?2*a[i]-b[i]:null),Math.max(1,Math.round(Math.sqrt(len)))); }
+function amfKal(v,len){ const o=new Array(v.length).fill(null); let est=null,err=1; const q=1/len;
+  for(let i=0;i<v.length;i++){ const x=v[i]; if(x==null) continue; if(est==null) est=x; const pe=err+q, g=pe/(pe+1); est=est+g*(x-est); err=(1-g)*pe; o[i]=est; } return o; }
+function amfKama(v,len){ const n=v.length,o=new Array(n).fill(null),f=amfFirst(v); if(f<0) return o; let k=null;
+  for(let i=f;i<n;i++){ if(i-f<len) continue; let vol=0; for(let j=i-len+1;j<=i;j++) vol+=Math.abs(v[j]-v[j-1]);
+    const er=vol>0?Math.abs(v[i]-v[i-len])/vol:0, a=er*(2/3-2/31)+2/31;
+    if(k==null){ let s=0; for(let j=i-len+1;j<=i;j++) s+=v[j]; k=s/len; } else k=k+a*a*(v[i]-k); o[i]=k; } return o; }
+function amfSmooth(v,m,len){ switch(m){ case 'EMA': return amfEmaP(v,len); case 'RMA': return amfRma(v,len); case 'WMA': return amfWma(v,len);
+  case 'HMA': return amfHma(v,len); case 'KAMA': return amfKama(v,len); case 'Kalman': return amfKal(v,len); default: return v; } }
+// Aroon oscillator: 100*(len-barsSinceHigh)/len - 100*(len-barsSinceLow)/len over the last len+1 bars (newest wins a tie)
+function amfAroon(hi,lo,len){ const n=hi.length, up=new Array(n).fill(null), dn=new Array(n).fill(null);
+  for(let i=len;i<n;i++){ let bh=0,bl=0,mh=-Infinity,ml=Infinity;
+    for(let k=0;k<=len;k++){ const j=i-k; if(hi[j]>mh){ mh=hi[j]; bh=k; } if(lo[j]<ml){ ml=lo[j]; bl=k; } }
+    up[i]=100*(len-bh)/len; dn[i]=100*(len-bl)/len; }
+  return {up,dn,osc:up.map((x,i)=>x!=null?x-dn[i]:null)}; }
+function amfMedian(a){ const s=a.slice().sort((x,y)=>x-y), m=s.length>>1; return s.length%2?s[m]:(s[m-1]+s[m])/2; }
+
+const amfCache={k:'',r:null};
+function amfRun(c,p){
+  if(p.lock&&!p.lockT&&c.length) p.lockT=c[c.length-1].time; if(!p.lock) p.lockT=0;
+  const n=c.length, key=n+'|'+(n?c[0].time+'|'+c[n-1].time+'|'+c[n-1].close+'|'+c[n-1].high+'|'+c[n-1].low+'|'+c[n-1].volume:'')+'|'+JSON.stringify(p);
+  if(amfCache.k===key) return amfCache.r;
+  const R={n,bars:c,aUp:[],aDn:[],aroon:[],cmf:[],sigs:[],tr:null,ev:[],last:null}; amfCache.k=key; amfCache.r=R;
+  if(n<30) return R;
+  const AL=Math.max(2,Math.round(p.aroonLen)), CL=Math.max(2,Math.round(p.cmfLen)), SL=Math.max(2,Math.round(p.smoothLen)), buf=p.flowBuf;
+  const hi=c.map(x=>x.high), lo=c.map(x=>x.low);
+  const ar=amfAroon(hi,lo,AL);
+  // Chaikin money flow: sum(mfv)/sum(volume) over CL bars, bars with no range add nothing
+  const mfv=c.map(x=>x.high>x.low?(2*x.close-x.high-x.low)/(x.high-x.low)*(x.volume||0):0), vv=c.map(x=>x.high>x.low?(x.volume||0):0);
+  const cmfRaw=new Array(n).fill(null); { let sm=0,sv=0; for(let i=0;i<n;i++){ sm+=mfv[i]; sv+=vv[i]; if(i>=CL){ sm-=mfv[i-CL]; sv-=vv[i-CL]; } if(i>=CL-1&&sv>0) cmfRaw[i]=sm/sv; } }
+  R.noVol=cmfRaw[n-1]==null&&n>CL;
+  const osc=amfSmooth(ar.osc,p.smooth,SL), cmf=amfSmooth(cmfRaw,p.smooth,SL);
+  R.aUp=ar.up; R.aDn=ar.dn; R.aroon=osc; R.cmf=cmf;
+  // true range, ATR (Wilder) and ADX (Wilder)
+  const tr=c.map((x,i)=>i?Math.max(x.high-x.low,Math.abs(x.high-c[i-1].close),Math.abs(x.low-c[i-1].close)):x.high-x.low);
+  const atr=amfRma(tr,Math.max(1,Math.round(p.atrLen)));
+  let adx=new Array(n).fill(null);
+  if(p.useAdx){ const L=Math.max(1,Math.round(p.adxLen)), pd=new Array(n).fill(null), md=new Array(n).fill(null), trA=tr.map((x,i)=>i?x:null);
+    for(let i=1;i<n;i++){ const up=c[i].high-c[i-1].high, dn=c[i-1].low-c[i].low; pd[i]=up>dn&&up>0?up:0; md[i]=dn>up&&dn>0?dn:0; }
+    const sT=amfRma(trA,L), sP=amfRma(pd,L), sM=amfRma(md,L);
+    const dx=sT.map((t,i)=>{ if(t==null||sP[i]==null||sM[i]==null||!t) return null; const a=100*sP[i]/t, b=100*sM[i]/t, q=a+b; return 100*Math.abs(a-b)/(q===0?1:q); });
+    adx=amfRma(dx,L); }
+  // higher timeframe Aroon oscillator of the previous completed higher-timeframe bar
+  const sec=AMF_HTF[p.htf]||3600; let tfSec=0; if(n>2){ const d=[]; for(let i=Math.max(1,n-30);i<n;i++) d.push(c[i].time-c[i-1].time); tfSec=Math.min.apply(null,d.filter(x=>x>0)); }
+  R.htfValid=!p.useHtf||sec>=tfSec; const htfOn=p.useHtf&&R.htfValid, htfOsc=new Array(n).fill(null);
+  if(htfOn){ const bk=[]; let cur=null; const bi=new Array(n);
+    for(let i=0;i<n;i++){ const id=Math.floor(c[i].time/sec); if(!cur||cur.id!==id){ cur={id,h:c[i].high,l:c[i].low}; bk.push(cur); } else { cur.h=Math.max(cur.h,c[i].high); cur.l=Math.min(cur.l,c[i].low); } bi[i]=bk.length-1; }
+    const ho=amfAroon(bk.map(b=>b.h),bk.map(b=>b.l),AL).osc;
+    for(let i=0;i<n;i++){ const q=bi[i]-1; if(q>=0&&ho[q]!=null) htfOsc[i]=ho[q]; } }
+  let pd=4; try{ const q=candle.options().priceFormat.precision; if(q!=null) pd=q; }catch(e){} const mt=Math.pow(10,-pd);
+  // confluence state machine (bar by bar, confirmed bars only: the last bar is still forming)
+  const lag=[]; let pBull=-1,pBear=-1,sBull=-1,sBear=-1,t1=null,closed=false; const ev=[], N1=n-1;
+  const agB=new Array(n).fill(false), agS=new Array(n).fill(false);
+  for(let i=0;i<n;i++){ const o=osc[i], f=cmf[i], o1=i?osc[i-1]:null;
+    agB[i]=o!=null&&f!=null&&o>0&&f>buf; agS[i]=o!=null&&f!=null&&o<0&&f<-buf;
+    if(i>=N1) break;
+    const bx=o!=null&&o1!=null&&o>0&&o1<=0, sx=o!=null&&o1!=null&&o<0&&o1>=0;
+    if(bx) sBull=i; if(sx) sBear=i;
+    if(bx){ pBull=i; pBear=-1; } if(sx){ pBear=i; pBull=-1; }
+    if(pBull>=0&&i-pBull>20) pBull=-1; if(pBear>=0&&i-pBear>20) pBear=-1;
+    if(pBull>=0&&agB[i]){ lag.push(i-pBull); pBull=-1; } if(pBear>=0&&agS[i]){ lag.push(i-pBear); pBear=-1; }
+    if(lag.length>20) lag.shift();
+    const qtr=Math.max(1,Math.min(20,Math.round((CL-1)/4)));
+    const meas=lag.length>=5?Math.max(1,Math.min(20,Math.round(amfMedian(lag)))):qtr, eff=p.autoConfirm?meas:Math.max(0,Math.min(20,Math.round(p.confirmBars)));
+    R.eff=eff;
+    // trade management for the trade that was open before this bar
+    if(t1&&!closed&&i>t1.i0){ const L=t1.long, hH=c[i].high, lL=c[i].low, X=lv=>L?hH>=lv:lL<=lv;
+      if(X(t1.tp1)&&t1.h1<0&&t1.hs<0){ t1.h1=i; ev.push({k:'amf-t1',time:c[i].time,msg:'AMFC TP1 hit',col:p.tpCol}); }
+      if(X(t1.tp2)&&t1.h2<0&&t1.hs<0){ t1.h2=i; ev.push({k:'amf-t2',time:c[i].time,msg:'AMFC TP2 hit',col:p.tpCol}); }
+      if(X(t1.tp3)&&t1.h3<0&&t1.hs<0){ t1.h3=i; ev.push({k:'amf-t3',time:c[i].time,msg:'AMFC TP3 hit',col:p.tpCol}); }
+      if(t1.h3<0&&t1.hs<0&&(L?c[i].close<t1.sl:c[i].close>t1.sl)){ t1.hs=i; ev.push({k:'amf-sl',time:c[i].time,msg:'AMFC SL hit',col:p.slCol}); }
+      if(t1.hs>=0||t1.h3>=0){ t1.closeI=i; closed=true; } }
+    const rawL=agB[i]&&!(i&&agB[i-1])&&sBull>=0&&i-sBull<=eff, rawS=agS[i]&&!(i&&agS[i-1])&&sBear>=0&&i-sBear<=eff;
+    const hL=!htfOn||(htfOsc[i]!=null&&htfOsc[i]>0), hS=!htfOn||(htfOsc[i]!=null&&htfOsc[i]<0);
+    const aok=!p.useAdx||(i&&adx[i-1]!=null&&adx[i-1]>=p.adxMin);
+    let sl=rawL&&hL&&aok, ss=rawS&&hS&&aok;
+    const risk=atr[i]!=null?atr[i]*p.slM:null, e=c[i].close;
+    const rs=[p.tp1,p.tp2,p.tp3].sort((a,b)=>a-b);
+    const okL=risk!=null&&risk>mt&&e-risk>0, okS=risk!=null&&risk>mt&&e-risk*rs[2]>0;
+    const locked=p.lock&&p.lockT&&c[i].time>=p.lockT;
+    if(sl&&okL&&!locked||ss&&okS&&!locked){ const L=sl&&okL&&!locked, d=L?1:-1;
+      if(t1&&!closed) ev.push({k:'amf-c',time:c[i].time,msg:'AMFC close '+(t1.long?'long':'short')+' (new signal)',col:p.slCol});
+      R.sigs.push({i,long:L}); ev.push({k:'amf-s',time:c[i].time,msg:L?'AMFC BUY':'AMFC SELL',col:L?p.bull:p.bear});
+      t1={i0:i,long:L,entry:e,sl:e-d*risk,tp1:e+d*risk*rs[0],tp2:e+d*risk*rs[1],tp3:e+d*risk*rs[2],h1:-1,h2:-1,h3:-1,hs:-1,closeI:-1}; closed=false; } }
+  // the forming bar can still touch targets (high / low); the stop needs a closed bar
+  if(t1&&!closed&&N1>t1.i0){ const i=N1, L=t1.long, X=lv=>L?c[i].high>=lv:c[i].low<=lv;
+    if(X(t1.tp1)&&t1.h1<0&&t1.hs<0) t1.h1=i; if(X(t1.tp2)&&t1.h2<0&&t1.hs<0) t1.h2=i; if(X(t1.tp3)&&t1.h3<0&&t1.hs<0){ t1.h3=i; t1.closeI=i; closed=true; } }
+  R.tr=t1; R.closed=closed; R.agB=agB; R.agS=agS; R.ev=ev.slice(-30).map(e=>({...e,k:e.k+'|'+e.time}));
+  const L=n-1, rs2=Math.round(p.tp1); R.last={osc:osc[L],cmf:cmf[L],up:ar.up[L],dn:ar.dn[L],adxP:adx[L-1],atr:atr[L],htf:htfOsc[L],eff:R.eff||0};
+  return R;
+}
+
+function amfDraw(d,X,Y,W,H){
+  const R=d.r, p=d.o; if(!R||!R.n||R.n<30) return;
+  const c=R.bars, n=R.n;
+  let pd=4; try{ const q=candle.options().priceFormat.precision; if(q!=null) pd=q; }catch(e){}
+  const fp=v=>v.toFixed(pd);
+  cx.save(); cx.beginPath(); cx.rect(0,0,W,H); cx.clip(); cx.setLineDash([]);
+  const rr=(x,y,w,h,r)=>{ cx.beginPath(); cx.moveTo(x+r,y); cx.arcTo(x+w,y,x+w,y+h,r); cx.arcTo(x+w,y+h,x,y+h,r); cx.arcTo(x,y+h,x,y,r); cx.arcTo(x,y,x+w,y,r); cx.closePath(); };
+  // confluence candles
+  if(p.candles){ const a=X(n-1), b=X(n-2); let sp=(a!=null&&b!=null)?Math.abs(a-b):0; if(sp>0){ const bw=Math.max(1,Math.round(sp*.82));
+    for(let i=0;i<n;i++){ if(R.aroon[i]==null||R.cmf[i]==null) continue; const x=X(i); if(x==null||x<-bw||x>W+bw) continue;
+      const col=R.agB[i]?p.bull:R.agS[i]?p.bear:p.cNeut, yh=Y(c[i].high), yl=Y(c[i].low), yo=Y(c[i].open), yc=Y(c[i].close); if(yh==null||yl==null||yo==null||yc==null) continue;
+      cx.fillStyle=col; cx.fillRect(Math.round(x)-.5,yh,1,Math.max(1,yl-yh)); const t=Math.min(yo,yc), hh=Math.max(1,Math.abs(yc-yo)); cx.fillRect(Math.round(x-bw/2),t,bw,hh); } } }
+  // trade levels (latest trade only)
+  const tr=R.tr;
+  if(p.levels&&tr){ const x0=X(tr.i0), x1=X(tr.closeI>=0?tr.closeI+10:n-1+10);
+    if(x0!=null&&x1!=null&&x1>0){ const xa=Math.max(x0,0), ys=Y(tr.sl), ye=Y(tr.entry), y1=Y(tr.tp1), y2=Y(tr.tp2), y3=Y(tr.tp3);
+      if(ys!=null&&ye!=null&&y1!=null&&y2!=null&&y3!=null){
+        cx.fillStyle=amfHex(p.slCol,.2); cx.fillRect(xa,Math.min(ys,ye),x1-xa,Math.abs(ye-ys));
+        cx.fillStyle=amfHex(p.tpCol,.15); cx.fillRect(xa,Math.min(ye,y3),x1-xa,Math.abs(y3-ye));
+        const ln=(y,col,dash,w)=>{ cx.strokeStyle=col; cx.lineWidth=w; cx.setLineDash(dash); cx.beginPath(); cx.moveTo(xa,y); cx.lineTo(x1,y); cx.stroke(); cx.setLineDash([]); };
+        const pct=lv=>{ const q=(tr.long?lv-tr.entry:tr.entry-lv)/tr.entry*100; return (q>=0?'+':'-')+Math.abs(q).toFixed(2)+'%'; };
+        ln(ys,p.slCol,[],2); ln(ye,p.entCol,[5,4],1); ln(y1,amfHex(p.tpCol,.6),[5,4],1); ln(y2,amfHex(p.tpCol,.8),[5,4],1); ln(y3,p.tpCol,[5,4],1);
+        const lab=(y,txt,col)=>{ cx.font='bold 10px system-ui'; const w=cx.measureText(txt).width+10, h=16; let bx=x1+6; if(bx+w>W-2) bx=W-2-w; cx.fillStyle=col;
+          cx.beginPath(); cx.moveTo(x1+1,y); cx.lineTo(x1+6,y-4); cx.lineTo(x1+6,y+4); cx.closePath(); cx.fill(); rr(bx,y-h/2,w,h,3); cx.fill();
+          cx.fillStyle='#fff'; cx.textAlign='left'; cx.textBaseline='middle'; cx.fillText(txt,bx+5,y+.5); };
+        lab(ys,tr.hs>=0?'SL \u2713 HIT '+pct(tr.sl):'\u2715 SL '+fp(tr.sl),p.slCol);
+        lab(ye,'\u25B6 Entry '+fp(tr.entry),p.entCol);
+        lab(y1,tr.h1>=0?'TP1 \u2713 HIT '+pct(tr.tp1):'\u25C6 TP1 '+fp(tr.tp1),amfHex(p.tpCol,.6));
+        lab(y2,tr.h2>=0?'TP2 \u2713 HIT '+pct(tr.tp2):'\u2726 TP2 '+fp(tr.tp2),amfHex(p.tpCol,.8));
+        lab(y3,tr.h3>=0?'TP3 \u2713 HIT '+pct(tr.tp3):'\u25C6 TP3 '+fp(tr.tp3),p.tpCol); } } }
+  // BUY / SELL labels
+  if(p.showMarks){ cx.font='bold 10px system-ui'; cx.textAlign='center'; cx.textBaseline='middle';
+    R.sigs.forEach(g=>{ const x=X(g.i); if(x==null||x<-30||x>W+30) return; const y=Y(g.long?c[g.i].low:c[g.i].high); if(y==null) return;
+      const txt=g.long?'BUY':'SELL', w=cx.measureText(txt).width+12, h=16, col=g.long?p.bull:p.bear, ty=g.long?y+10:y-10-h;
+      cx.fillStyle=col; cx.beginPath(); if(g.long){ cx.moveTo(x,y+4); cx.lineTo(x-4,y+10); cx.lineTo(x+4,y+10); } else { cx.moveTo(x,y-4); cx.lineTo(x-4,y-10); cx.lineTo(x+4,y-10); } cx.closePath(); cx.fill();
+      rr(x-w/2,ty,w,h,3); cx.fill(); cx.fillStyle='#fff'; cx.fillText(txt,x,ty+h/2+.5); }); }
+  // dashboard
+  if(p.dash&&R.last){ const Lv=R.last, bull=p.bull, bear=p.bear, WARN='rgba(249,168,37,.8)';
+    const fm=(v,k)=>v==null?'\u2014':(v>=0?'+':'')+v.toFixed(k);
+    const bar=(v,mx)=>{ const q=Math.min(v/mx,1), fl=Math.round(q*10); return '\u2588'.repeat(fl)+'\u2591'.repeat(10-fl)+'  '+Math.round(q*100)+'%'; };
+    const bc=q=>q>=.66?'#26a69a':q>=.33?'#f9a825':'#ef5350';
+    const o=Lv.osc, f=Lv.cmf, open=tr&&!R.closed, risk=tr?Math.abs(tr.entry-tr.sl):0, last=c[n-1].close;
+    const openR=open&&risk>0?(last-tr.entry)*(tr.long?1:-1)/risk:null;
+    const rows=[['Lock',p.lock?'ACTIVE':'OFF',p.lock?bear:'#fff'],
+      ['Bias',o==null?'\u2014':o>0?'Bull':o<0?'Bear':'Neutral',o>0?bull:o<0?bear:'#fff'],
+      ['Aroon Up',Lv.up==null?'\u2014':bar(Lv.up,100),Lv.up==null?'#fff':bc(Lv.up/100)],
+      ['Aroon Down',Lv.dn==null?'\u2014':bar(Lv.dn,100),Lv.dn==null?'#fff':bc(Lv.dn/100)],
+      ['Aroon Osc',fm(o,1),'#fff'],['CMF',fm(f,3),'#fff'],
+      ['Money Flow',f==null?'\u2014':f>p.flowBuf?'Buying':f<-p.flowBuf?'Selling':'Neutral',f>p.flowBuf?bull:f<-p.flowBuf?bear:'#fff'],
+      ['Confirm Bars',Lv.eff+(p.autoConfirm?' \u00B7 Auto':' \u00B7 Manual'),'#fff'],
+      ['Trade',tr?(tr.long?'Long':'Short')+' \u00B7 '+(tr.hs>=0?'Stopped':tr.h3>=0?'Target 3':tr.h2>=0?'Target 2':tr.h1>=0?'Target 1':'Open'):'Flat',tr?(tr.long?bull:bear):'#fff'],
+      ['Entry',tr?fp(tr.entry):'\u2014','#fff'],['Stop',tr?fp(tr.sl)+(tr.hs>=0?' \u2713':''):'\u2014','#fff'],
+      ['TP1',tr?fp(tr.tp1)+(tr.h1>=0?' \u2713':''):'\u2014','#fff'],['TP2',tr?fp(tr.tp2)+(tr.h2>=0?' \u2713':''):'\u2014','#fff'],['TP3',tr?fp(tr.tp3)+(tr.h3>=0?' \u2713':''):'\u2014','#fff'],
+      ['ATR',Lv.atr==null?'\u2014':fp(Lv.atr),'#fff'],
+      ['Open R',openR==null?'\u2014':(openR>=0?'+':'')+openR.toFixed(2)+'R',openR>0?bull:openR<0?bear:'#fff']];
+    if(p.useHtf){ if(R.htfValid) rows.push(['HTF',p.htf+' \u00B7 '+(Lv.htf==null?'\u2014':Lv.htf>0?'Bull':Lv.htf<0?'Bear':'Neutral'),(Lv.htf>0&&o>0)||(Lv.htf<0&&o<0)?'#26a69a':'#ef5350']); else rows.push(['HTF',p.htf+' \u00B7 Skipped','#fff',1]); }
+    if(p.useAdx) rows.push(['ADX Prev',Lv.adxP==null?'\u2014':Lv.adxP.toFixed(1)+' / '+p.adxMin,Lv.adxP>=p.adxMin?'#26a69a':'#ef5350']);
+    if(p.smooth!=='None') rows.push(['Smoothing',p.smooth+' '+p.smoothLen,'#fff']);
+    if(R.noVol) rows.push(['Volume','None \u00B7 no signals','#fff',1]);
+    if(!(p.tp1<=p.tp2&&p.tp2<=p.tp3)) rows.push(['Targets','Reordered','#fff',1]);
+    const RH=15, DW=196, DH=(rows.length+1)*RH; let dx=p.dashPos.indexOf('Right')>=0?W-DW-4:4, dy=p.dashPos.indexOf('Bottom')>=0?H-DH-4:4; if(dx<0) dx=0; if(dy<0) dy=0;
+    cx.font='10px system-ui'; cx.textBaseline='middle';
+    cx.fillStyle='rgba(58,42,109,.8)'; cx.fillRect(dx,dy,DW,RH); cx.fillStyle='#fff'; cx.textAlign='left'; cx.fillText('AMFC',dx+6,dy+RH/2+.5);
+    let tk=''; try{ tk=sym[0]+' \u00B7 '+tf[0]; }catch(e){} cx.textAlign='right'; cx.fillText(tk,dx+DW-6,dy+RH/2+.5);
+    rows.forEach((r,q)=>{ const y=dy+(q+1)*RH; cx.fillStyle=r[3]?WARN:q%2?'rgba(10,15,26,.82)':'rgba(10,15,26,.92)'; cx.fillRect(dx,y,DW,RH);
+      cx.fillStyle='rgba(255,255,255,.72)'; cx.textAlign='left'; cx.fillText(r[0],dx+6,y+RH/2+.5); cx.fillStyle=r[2]; cx.textAlign='right'; cx.fillText(r[1],dx+DW-6,y+RH/2+.5); });
+    cx.strokeStyle='rgba(58,42,109,.6)'; cx.lineWidth=1; cx.strokeRect(dx+.5,dy+.5,DW-1,DH-1); }
+  cx.restore();
+}
+const amfPrevDraw=draw; draw=function(d,X,Y,W,H){ if(d&&d.type==='amfview') return amfDraw(d,X,Y,W,H); return amfPrevDraw.apply(this,arguments); };
+
+const amfHead=(b,t)=>{ const h=document.createElement('div'); h.style.cssText='color:#9aa3b5;font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin:16px 0 2px;padding-top:8px;border-top:1px solid #232a3a'; h.textContent=t; b.appendChild(h); };
+
+IND.amfc={label:'Aroon Money Flow Confluence (AMFC)',title:'Aroon Money Flow Confluence',cat:'Trend',cols:['#26a69a','#26a69a'],kinds:['line','hist'],pane:2,live:true,
+  lines:[[0,'rgba(120,123,134,.6)']],
+  nm:p=>`AMFC ${p.aroonLen} ${p.cmfLen}`,
+  p:Object.assign({},AMF_DEF),
+  inputsTab:(b,d)=>{ const p=d.p, F=(k,t,l,o)=>fld(b,p,k,t,l,o);
+    amfHead(b,'Core settings'); F('aroonLen','num','Aroon length',{min:2,max:500,step:1}); F('cmfLen','num','CMF length',{min:2,max:500,step:1}); F('flowBuf','num','Flow buffer',{min:0,max:.5,step:.01});
+    F('autoConfirm','chk','Auto confirm'); F('confirmBars','num','Confirm bars (when Auto is off)',{min:0,max:20,step:1});
+    amfHead(b,'Filters'); F('useHtf','chk','HTF confirm'); F('htf','sel','HTF',{opts:Object.keys(AMF_HTF)}); F('useAdx','chk','Trend strength (ADX)'); F('adxLen','num','ADX length',{min:1,max:200,step:1}); F('adxMin','num','ADX min',{min:0,max:100,step:.5});
+    F('smooth','sel','Smoothing',{opts:AMF_SMOOTH}); F('smoothLen','num','Smooth length',{min:2,max:200,step:1});
+    amfHead(b,'Trade tools'); F('lock','chk','Lock signal'); F('levels','chk','Show trade levels'); F('atrLen','num','ATR length',{min:1,max:200,step:1}); F('slM','num','SL x ATR',{min:.1,max:20,step:.1}); F('tp1','num','TP1 x R',{min:.1,max:50,step:.1}); F('tp2','num','TP2 x R',{min:.1,max:50,step:.1}); F('tp3','num','TP3 x R',{min:.1,max:50,step:.1});
+    amfHead(b,'Visuals'); F('showAroon','chk','Show Aroon oscillator'); F('showCmf','chk','Show CMF columns'); F('showMarks','chk','Show BUY / SELL labels'); F('candles','chk','Color candles');
+    amfHead(b,'Dashboard'); F('dash','chk','Show dashboard'); F('dashPos','sel','Position',{opts:['Top Right','Top Left','Bottom Right','Bottom Left']}); },
+  styleTab:(b,d)=>{ const p=d.p, F=(k,l)=>fld(b,p,k,'col',l);
+    amfHead(b,'Signals'); F('bull','Bull'); F('bear','Bear');
+    amfHead(b,'Pane'); F('cmfUp','CMF up'); F('cmfDn','CMF down');
+    amfHead(b,'Trade levels'); F('slCol','Stop loss'); F('entCol','Entry'); F('tpCol','Take profits');
+    amfHead(b,'Candles'); F('cNeut','Neutral candle'); },
+  calc:(c,p)=>{ const R=amfRun(c,p); if(!R.n||R.n<30) return [[],[]];
+    const ln=[], hs=[]; R.aroon.forEach((x,i)=>{ if(x==null||!isFinite(x)) return; ln.push({time:c[i].time,value:x,color:x>=0?p.bull:p.bear}); });
+    R.cmf.forEach((x,i)=>{ if(x==null||!isFinite(x)) return; hs.push({time:c[i].time,value:x*100,color:x>=0?amfHex(p.cmfUp,.5):amfHex(p.cmfDn,.5)}); });
+    return [p.showAroon?ln:[],p.showCmf?hs:[]]; },
+  extras:(c,p)=>{ const R=amfRun(c,p); return {mk:[],ev:R.ev||[],boxes:[{type:'amfview',pts:[],r:R,o:p}],labels:[]}; }};
+try{ if(typeof DESC!=='undefined') DESC.amfc='Aroon oscillator + Chaikin money flow confluence, BUY/SELL, SL/TP levels, dashboard'; }catch(e){}
+}catch(err){ console.error('amf failed',err); window.__amfErr=err; }
 
 
 try{
