@@ -5942,7 +5942,30 @@ function fpSheet(){
   const n=document.createElement('div'); n.style.cssText='color:#bbb;font-size:13px;margin-top:10px'; n.textContent='Every number is built from real executed Binance trades (buyer = taker counts as Buy / Ask, seller = taker counts as Sell / Bid). Zoom in on a 1m\u20131h chart to see the numbers.'; groups.appendChild(n);
 }
 $('bClear').onclick=()=>{ if(pending){ pending=null; disarm(); setStatus('live'); } else drawings.pop(); sel=null; dbarUpdate(); recomputeExtras(); render(); };
-$('bFull').onclick=()=>{ const d=document.documentElement; (document.fullscreenElement?document.exitFullscreen():d.requestFullscreen()).catch(()=>{}); };
+/* ---- chart-only fullscreen: hides the bottom toolbar so only the chart, price scale and time axis are left; Esc goes back ---- */
+{ const root=document.documentElement; let cfsOn=false;
+  const st=document.createElement('style'); st.textContent='body.cfs #bar{display:none!important}'; document.head.appendChild(st);
+  const cfsSet=on=>{ cfsOn=!!on; document.body.classList.toggle('cfs',cfsOn); requestAnimationFrame(()=>{ try{ window.dispatchEvent(new Event('resize')); }catch(e){} }); };
+  $('bFull').onclick=()=>{
+    if(cfsOn||document.fullscreenElement){ cfsSet(false); if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); return; }
+    if(!root.requestFullscreen) return;
+    cfsSet(true); root.requestFullscreen().catch(()=>{}); };
+  document.addEventListener('fullscreenchange',()=>{ if(!document.fullscreenElement&&cfsOn) cfsSet(false); });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&cfsOn&&!document.fullscreenElement) cfsSet(false); });
+}
+/* ---- crosshair runs through every pane (like TradingView): hover the price chart, RSI or any lower tool and the vertical line continues through all panes; the horizontal line + price label stay only in the pane you hover ---- */
+{ const paneOn=c=>c===chart?true:c===rsiChart?$('rsi').style.display!=='none':$('osc2').style.display!=='none';
+  const anchor=c=>{ if(c===chart) return candle; const n=c===rsiChart?1:2; const i=inds.find(x=>IND[x.t]&&IND[x.t].pane===n&&show(x)&&x.ser&&x.ser[0]); return i?i.ser[0]:null; };
+  let busy=false, cur=null;
+  const setH=h=>{ if(cur===h) return; cur=h; allCharts.forEach(c=>{ const on=(h==null)||c===h; try{ c.applyOptions({crosshair:{horzLine:{visible:on,labelVisible:on}}}); }catch(e){} }); };
+  const move=(src,p)=>{ if(busy) return; busy=true;
+    try{
+      if(!p||p.time==null||!p.point){ allCharts.forEach(c=>{ if(c!==src){ try{ c.clearCrosshairPosition(); }catch(e){} } }); setH(null); }
+      else { setH(src);
+        allCharts.forEach(c=>{ if(c===src||!paneOn(c)) return; const s=anchor(c); if(!s) return; let pr=null; try{ pr=s.coordinateToPrice(40); }catch(e){} if(pr==null||!isFinite(pr)) pr=0; try{ c.setCrosshairPosition(pr,p.time,s); }catch(e){} }); }
+    }finally{ busy=false; } };
+  allCharts.forEach(c=>c.subscribeCrosshairMove(p=>move(c,p)));
+}
 try{
 // ================= extra chart types: Heikin Ashi + Renko =================
 const _sd=candle.setData.bind(candle), _up=candle.update.bind(candle); let haC=[];
