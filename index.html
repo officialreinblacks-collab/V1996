@@ -489,6 +489,7 @@ html:not([data-theme=light]) #bar button:active,html:not([data-theme=light]) #ba
 }
 .rchB.wa{border-color:rgba(37,211,102,.55)}
 </style>
+<style id="mpvGest">#mw.hand,#mw.hand *{cursor:grab!important}#mw.hand.grabbing,#mw.hand.grabbing *{cursor:grabbing!important}#stage.nopanes #rsi,#stage.nopanes #osc2{display:none!important}</style>
 </head>
 <body>
 <div id="splash" role="status" aria-live="polite"><img id="spImg" alt="" src="https://res.cloudinary.com/wfypjzyt/image/upload/v1791143890/file_00000000b0e882118146e28bda6201fd.png?v=2"><div id="spLoad"><div class="spRing"></div><div id="spTxt">Loading chart<span class="spDots"><i>.</i><i>.</i><i>.</i></span></div></div></div>
@@ -6450,7 +6451,7 @@ let tapDn=null, lastRangeT=0; ts0.subscribeVisibleLogicalRangeChange(()=>{ lastR
 $('mw').addEventListener('pointerdown',e=>{ tapDn=e.isPrimary?{x:e.clientX,y:e.clientY,t:Date.now(),moved:false}:null; if(!e.isPrimary) tp=null; },true);
 window.addEventListener('pointermove',e=>{ if(tapDn&&Math.hypot(e.clientX-tapDn.x,e.clientY-tapDn.y)>8) tapDn.moved=true; },true);
 $('mw').addEventListener('pointerup',e=>{ if(typeof pending!=='undefined'&&pending) return; const now=Date.now(), pt={x:e.clientX,y:e.clientY};
-  const real=tapDn&&!tapDn.moved&&now-tapDn.t<260&&now-lastRangeT>350; tapDn=null; if(!real){ tp=null; return; }
+  const real=e.pointerType!=='mouse'&&tapDn&&!tapDn.moved&&now-tapDn.t<260&&now-lastRangeT>350; tapDn=null; if(!real){ tp=null; return; }
   if(tp&&now-tp.t<350&&Math.hypot(pt.x-tp.x,pt.y-tp.y)<30){ tp=null; const r=$('mw').getBoundingClientRect(), px=pt.x-r.left, py=pt.y-r.top; let onDrawing=false; try{ onDrawing=typeof pick==='function'&&!!pick(px,py); }catch(x){}
     if(!onDrawing&&candleHit(px,py)&&window.mpSettings) window.mpSettings(); else if(!onDrawing){ ts0.resetTimeScale(); ts0.scrollToRealTime(); chart.priceScale('right').applyOptions({autoScale:true}); toast('View reset','#2962ff'); } } else tp={t:now,x:pt.x,y:pt.y}; });
 restyle(); ohRow();
@@ -6483,6 +6484,24 @@ $('rpB').onclick=()=>rpStep(-1); $('rpF').onclick=()=>rpStep(1); $('rpP').onclic
 chart.subscribeClick(p=>{ if(!pick||!p||p.time==null) return; const i=bt(p.time); pick=false; if(i>=0) rpStart(i); });
 window.mpvChart={chart:chart,candle:candle,get candles(){return candles}};
 window.mpvDraw=function(t){ for(const k in TABS){ const e=TABS[k].find(x=>x[0]===t); if(e){ if(!e[3]) return; dwxStart(e[0],e[1],e[3],e[4]); return; } } };
+
+{ // mouse gestures: double-click = hand (pan) mode, triple-click = hide / show lower panes
+  const mw=$('mw'), stg=$('stage'); let cnt=0, tm=null, dn=null, hand=false, prevMode=0, prevAuto=true;
+  const setHand=on=>{ if(on===hand) return; hand=on; mw.classList.toggle('hand',on);
+    try{ if(on){ prevMode=chart.options().crosshair.mode; prevAuto=chart.priceScale('right').options().autoScale; }
+      allCharts.forEach(c=>{ try{ c.applyOptions({crosshair:{mode:on?2:prevMode}}); }catch(e){} });
+      chart.applyOptions({handleScroll:{pressedMouseMove:true,mouseWheel:true,horzTouchDrag:true,vertTouchDrag:true},handleScale:{axisPressedMouseMove:true,mouseWheel:true,pinch:true}});
+      chart.priceScale('right').applyOptions({autoScale:on?false:prevAuto}); }catch(e){}
+    toast(on?'Hand mode: drag the chart or price. Double-click or Esc to exit':'Crosshair back','#2962ff'); };
+  const panes=()=>$('rsi').style.display!=='none'||$('osc2').style.display!=='none';
+  const togglePanes=()=>{ if(!panes()){ toast('No lower panes to hide','#2962ff'); return; } const h=stg.classList.toggle('nopanes'); toast(h?'Lower panes hidden. Triple-click to show':'Lower panes shown','#2962ff'); };
+  mw.addEventListener('pointerdown',e=>{ dn={x:e.clientX,y:e.clientY}; if(hand&&e.pointerType==='mouse') mw.classList.add('grabbing'); },true);
+  window.addEventListener('pointerup',()=>mw.classList.remove('grabbing'),true);
+  mw.addEventListener('click',e=>{ if(e.pointerType==='touch'||e.button||!e.target||e.target.tagName!=='CANVAS') return;
+    if(dn&&Math.hypot(e.clientX-dn.x,e.clientY-dn.y)>6){ cnt=0; return; }
+    cnt++; clearTimeout(tm); tm=setTimeout(()=>{ const n=cnt; cnt=0; if(n===2) setHand(!hand); else if(n>=3) togglePanes(); },300); },true);
+  window.addEventListener('keydown',e=>{ if(e.key==='Escape'&&hand) setHand(false); });
+}
 window.mpReplay=()=>openSheet('Bar replay',()=>{ const b=chips('Start replay from'); [50,200,500].forEach(n=>chip(b,n+' candles back',false,()=>{ close(); rpStart(candles.length-1-n); },true));
   chip(b,'Tap a candle on the chart',false,()=>{ close(); pick=true; toast('Tap the candle to start from','#2962ff'); },true);
   const t=document.createElement('div'); t.className='wl-e'; t.textContent='Candles appear one by one. Replay uses the candles already loaded; scroll left first to load more history.'; groups.appendChild(t); });
