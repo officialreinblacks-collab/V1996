@@ -1,5 +1,5 @@
 /* tools-3.js — MarketPlusView tool code. index.html loads this file and runs it inside start() at the spot where this code used to be (same order, same scope).
-   Keep the file name. Tools in this file: IND.afib, IND.smc, IND.srh, IND.wvadp, IND.amfc, IND.ppa, IND.rcp */
+   Keep the file name. Tools in this file: IND.afib, IND.smc, IND.srh, IND.wvadp, IND.amfc, IND.ppa, IND.rcp, IND.cfp */
 try{
 // =====================================================================================
 // UPGRADE PACK (isolated): [wlx] watchlist · [afx] Auto Fibonacci · [fbx] Fib drawing · [avx] Anchored VWAP
@@ -1365,4 +1365,268 @@ IND.rcp={label:'Rolling Candle Profile – pressure gradient + BUY/SELL (Zeiierm
   styleTab:(b,d)=>{ const p=d.p, F=(k,l)=>fld(b,p,k,'col',l); F('buyCol','Buying pressure'); F('sellCol','Selling pressure'); F('txtCol','Label text'); F('buyLab','BUY label'); F('sellLab','SELL label'); },
   extras:(c,p)=>({mk:[],boxes:[{type:'rcpview',pts:[],r:rcpCompute(c,p),o:p}],labels:[]})};
 }catch(err){ console.error('rcp failed',err); window.__rcpErr=err; }
+try{
+// =====================================================================================
+// [cfp] CONFLUENCE PROFILE - isolated block (names start with cfp / CFP_).
+// Overlay indicator: a matrix drawn to the right of the last candle. Columns F1/F2/F3 (Fibonacci levels of three
+// trailing swings), OB (order blocks), FVG (fair value gaps), V1/V2/V3/Vext (volume nodes) and a weighted
+// Confluence (sum) column that shows where many factors stack at the same price.
+// Based on "Confluence Profile" by Uncle_the_shooter (Mozilla Public License 2.0, https://mozilla.org/MPL/2.0/). Keep this credit.
+// =====================================================================================
+const CFP_DEF={ atrLen:100, tolAtr:.15,
+  en1:true,len1:10, en2:true,len2:30, en3:true,len3:80, useEnds:true, showSwPts:true,
+  sx1:false,vx1:-.618, sx2:false,vx2:-.272, si1:false,vi1:.236, si2:true,vi2:.382, si3:true,vi3:.5, si4:true,vi4:.618, si5:true,vi5:.786,
+  se0:true,ve0:1.272, se1:false,ve1:1.618, se2:false,ve2:2,
+  useOB:true, pivLen:12, useWicks:true, obMin:.1, useFVG:true, fvgMin:.25, fvgFill:'Shrink',
+  useVol:true, useVolZ:true, volMode:'Nodes',
+  wF1:1,wF2:1,wF3:1, wOB:1,wFVG:1, wV1:1,wV2:1,wV3:1,wVz:1,
+  mxOffset:4, laneW:4, sumW:20, colBull:'#1D9E75', colBear:'#E24B4A', txt:'Small', frameTr:70, mirror:true, zones:'None' };
+const cfpClamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const cfpRgb=h=>{ const m=/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(h||''); return m?[parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)]:[120,123,134]; };
+const cfpGrad=(v,a,b,c1,c2)=>{ const t=cfpClamp((v-a)/(b-a),0,1); return [0,1,2].map(i=>Math.round(c1[i]+(c2[i]-c1[i])*t)); };
+
+// Trailing swing on an alternating zigzag of confirmed pivots (A = older point, B = newer point). Faithful port of trailFib().
+function cfpTrail(c,len,n){
+  const VM=2000; let pA=null,iA=0,pB=null,iB=0,hB=true;
+  for(let i=0;i<n;i++){
+    const q=c[i];
+    const ext=(o1,o2,hi)=>{ let pv=null,ix=null; const a=Math.max(0,o1), b=Math.min(o2,Math.min(i,VM));
+      if(a<=b){ for(let off=a;off<=b;off++){ const v=hi?c[i-off].high:c[i-off].low; if(pv==null||(hi?v>pv:v<pv)){ pv=v; ix=i-off; } } } return [pv,ix]; };
+    if(pB==null){ pA=q.low; iA=i; pB=q.high; iB=i; hB=true; }
+    const p=i-len; let ph=null,pl=null;
+    if(p>=len){ let isH=true,isL=true; const vh=c[p].high, vl=c[p].low;
+      for(let k=p-len;k<=i;k++){ if(c[k].high>vh) isH=false; if(c[k].low<vl) isL=false; if(!isH&&!isL) break; }
+      if(isH) ph=vh; if(isL) pl=vl; }
+    if(ph!=null){
+      if(hB&&iB<p){ const [lp,li]=ext(i-p+1,i-iB-1,false);
+        if(lp!=null){ const [hp,hi_]=ext(0,i-li-1,true); pA=lp; iA=li; pB=hp; iB=hi_; hB=true;
+          const [lp2,li2]=ext(0,i-iB-1,false); if(lp2!=null&&lp2<pA){ pA=pB; iA=iB; pB=lp2; iB=li2; hB=false; } } }
+      else if(!hB&&p>iB){ const [hp,hi_]=ext(0,i-iB-1,true); if(hp!=null){ pA=pB; iA=iB; pB=hp; iB=hi_; hB=true; } }
+      else if(!hB&&p>iA){ pA=ph; iA=p; } }
+    if(pl!=null){
+      if(!hB&&iB<p){ const [hp,hi_]=ext(i-p+1,i-iB-1,true);
+        if(hp!=null){ const [lp,li]=ext(0,i-hi_-1,false); pA=hp; iA=hi_; pB=lp; iB=li; hB=false;
+          const [hp2,hi2]=ext(0,i-iB-1,true); if(hp2!=null&&hp2>pA){ pA=pB; iA=iB; pB=hp2; iB=hi2; hB=true; } } }
+      else if(hB&&p>iB){ const [lp,li]=ext(0,i-iB-1,false); if(lp!=null){ pA=pB; iA=iB; pB=lp; iB=li; hB=false; } }
+      else if(hB&&p>iA){ pA=pl; iA=p; } }
+    const grn=q.close>=q.open;
+    for(let step=0;step<2;step++){ const doLow=grn?step===0:step===1;
+      if(doLow){ if(!hB&&q.low<pB){ pB=q.low; iB=i; } else if(hB&&q.low<pA){ pA=pB; iA=iB; pB=q.low; iB=i; hB=false; } }
+      else { if(hB&&q.high>pB){ pB=q.high; iB=i; } else if(!hB&&q.high>pA){ pA=pB; iA=iB; pB=q.high; iB=i; hB=true; } } }
+  }
+  return {h:hB?pB:pA, l:hB?pA:pB, z:hB, a:iA, ih:hB?iB:iA, il:hB?iA:iB};
+}
+
+function cfpCompute(c0,p){
+  const CAP=3000, off=Math.max(0,c0.length-CAP), c=off?c0.slice(off):c0, n=c.length, R={off,n,last:n-1,ok:false};
+  if(n<60) return R;
+  const VM=2000, OBL=5, L=n-1, AL=Math.max(1,Math.round(p.atrLen)), PL=Math.max(1,Math.round(p.pivLen));
+  // ATR (RMA)
+  const atr=new Array(n).fill(null); { let ra=null,s=0;
+    for(let i=0;i<n;i++){ const q=c[i], tr=i?Math.max(q.high-q.low,Math.abs(q.high-c[i-1].close),Math.abs(q.low-c[i-1].close)):q.high-q.low;
+      if(i<AL-1) s+=tr; else if(i===AL-1){ s+=tr; ra=s/AL; atr[i]=ra; } else { ra=(ra*(AL-1)+tr)/AL; atr[i]=ra; } } }
+  // swings
+  const lens=[1,2,3].map(k=>Math.max(2,Math.round(p['len'+k]))), SW=lens.map(l=>cfpTrail(c,l,n));
+  // zones
+  const obZ=[], fvZ=[];
+  const addZ=(arr,t,b,left,bull,fvg)=>{ if(arr.length>=300) arr.shift(); arr.push({top:t,bot:b,left,bull,fvg,ce:(t+b)/2,top0:t,bot0:b}); };
+  const track=(zs,q)=>{ for(let k=zs.length-1;k>=0;k--){ const z=zs[k];
+    if(z.bull&&q.close<z.bot){ zs.splice(k,1); continue; }
+    if(!z.bull&&q.close>z.top){ zs.splice(k,1); continue; }
+    if(z.fvg&&p.fvgFill==='Remove at 50%'&&(z.bull?q.close<z.ce:q.close>z.ce)){ zs.splice(k,1); continue; }
+    const touch=q.low<=z.top&&q.high>=z.bot;
+    if(z.fvg&&p.fvgFill==='Shrink'&&touch){
+      if(z.bull){ if(q.low<=z.bot){ zs.splice(k,1); continue; } z.top=Math.min(z.top,q.low); }
+      else { if(q.high>=z.top){ zs.splice(k,1); continue; } z.bot=Math.max(z.bot,q.high); } } } };
+  const createOB=(i,isBull)=>{ const idx=PL, A=atr[i]; let src=idx;
+    const isR=k=>c[i-k].close<c[i-k].open, isG=k=>c[i-k].close>c[i-k].open;
+    if(isBull&&!isR(idx)){ for(let k=idx+1;k<=idx+OBL;k++){ if(i-k>=0&&isR(k)){ src=k; break; } } }
+    else if(!isBull&&!isG(idx)){ for(let k=idx+1;k<=idx+OBL;k++){ if(i-k>=0&&isG(k)){ src=k; break; } } }
+    const qs=c[i-src], qi=c[i-idx];
+    let t=p.useWicks?qs.high:Math.max(qs.open,qs.close), b=p.useWicks?qs.low:Math.min(qs.open,qs.close);
+    if(isBull) b=Math.min(b,p.useWicks?qi.low:Math.min(qi.open,qi.close)); else t=Math.max(t,p.useWicks?qi.high:Math.max(qi.open,qi.close));
+    let su=src;
+    if((t-b)>A*2){ if(isBull){ t=Math.min(qi.open,qi.close); b=qi.low; } else { t=qi.high; b=Math.max(qi.open,qi.close); } su=idx; }
+    if((t-b)>=A*p.obMin) addZ(obZ,t,b,i-su,isBull,false); };
+  for(let i=0;i<n;i++){ const q=c[i], A=atr[i];
+    if(p.useOB&&A!=null&&i>=2*PL){ const m=i-PL; let isH=true,isL=true; const vh=c[m].high, vl=c[m].low;
+      for(let k=m-PL;k<=i;k++){ if(c[k].high>vh) isH=false; if(c[k].low<vl) isL=false; if(!isH&&!isL) break; }
+      if(isL) createOB(i,true); if(isH) createOB(i,false); }
+    if(p.useFVG&&A!=null&&i>=2){ const q2=c[i-2];
+      if(q.low>q2.high&&(q.low-q2.high)>=A*p.fvgMin) addZ(fvZ,q.low,q2.high,i-2,true,true);
+      if(q.high<q2.low&&(q2.low-q.high)>=A*p.fvgMin) addZ(fvZ,q2.low,q.high,i-2,false,true); }
+    track(obZ,q); track(fvZ,q); }
+  const atrC=atr[L-1]!=null?atr[L-1]:atr[L]; if(atrC==null) return R;
+  const tol=p.tolAtr*atrC, nm=['F1','F2','F3'], ens=[p.en1,p.en2,p.en3];
+  const hs=SW.map(s=>s.h), ls=SW.map(s=>s.l), zs_=SW.map(s=>s.z), anch=SW.map(s=>s.a), iHs=SW.map(s=>s.ih), iLs=SW.map(s=>s.il);
+  const active=[false,false,false], dupOf=[-1,-1,-1];
+  for(let k=0;k<3;k++){ const d=hs[k]-ls[k]; active[k]=!!ens[k]&&d>0; }
+  for(let k=1;k<3;k++){ for(let m=0;m<k;m++){ if(active[k]&&active[m]&&dupOf[k]<0){ if(Math.abs(hs[k]-hs[m])<=tol&&Math.abs(ls[k]-ls[m])<=tol) dupOf[k]=m; } } if(dupOf[k]>=0) active[k]=false; }
+  // Fib levels
+  const ratios=[]; const add=(on,v)=>{ if(on) ratios.push(v); };
+  add(p.useEnds,0); add(p.useEnds,1); add(p.sx1,p.vx1); add(p.sx2,p.vx2); add(p.si1,p.vi1); add(p.si2,p.vi2); add(p.si3,p.vi3); add(p.si4,p.vi4); add(p.si5,p.vi5); add(p.se0,p.ve0); add(p.se1,p.ve1); add(p.se2,p.ve2);
+  const lvP=[], lvK=[], lvR=[];
+  for(let k=0;k<3;k++){ if(!active[k]||!ratios.length) continue; const h=hs[k], l=ls[k], d=h-l;
+    ratios.forEach(rt=>{ lvP.push(zs_[k]?h-d*rt:l+d*rt); lvK.push(k); lvR.push(rt); }); }
+  let kL=-1; for(let k=0;k<3;k++) if(active[k]) kL=k;
+  const swLL=kL>=0?ls[kL]:null, swHL=kL>=0?hs[kL]:null;
+  let fLo=swLL, fHi=swHL; lvP.forEach(v=>{ fLo=fLo==null?v:Math.min(fLo,v); fHi=fHi==null?v:Math.max(fHi,v); });
+  const cRef=c[L-1].close, rLo=fLo==null?cRef-10*atrC:Math.min(fLo,cRef)-tol, rHi=fHi==null?cRef+10*atrC:Math.max(fHi,cRef)+tol;
+  const N=Math.min(200,Math.max(81,Math.ceil((rHi-rLo)/tol))), rh=(rHi-rLo)/N, rc=cfpClamp(Math.floor((cRef-rLo)/rh),0,N-1), lo=cRef-(rc+.5)*rh, hi=lo+N*rh, tR=rh<=tol?tol:tol+rh/2;
+  const rowsIn=(a,b)=>{ let rA,rB; if(rh<=tol){ rA=Math.max(0,Math.ceil((a-lo)/rh-.5)); rB=Math.min(N-1,Math.floor((b-lo)/rh-.5)); } else { rA=Math.max(0,Math.floor((a-lo)/rh)); rB=Math.min(N-1,Math.floor((b-lo)/rh)); } return [rA,rB]; };
+  // Vext window
+  const spanL=kL>=0?Math.min(L-anch[kL],VM-1):-1; let endZ=-1, cutZ=false;
+  if(kL>=0){ const needLo=fLo<swLL, needHi=fHi>swHL;
+    if(needLo||needHi){ const lim=Math.min(VM-1,L); let offLo=-1,offHi=-1,offMinL=-1,offMaxH=-1,minL=swLL,maxH=swHL;
+      for(let o=0;o<=lim;o++){ const q=c[L-o];
+        if(needLo&&offLo<0){ if(q.low<=fLo) offLo=o; else if(q.low<minL){ minL=q.low; offMinL=o; } }
+        if(needHi&&offHi<0){ if(q.high>=fHi) offHi=o; else if(q.high>maxH){ maxH=q.high; offMaxH=o; } }
+        if(offLo>=0||offHi>=0) break; }
+      if(offLo>=0||offHi>=0) endZ=offLo>=0?offLo:offHi; else { endZ=Math.max(offMinL,offMaxH); cutZ=lim<L; } } }
+  const zStart=kL>=0?L-Math.max(spanL,endZ)-OBL:0;
+  const inWin=z=>z.left>=zStart;
+  // volume profiles
+  const volL=new Array(4*N).fill(0), volOn=[false,false,false,false], volDup=[-1,-1,-1,-1], volEnd=[0,0,0,0], volCut=[false,false,false,false];
+  const vP=[null,null,null,null], vNb=[0,0,0,0], vBin=[0,0,0,0], vLo=[0,0,0,0], vHi=[0,0,0,0];
+  const buildProf=(endOff,pLo,pHi)=>{ const vb=Math.max(.1*atrC,(pHi-pLo)/500), nb=Math.max(1,Math.ceil((pHi-pLo)/vb)), prof=new Array(nb).fill(0);
+    for(let o=1;o<=Math.max(1,endOff);o++){ const j=L-o; if(j<0) break; const q=c[j], bh=q.high, bl=q.low, bv=q.volume||0;
+      if(bv>0&&bh>=pLo&&bl<=pHi){
+        if(bh>bl){ const ch=Math.min(bh,pHi), cl=Math.max(bl,pLo), bA=cfpClamp(Math.floor((cl-pLo)/vb),0,nb-1), bB=cfpClamp(Math.floor((ch-pLo)/vb),0,nb-1);
+          for(let bi=bA;bi<=bB;bi++){ const bBot=pLo+bi*vb, ov=Math.min(ch,bBot+vb)-Math.max(cl,bBot); if(ov>0) prof[bi]+=bv*ov/(bh-bl); } }
+        else prof[cfpClamp(Math.floor((bl-pLo)/vb),0,nb-1)]+=bv; } }
+    if(p.volMode==='Nodes'){ const hw=Math.max(1,Math.round(atrC/vb)), raw=prof.slice();
+      for(let bi=0;bi<nb;bi++){ const qa=Math.max(0,bi-hw), qb=Math.min(nb-1,bi+hw); let sm=0; for(let q=qa;q<=qb;q++) sm+=raw[q]; prof[bi]=Math.max(0,raw[bi]-sm/(qb-qa+1)); } }
+    return [prof,vb,nb]; };
+  const volAt=(k,cc,t)=>{ let v=0; const a=cc-t, b=cc+t, pLo=vLo[k], vb=vBin[k], nb=vNb[k];
+    if(nb>0&&b>=pLo&&a<=pLo+nb*vb){ const bA=Math.max(0,Math.floor((a-pLo)/vb)), bB=Math.min(nb-1,Math.floor((b-pLo)/vb)); for(let i=bA;i<=bB;i++) v=Math.max(v,vP[k][i]); } return v; };
+  if(p.useVol){
+    for(let k=0;k<3;k++){ if(active[k]){ const span=L-anch[k]; volEnd[k]=Math.min(span,VM-1); volCut[k]=span>VM-1; volOn[k]=true; vLo[k]=ls[k]; vHi[k]=hs[k]; } }
+    if(p.useVolZ&&endZ>=0){ volEnd[3]=endZ; volCut[3]=cutZ; volOn[3]=true; vLo[3]=fLo; vHi[3]=fHi; }
+    for(let k=1;k<4;k++){ for(let m=0;m<k;m++){ if(volOn[k]&&volOn[m]&&volDup[k]<0){ const sL=Math.min(volEnd[k],volEnd[m])+1, lL=Math.max(volEnd[k],volEnd[m])+1; if(sL/lL*100>=80) volDup[k]=m; } } if(volDup[k]>=0) volOn[k]=false; }
+    for(let k=0;k<4;k++){ if(!volOn[k]) continue; const [prof,vb,nb]=buildProf(volEnd[k],vLo[k],vHi[k]); let mx=0; for(let i=0;i<nb;i++) if(prof[i]>mx) mx=prof[i];
+      if(mx>0) for(let i=0;i<nb;i++) prof[i]/=mx; vP[k]=prof; vNb[k]=nb; vBin[k]=vb; }
+    for(let r=0;r<N;r++){ const cc=lo+(r+.5)*rh; for(let k=0;k<4;k++) if(volOn[k]) volL[k*N+r]=volAt(k,cc,tR); } }
+  // lanes
+  const fibL=new Array(3*N).fill(0);
+  lvP.forEach((pp,j)=>{ const k=lvK[j]; if(active[k]&&pp+tol>=lo&&pp-tol<hi){ const [rA,rB]=rowsIn(pp-tol,pp+tol); for(let r=rA;r<=rB;r++) fibL[k*N+r]=1; } });
+  const obIn=obZ.filter(inWin), fvIn=fvZ.filter(inWin);
+  const toLane=(zs,bu,be)=>{ zs.forEach(z=>{ const zb=z.bot-tol, zt=z.top+tol; if(zt>lo&&zb<hi){ const [rA,rB]=rowsIn(zb,zt); for(let r=rA;r<=rB;r++){ if(z.bull) bu[r]=1; else be[r]=1; } } }); };
+  const obBull=new Array(N).fill(0), obBear=new Array(N).fill(0), fvBull=new Array(N).fill(0), fvBear=new Array(N).fill(0);
+  toLane(obIn,obBull,obBear); toLane(fvIn,fvBull,fvBear);
+  const wFib=[p.wF1,p.wF2,p.wF3], wVol=[p.wV1,p.wV2,p.wV3,p.wVz], wOB=p.wOB, wFVG=p.wFVG;
+  const sArr=new Array(N).fill(0); let sMax=0;
+  for(let r=0;r<N;r++){ let s=0; for(let k=0;k<3;k++) s+=fibL[k*N+r]*wFib[k]; s+=Math.max(obBull[r],obBear[r])*wOB; s+=Math.max(fvBull[r],fvBear[r])*wFVG; for(let k=0;k<4;k++) s+=volL[k*N+r]*wVol[k]; sArr[r]=s; if(s>sMax) sMax=s; }
+  // confluence at the current price
+  const pc0=c[L].close; let sc=0, comp='';
+  for(let k=0;k<3;k++){ let hit=false; for(let j=0;j<lvP.length;j++){ if(lvK[j]===k&&active[k]&&Math.abs(lvP[j]-pc0)<=tol){ hit=true; break; } } if(hit&&wFib[k]>0){ sc+=wFib[k]; comp+=' '+nm[k]; } }
+  const zAt=zs=>{ let bu=false,be=false; zs.forEach(z=>{ if(pc0>=z.bot-tol&&pc0<=z.top+tol){ if(z.bull) bu=true; else be=true; } }); return [bu,be]; };
+  const [obU,obE]=zAt(obIn), [fvU,fvE]=zAt(fvIn);
+  sc+=(obU||obE)?wOB:0; sc+=(fvU||fvE)?wFVG:0;
+  comp+=obU&&wOB>0?' OB\u2191':''; comp+=obE&&wOB>0?' OB\u2193':''; comp+=fvU&&wFVG>0?' FVG\u2191':''; comp+=fvE&&wFVG>0?' FVG\u2193':'';
+  const vN=['V1','V2','V3','Vext'];
+  for(let k=0;k<4;k++){ if(volOn[k]){ const v=volAt(k,pc0,tol); sc+=v*wVol[k]; comp+=v>=.5&&wVol[k]>0?' '+vN[k]:''; } }
+  // headers
+  const laneNames=['F1','F2','F3','OB','FVG','V1','V2','V3','Vext'];
+  const hdr=laneNames.map((nme,lane)=>{ let t=nme;
+    if(lane<=2||(lane>=5&&lane<=7)) t+='\np'+lens[lane<=2?lane:lane-5];
+    if(lane===3) t+='\np'+PL;
+    if(lane<=2){ t+=!ens[lane]?'\noff':''; t+=dupOf[lane]>=0?'\n='+nm[dupOf[lane]]:''; }
+    if(lane===8) t+=(!p.useVol||!p.useVolZ)?'\noff':volDup[3]>=0?'\n='+laneNames[5+volDup[3]]:!volOn[3]?'\nn/a':volCut[3]?'\n\u2702':'';
+    if(lane>=5&&lane<=7){ const kv=lane-5; t+=(!p.useVol||!ens[kv])?'\noff':dupOf[kv]>=0?'\n='+laneNames[5+dupOf[kv]]:volDup[kv]>=0?'\n='+laneNames[5+volDup[kv]]:volCut[kv]?'\n\u2702':''; }
+    const wl=lane<=2?wFib[lane]:lane===3?wOB:lane===4?wFVG:wVol[lane-5]; if(wl!==1) t+='\n\u00d7'+(+(+wl).toFixed(2));
+    return t; });
+  // swing points 0 and 1
+  const pts=[];
+  for(let k=0;k<3;k++){ if(!active[k]) continue;
+    const xNew=zs_[k]?iHs[k]:iLs[k], xOld=zs_[k]?iLs[k]:iHs[k], yNew=zs_[k]?hs[k]:ls[k], yOld=zs_[k]?ls[k]:hs[k];
+    R.sw=R.sw||[]; R.sw.push({x0:xOld,y0:yOld,x1:xNew,y1:yNew});
+    for(let e=0;e<2;e++){ const x=e===0?xNew:xOld, y=e===0?yNew:yOld, isH=e===0?zs_[k]:!zs_[k], t=nm[k]+': '+(e===0?'0':'1');
+      const f=pts.find(q=>q.x===x&&q.y===y); if(f) f.t+='\n'+t; else pts.push({x,y,up:isH,t}); } }
+  let anyVol=false; for(let i=0;i<n;i++){ if(c[i].volume>0){ anyVol=true; break; } }
+  Object.assign(R,{ok:true,N,rh,lo,hi,rc,fibL,volL,volOn,sArr,sMax,lvP,lvK,lvR,active,obIn,fvIn,obBull,obBear,fvBull,fvBear,hdr,pts,curScore:sc,comp,close:pc0,noVol:!anyVol,sw:R.sw||[]});
+  return R;
+}
+
+function cfpDraw(d,X,Y,W,H){
+  const r=d.r, o=d.o; if(!r||!r.ok) return;
+  const XI=i=>X(i+r.off), xl=XI(r.last); if(xl==null) return;
+  const xp=XI(r.last-1); let sp=xp!=null?xl-xp:0; if(!(sp>0)) sp=6;
+  const lw=Math.max(1,Math.round(o.laneW)), sw=Math.max(4,Math.round(o.sumW)), mo=Math.max(0,Math.round(o.mxOffset)), nL=9, N=r.N, lo=r.lo, hi=r.hi, rh=r.rh, rc=r.rc;
+  const x0=mo, xS=o.mirror?x0:x0+nL*(lw+1), xL0=o.mirror?x0+sw+1:x0, xEnd=o.mirror?xL0+nL*(lw+1)-1:xS+sw;
+  const laneX=l=>xL0+l*(lw+1), PX=k=>xl+k*sp;
+  // make room on the right once per tool instance (same idea as the Market Matrix tool)
+  const need=(xEnd+16)*sp; if(xl+need>W&&!cfpRs.has(o)){ cfpRs.add(o); try{ const ts=chart.timeScale(), bs=ts.options().barSpacing||6; ts.applyOptions({rightOffset:(ts.options().rightOffset||0)+Math.ceil((xl+need-W)/bs)}); }catch(e){} }
+  const light=document.documentElement.getAttribute('data-theme')==='light', FG=light?'#131722':'#d1d4dc', BGc=light?'rgba(255,255,255,.75)':'rgba(19,23,34,.75)';
+  const fs={Tiny:9,Small:10,Normal:12,Large:14}[o.txt]||10, frame='rgba(120,123,134,'+(1-cfpClamp(o.frameTr,0,100)/100).toFixed(2)+')';
+  const bull=cfpRgb(o.colBull), bear=cfpRgb(o.colBear), GRAY=[120,123,134], COLD=[55,138,221], MID=[239,159,39], HOT=[226,75,74];
+  const rgba=(rgb,a)=>'rgba('+rgb[0]+','+rgb[1]+','+rgb[2]+','+a+')';
+  const heat=v=>v<.5?cfpGrad(v,0,.5,COLD,MID):cfpGrad(v,.5,1,MID,HOT);
+  const cell=(rgb,v)=>rgba(rgb,(1-(85+(10-85)*cfpClamp(v,0,1))/100).toFixed(3));
+  const runCol=(q,dd)=>{ const vq=q/8, rgb=dd===1?cfpGrad(vq,0,1,GRAY,bull):dd===-1?cfpGrad(vq,0,1,GRAY,bear):heat(vq); return cell(rgb,vq); };
+  const quant=v=>v<.05?0:Math.max(1,Math.min(8,Math.round(v*8)));
+  const Rt=(k1,k2,pT,pB,fill,stroke,lwid)=>{ const x1=PX(k1), x2=PX(k2), y1=Y(pT), y2=Y(pB); if(x1==null||x2==null||y1==null||y2==null) return;
+    const t=Math.min(y1,y2), h=Math.max(.5,Math.abs(y2-y1)); if(fill){ cx.fillStyle=fill; cx.fillRect(x1,t,x2-x1,h); } if(stroke){ cx.strokeStyle=stroke; cx.lineWidth=lwid||1; cx.strokeRect(x1,t,x2-x1,h); } };
+  const lab=(x,y,t,where,size)=>{ const f=size||fs, lines=t.split('\n'); cx.font=f+'px system-ui'; const w=Math.max(...lines.map(s=>cx.measureText(s).width))+8, h=lines.length*(f+2)+4;
+    let bx=x-w/2, by=y-h/2; if(where==='above') by=y-5-h; else if(where==='below') by=y+5; else if(where==='right'){ bx=x+5; }
+    cx.fillStyle=BGc; cx.fillRect(bx,by,w,h); cx.fillStyle=FG; cx.textAlign='center'; cx.textBaseline='middle'; lines.forEach((s,i)=>cx.fillText(s,bx+w/2,by+2+(i+.5)*(f+2))); };
+  cx.save(); cx.beginPath(); cx.rect(0,0,W,H); cx.clip(); cx.setLineDash([]);
+  // zones on the candles
+  if(o.zones!=='None'){ const dz=(zs)=>{ let cnt=0; for(let i=zs.length-1;i>=0&&cnt<40;i--,cnt++){ const z=zs[i], c=z.bull?bull:bear, xa=XI(z.left), xb=xl, y1=Y(z.top), y2=Y(z.bot); if(xa==null||y1==null||y2==null) continue;
+      if(z.fvg&&(z.top!==z.top0||z.bot!==z.bot0)){ const a1=Y(z.top0), a2=Y(z.bot0); if(a1!=null&&a2!=null){ cx.setLineDash([4,3]); cx.strokeStyle=rgba(c,.7); cx.lineWidth=1; cx.strokeRect(xa,Math.min(a1,a2),xb-xa,Math.abs(a2-a1)); cx.setLineDash([]); } }
+      cx.fillStyle=rgba(c,.15); cx.fillRect(xa,Math.min(y1,y2),xb-xa,Math.max(1,Math.abs(y2-y1))); cx.strokeStyle=rgba(c,.7); cx.lineWidth=1; cx.strokeRect(xa,Math.min(y1,y2),xb-xa,Math.max(1,Math.abs(y2-y1))); } };
+    if(o.zones==='OB'||o.zones==='Both') dz(r.obIn); if(o.zones==='FVG'||o.zones==='Both') dz(r.fvIn); }
+  // confluence (sum) column, equal neighbours merged
+  if(r.sMax>0){ let runS=-1, runL=0, runQ=0, runSd=0;
+    for(let rr=0;rr<=N;rr++){ let lenR=0,qR=0,sd=0; if(rr<N){ const v=r.sArr[rr]/r.sMax; qR=quant(v); if(qR>0){ lenR=Math.max(1,Math.round(sw*v)); sd=rc>rr?1:rr>rc?-1:0; } }
+      if(rr===N||lenR!==runL||qR!==runQ||sd!==runSd){ if(runS>=0&&runQ>0) Rt(o.mirror?xS+sw-runL:xS,o.mirror?xS+sw:xS+runL,lo+rr*rh,lo+runS*rh,runCol(runQ,runSd),null);
+        runS=rr; runL=lenR; runQ=qR; runSd=sd; } } }
+  Rt(xS,xS+sw,hi,lo,null,frame);
+  // OB / FVG with exact edges
+  const zx=(zs,lane)=>{ const x1=laneX(lane); zs.forEach(z=>{ if(z.top>lo&&z.bot<hi){ const c=z.bull?bull:bear; Rt(x1,x1+lw,Math.min(z.top,hi),Math.max(z.bot,lo),rgba(c,.4),rgba(c,.8)); } }); };
+  zx(r.obIn,3); zx(r.fvIn,4);
+  // swing points 0 and 1
+  if(o.showSwPts){ r.sw.forEach(s=>{ const xa=XI(s.x0), xb=XI(s.x1), ya=Y(s.y0), yb=Y(s.y1); if(xa==null||xb==null||ya==null||yb==null) return;
+      cx.setLineDash([4,4]); cx.strokeStyle=rgba(cfpRgb(FG),.5); cx.lineWidth=1; cx.beginPath(); cx.moveTo(xa,ya); cx.lineTo(xb,yb); cx.stroke(); cx.setLineDash([]); });
+    r.pts.forEach(q=>{ const x=XI(q.x), y=Y(q.y); if(x==null||y==null||x<-60||x>W+60) return; lab(x,y,q.t,q.up?'above':'below'); }); }
+  // Fibonacci lanes
+  r.lvP.forEach((pp,j)=>{ const k=r.lvK[j], rt=r.lvR[j]; if(!r.active[k]||!(pp>=lo&&pp<hi)) return; const xa=PX(laneX(k)), xb=PX(laneX(k)+lw), y=Y(pp); if(xa==null||xb==null||y==null) return;
+    const isEnd=o.showSwPts&&(rt===0||rt===1); cx.strokeStyle=isEnd?FG:'#E24B4A'; cx.lineWidth=2; cx.beginPath(); cx.moveTo(xa,y); cx.lineTo(xb,y); cx.stroke();
+    if(isEnd){ cx.fillStyle=FG; cx.font='8px system-ui'; cx.textAlign='left'; cx.textBaseline='middle'; cx.fillText(rt===0?'0':'1',xb+2,y); } });
+  // volume lanes 5..8, equal neighbours merged
+  for(let lane=5;lane<nL;lane++){ const k=lane-5, x1=laneX(lane), x2=x1+lw;
+    if(r.volOn[k]){ let runS=-1, runQ=0;
+      for(let rr=0;rr<=N;rr++){ let qR=0; if(rr<N) qR=quant(r.volL[k*N+rr]);
+        if(rr===N||qR!==runQ){ if(runS>=0&&runQ>0) Rt(x1,x2,lo+rr*rh,lo+runS*rh,runCol(runQ,0),null); runS=rr; runQ=qR; } } } }
+  for(let lane=0;lane<nL;lane++){ const x1=laneX(lane); Rt(x1,x1+lw,hi,lo,null,frame); }
+  // headers
+  r.hdr.forEach((t,lane)=>lab(PX(laneX(lane)+Math.floor(lw/2)),Y(hi),t,'above'));
+  lab(PX(xS+Math.floor(sw/2)),Y(hi),'Confluence\n(sum)','above');
+  // current price
+  { const y=Y(r.close), xa=PX(x0), xb=PX(xEnd); if(y!=null&&xa!=null&&xb!=null){ cx.setLineDash([2,3]); cx.strokeStyle=FG; cx.lineWidth=1; cx.beginPath(); cx.moveTo(xa,y); cx.lineTo(xb,y); cx.stroke(); cx.setLineDash([]);
+      const sc=Math.round(r.curScore*10)/10; lab(xb+2,y,'Confluence '+sc+(r.comp?':'+r.comp:''),'right'); } }
+  if(r.noVol&&(o.useVol)){ cx.font='11px system-ui'; cx.textAlign='right'; cx.textBaseline='top'; cx.fillStyle='#ff9800'; cx.fillText('Confluence Profile: this market has no volume data \u2013 V1, V2, V3 and Vext are empty.',W-8,8); }
+  cx.restore();
+}
+const cfpRs=new Set();
+const cfpPrevDraw=draw; draw=function(d,X,Y,W,H){ if(d&&d.type==='cfpview') return cfpDraw(d,X,Y,W,H); return cfpPrevDraw.apply(this,arguments); };
+IND.cfp={label:'Confluence Profile \u2013 Fib, order blocks, FVG & volume nodes stacked (Uncle_the_shooter)',title:'Confluence Profile',cat:'Trend',cols:[],calc:()=>[],live:true,
+  nm:p=>'Confluence Profile',
+  p:Object.assign({},CFP_DEF),
+  inputsTab:(b,d)=>{ const p=d.p, F=(k,t,l,o)=>fld(b,p,k,t,l,o), N=(k,l,mn,mx,st)=>F(k,'num',l,{min:mn,max:mx,step:st});
+    N('atrLen','ATR length',1,500,1); N('tolAtr','Tolerance (ATR)',.01,2,.01);
+    F('en1','chk','F1 / V1 short swing'); N('len1','F1 pivot length',2,300,1); F('en2','chk','F2 / V2 medium swing'); N('len2','F2 pivot length',2,300,1); F('en3','chk','F3 / V3 long swing'); N('len3','F3 pivot length',2,300,1);
+    F('useEnds','chk','Include 0% and 100% (swing high and low)'); F('showSwPts','chk','Mark swing points 0 and 1 on the chart');
+    [['sx1','vx1','Beyond recent extreme'],['sx2','vx2','Beyond recent extreme'],['si1','vi1','Retracement'],['si2','vi2','Retracement'],['si3','vi3','Retracement'],['si4','vi4','Retracement'],['si5','vi5','Retracement'],['se0','ve0','Beyond older extreme'],['se1','ve1','Beyond older extreme'],['se2','ve2','Beyond older extreme']]
+      .forEach(a=>{ F(a[0],'chk','Level: '+a[2]); N(a[1],'Level value',-5,10,.001); });
+    F('useOB','chk','Include Order Blocks'); N('pivLen','OB pivot length',1,100,1); F('useWicks','chk','OB include wicks'); N('obMin','OB min. height (ATR)',0,5,.05);
+    F('useFVG','chk','Include FVGs'); N('fvgMin','FVG min. height (ATR)',0,5,.05); F('fvgFill','sel','FVG gap fill',{opts:['None','Shrink','Remove at 50%']});
+    F('useVol','chk','Include volume (V1, V2, V3)'); F('useVolZ','chk','Include extended-history volume (Vext)'); F('volMode','sel','Volume mode',{opts:['Nodes','Total volume']});
+    N('wF1','Weight F1',0,5,.1); N('wF2','Weight F2',0,5,.1); N('wF3','Weight F3',0,5,.1); N('wOB','Weight OB',0,5,.1); N('wFVG','Weight FVG',0,5,.1);
+    N('wV1','Weight V1',0,5,.1); N('wV2','Weight V2',0,5,.1); N('wV3','Weight V3',0,5,.1); N('wVz','Weight Vext',0,5,.1);
+    N('mxOffset','Offset from last candle',0,100,1); N('laneW','Column width',1,20,1); N('sumW','Confluence column width',4,100,1);
+    F('txt','sel','Text size',{opts:['Tiny','Small','Normal','Large']}); N('frameTr','Column frame transparency (%)',0,100,1);
+    F('mirror','chk','Mirror layout (Confluence next to candles)'); F('zones','sel','Show zones on candles',{opts:['None','FVG','OB','Both']}); },
+  styleTab:(b,d)=>{ const p=d.p, F=(k,l)=>fld(b,p,k,'col',l); F('colBull','Support / bullish'); F('colBear','Resistance / bearish'); },
+  extras:(c,p)=>({mk:[],boxes:[{type:'cfpview',pts:[],r:cfpCompute(c,p),o:p}],labels:[]})};
+}catch(err){ console.error('cfp failed',err); window.__cfpErr=err; }
 //# sourceURL=tools-3.js
