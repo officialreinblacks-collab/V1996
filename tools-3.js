@@ -1,5 +1,5 @@
 /* tools-3.js — MarketPlusView tool code. index.html loads this file and runs it inside start() at the spot where this code used to be (same order, same scope).
-   Keep the file name. Tools in this file: IND.afib, IND.smc, IND.srh, IND.wvadp, IND.amfc, IND.ppa */
+   Keep the file name. Tools in this file: IND.afib, IND.smc, IND.srh, IND.wvadp, IND.amfc, IND.ppa, IND.rcp */
 try{
 // =====================================================================================
 // UPGRADE PACK (isolated): [wlx] watchlist · [afx] Auto Fibonacci · [fbx] Fib drawing · [avx] Anchored VWAP
@@ -1261,4 +1261,108 @@ IND.ppa={label:'Price Action 2 – swings, structure, order & breaker blocks, li
     ppaHead(b,'Liquidity voids'); F('vdBull','Bullish void'); F('vdBear','Bearish void'); },
   extras:(c,p)=>({mk:[],boxes:[{type:'ppaview',pts:[],r:ppaCompute(c,p),o:p}],labels:[]})};
 }catch(err){ console.error('ppa failed',err); window.__ppaErr=err; }
+try{
+// =====================================================================================
+// [rcp] ROLLING CANDLE PROFILE with Buy/Sell signals - isolated block (names start with rcp / RCP_).
+// Overlay indicator: 12-band pressure gradient between a moving anchor and the candle body, anchor line with glow,
+// BUY / SELL labels. Chart-timeframe pressure only (the Pine intrabar lower-timeframe option is not available here).
+// Based on "Rolling Candle Profile with Buy/Sell Signals" by Zeiierman (CC BY-NC-SA 4.0, https://creativecommons.org/licenses/by-nc-sa/4.0/). Keep this credit.
+// =====================================================================================
+const RCP_DEF={ anch:'EMA', len:21, mode:'Price Pressure', pxW:.01, wickW:.85, bright:3, buyCol:'#00EFB4', sellCol:'#FF3D6E', showAnch:true,
+  sig:true, dom:.25, minB:7, gap:6, txt:'Small', txtCol:'#ffffff', buyLab:'#22c55e', sellLab:'#f23645', lbk:10, labGap:1 };
+const rcpClamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const rcpRgb=h=>{ const m=/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(h||''); return m?[parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)]:[114,128,150]; };
+const rcpMix=(a,b,t)=>{ t=rcpClamp(t,0,1); return [0,1,2].map(i=>Math.round(a[i]*(1-t)+b[i]*t)); };
+const rcpK=(here,ctr,inv)=>{ const q=1-Math.abs(here-ctr)*inv; return q<=0?0:q*q*(3-2*q); };
+function rcpCompute(c0,p){
+  const CAP=1300, off=Math.max(0,c0.length-CAP), c=off?c0.slice(off):c0, n=c.length, R={off,n,bars:[],anchor:[],sigs:[]};
+  if(n<70) return R;
+  const mt=Math.pow(10,Math.floor(Math.log10(Math.max(1e-9,c[n-1].close)))-5), L=Math.max(2,Math.round(p.len)), BANDS=12;
+  const isP=p.mode==='Price Pressure', isH=p.mode==='Hybrid', hl3=q=>(q.high+q.low+q.close)/3;
+  // anchor
+  const an=new Array(n).fill(null); let e=null, pd=-1, sv=0, sw=0; const a=2/(L+1);
+  for(let i=0;i<n;i++){ const q=c[i]; e=e==null?q.close:a*q.close+(1-a)*e; let v=e;
+    if(p.anch==='SMA'){ if(i>=L-1){ let s=0; for(let k=0;k<L;k++) s+=c[i-k].close; v=s/L; } }
+    else if(p.anch==='VWMA'){ if(i>=L-1){ let s=0,w=0; for(let k=0;k<L;k++){ s+=c[i-k].close*(c[i-k].volume||0); w+=c[i-k].volume||0; } if(w>0) v=s/w; } }
+    else if(p.anch==='VWAP'){ const d=Math.floor(q.time/86400); if(d!==pd){ sv=0; sw=0; pd=d; } const vo=q.volume||0; sv+=hl3(q)*vo; sw+=vo; if(sw>0) v=sv/sw; }
+    else if(p.anch==='Donchian Mid'){ if(i>=L){ let h=-Infinity,l=Infinity; for(let k=1;k<=L;k++){ h=Math.max(h,c[i-k].high); l=Math.min(l,c[i-k].low); } v=(h+l)/2; } }
+    an[i]=v; }
+  // per-bar pressure (chart timeframe path)
+  const bN=[],sN=[],lR=[],hR=[],stN=[],tot=[],bC=[],sC=[],lC=[],hC=[],stC=[];
+  for(let i=0;i<n;i++){ const q=c[i], r=Math.max(q.high-q.low,mt), pc=i?c[i-1].close:q.open, dir=rcpClamp((q.close-q.open)/r,-1,1), imp=Math.abs(dir),
+      trv=rcpClamp((q.close-pc)/r,-1.5,1.5), cl=rcpClamp((2*q.close-q.high-q.low)/r,-1,1), rs=rcpClamp(.55*trv+.25*dir+.2*cl,-1.5,1.5), f=Math.abs(rs),
+      pt=i>1?c[i-1].close-c[i-2].close:0, ct=pt*rs>0?1.45:pt*rs<0?.55:1, rv=(q.volume||0)>0?q.volume:1, v=isH?rv*(.65+f*.7):rv,
+      fd=isH?rcpClamp(.45*dir+.55*rs,-1,1):dir, bo=Math.min(q.open,q.close), bt=Math.max(q.open,q.close), lw=Math.max(0,bo-q.low)/r, hw=Math.max(0,q.high-bt)/r, h3=hl3(q);
+    const b=isP?Math.max(rs,0)*(1+f*1.25)*ct*2:v*(1+fd)*.5, s=isP?Math.max(-rs,0)*(1+f*1.25)*ct*2:v*(1-fd)*.5;
+    const lr=isP?lw*(.35+1.2*Math.max(rs,0)):v*lw, hr=isP?hw*(.35+1.2*Math.max(-rs,0)):v*hw, st=isP?(1-rcpClamp(f,0,1))*.2:v*(1-imp);
+    const bp=isP?q.close*.7+q.high*.3:isH?h3*.75+q.high*.25:h3, sp=isP?q.close*.7+q.low*.3:isH?h3*.75+q.low*.25:h3;
+    bN.push(b); sN.push(s); lR.push(lr); hR.push(hr); stN.push(st); tot.push(isP?b+s+lr+hr+st:v);
+    bC.push(b>0?bp:h3); sC.push(s>0?sp:h3); lC.push(lr>0?(q.low+bo)/2:q.low); hC.push(hr>0?(q.high+bt)/2:q.high); stC.push(h3); }
+  const base=[]; let be=null; for(let i=0;i<n;i++){ be=be==null?tot[i]:2/56*tot[i]+(1-2/56)*be; base.push(be); }
+  for(let i=0;i<n;i++){ const fs=tot[i]>0?Math.min(1,Math.max(base[i],1e-6)*20/tot[i]):1; bN[i]*=fs; sN[i]*=fs; lR[i]*=fs; hR[i]*=fs; stN[i]*=fs; }
+  // ATR(14)
+  const atr=new Array(n).fill(null); let tr0=0, ra=0; for(let i=0;i<n;i++){ const q=c[i], tr=i?Math.max(q.high-q.low,Math.abs(q.high-c[i-1].close),Math.abs(q.low-c[i-1].close)):q.high-q.low;
+    if(i<14){ tr0+=tr; if(i===13){ ra=tr0/14; atr[i]=ra; } } else { ra=(ra*13+tr)/14; atr[i]=ra; } }
+  const buyC=rcpRgb(p.buyCol), sellC=rcpRgb(p.sellCol), grey=[114,128,150], decay=Math.pow(.5,1/3), minTr=Math.max(0,p.minB);
+  let lastBuy=null,lastSell=null,pBA=false,pSA=false;
+  for(let i=0;i<n;i++){ const q=c[i], A=an[i], bo=Math.min(q.open,q.close), bt=Math.max(q.open,q.close), edge=A<bo?bo:A>bt?bt:null, bar={e:null,cols:null};
+    let pb=0,ps=0,vis=0,bb=0,sb=0;
+    const ready=i>=Math.max(L+2,62)&&edge!=null&&atr[i]!=null&&Math.abs(edge-A)>2*mt;
+    if(ready){ const dist=(edge-A)/BANDS, minW=Math.abs(dist)*(isP?1.15:1.8), minWW=Math.abs(dist)*(isP?1:1.3), vb=Math.max(1e-6,base[i]), bar_=[];
+      for(let b=0;b<BANDS;b++){ const here=A+dist*(b+.5); let bf=0,sf=0,st=0,age=1;
+        for(let k=0;k<60;k++){ const j=i-k, lr_=Math.max(c[j].high-c[j].low,mt)*p.pxW, iw=1/Math.max(lr_,minW,mt), iww=1/Math.max(lr_*.6,minWW,mt);
+          bf+=bN[j]*rcpK(here,bC[j],iw)*age; sf+=sN[j]*rcpK(here,sC[j],iw)*age; bf+=p.wickW*lR[j]*rcpK(here,lC[j],iww)*age; sf+=p.wickW*hR[j]*rcpK(here,hC[j],iww)*age;
+          st+=stN[j]*rcpK(here,stC[j],iw)*age; age*=decay; }
+        const total=bf+sf, imb=total>0?rcpClamp((bf-sf)/total*3,-1,1):0, act=rcpClamp(total/(vb*(isP?.8:2)),0,1), ai=Math.abs(imb);
+        const tm=isP?rcpClamp(.4+.6*ai,0,1):rcpClamp((.18+.82*ai)*(.75+.25*act),0,1);
+        let hue=imb>.03?rcpMix(grey,buyC,tm):imb<-.03?rcpMix(grey,sellC,tm):grey; if(act<.08) hue=rcpMix(grey,hue,act/.08);
+        let col=null;
+        if(isP){ const t=Math.round(rcpClamp(69-p.bright*12-35*act-17*ai,3,88)); if(act>=.08&&ai>=.14) col='rgba('+hue+','+(1-t/100).toFixed(3)+')'; }
+        else { let t=Math.round(rcpClamp(60-p.bright*21-22*act-12*ai,4,76)); if(act<.08) t=76; if(t<8) col='rgba('+hue+','+(1-t/100).toFixed(3)+')'; }
+        bar_.push(col); if(col){ pb+=bf; ps+=sf; vis++; if(imb>.03) bb++; else if(imb<-.03) sb++; } }
+      bar.e=edge; bar.cols=bar_; }
+    R.bars.push(bar); R.anchor.push(A);
+    // signals
+    const pTot=pb+ps, pBias=pTot>0?(pb-ps)/pTot:0, cB=bN[i]+p.wickW*lR[i], cS=sN[i]+p.wickW*hR[i], cT=cB+cS, cBias=cT>0?(cB-cS)/cT:0, hasP=vis>=minTr&&pTot>0, ab=hasP?pBias:cBias;
+    const rise=i>0&&A>an[i-1], fall=i>0&&A<an[i-1];
+    const bP=ab>=p.dom&&(hasP?bb>sb:(pTot<=0||pBias>-p.dom)), sP=ab<=-p.dom&&(hasP?sb>bb:(pTot<=0||pBias<p.dom));
+    const bA=hasP&&q.close>A&&rise&&bP, sA=hasP&&q.close<A&&fall&&sP;
+    const bSig=p.sig&&bA&&!pBA&&(lastBuy==null||i-lastBuy>=p.gap), sSig=p.sig&&sA&&!pSA&&(lastSell==null||i-lastSell>=p.gap); pBA=bA; pSA=sA;
+    if(bSig||sSig){ let lo=Infinity,hi=-Infinity; for(let k=0;k<p.lbk&&i-k>=0;k++){ lo=Math.min(lo,c[i-k].low); hi=Math.max(hi,c[i-k].high); }
+      const sa=Math.max(atr[i]!=null?atr[i]:q.high-q.low,mt), pad=Math.max(sa*.12,mt*2), gm=Math.max(sa*p.labGap,pad);
+      if(bSig){ lastBuy=i; R.sigs.push({i,y:Math.max(lo-pad,q.low-gm),buy:true,pct:50*(1+ab),vis}); }
+      if(sSig){ lastSell=i; R.sigs.push({i,y:Math.min(hi+pad,q.high+gm),buy:false,pct:50*(1-ab),vis}); } }
+  }
+  return R;
+}
+function rcpDraw(d,X,Y,W,H){
+  const r=d.r, o=d.o; if(!r||!r.n) return; const XI=i=>X(i+r.off);
+  cx.save(); cx.beginPath(); cx.rect(0,0,W,H); cx.clip(); cx.setLineDash([]);
+  let sp=0; for(let i=r.n-2;i>=1&&!sp;i--){ const a=XI(i),b=XI(i+1); if(a!=null&&b!=null) sp=Math.abs(b-a); } if(!sp) sp=6; const bw=Math.max(1,sp*.92);
+  for(let i=0;i<r.n;i++){ const bar=r.bars[i]; if(!bar.cols) continue; const x=XI(i); if(x==null||x<-bw||x>W+bw) continue;
+    const A=r.anchor[i], dist=(bar.e-A)/12;
+    for(let b=0;b<12;b++){ const col=bar.cols[b]; if(!col) continue; const y0=Y(A+dist*b), y1=Y(A+dist*(b+1)); if(y0==null||y1==null) continue;
+      cx.fillStyle=col; cx.fillRect(x-bw/2,Math.min(y0,y1),bw,Math.max(1,Math.abs(y1-y0))+.5); } }
+  if(o.showAnch){ const path=()=>{ cx.beginPath(); let st=false; for(let i=0;i<r.n;i++){ const x=XI(i),y=Y(r.anchor[i]); if(x==null||y==null||x<-sp||x>W+sp){ st=false; continue; } if(!st){ cx.moveTo(x,y); st=true; } else cx.lineTo(x,y); } };
+    cx.lineJoin='round'; for(let i=1;i<r.n;i++){ const x0=XI(i-1),x1=XI(i),y0=Y(r.anchor[i-1]),y1=Y(r.anchor[i]); if(x0==null||x1==null||y0==null||y1==null||x1<0||x0>W) continue;
+      const rise=r.anchor[i]>=r.anchor[i-1]?o.buyCol:o.sellCol; cx.beginPath(); cx.moveTo(x0,y0); cx.lineTo(x1,y1); cx.globalAlpha=.5; cx.strokeStyle=rise; cx.lineWidth=6; cx.stroke(); cx.globalAlpha=1; cx.lineWidth=2; cx.stroke(); } }
+  const fs={Tiny:9,Small:10,Normal:12,Large:14,Huge:18}[o.txt]||10; cx.font='700 '+fs+'px system-ui'; cx.textAlign='center'; cx.textBaseline='middle';
+  r.sigs.forEach(s=>{ const x=XI(s.i), y=Y(s.y); if(x==null||y==null||x<-40||x>W+40) return; const t=s.buy?'BUY':'SELL', w=cx.measureText(t).width+12, h=fs+8, ty=s.buy?y+6:y-6-h;
+    cx.fillStyle=s.buy?o.buyLab:o.sellLab; cx.beginPath(); cx.moveTo(x,s.buy?y+1:y-1); cx.lineTo(x-4,s.buy?y+6:y-6); cx.lineTo(x+4,s.buy?y+6:y-6); cx.closePath(); cx.fill();
+    cx.fillRect(x-w/2,ty,w,h); cx.fillStyle=o.txtCol; cx.fillText(t,x,ty+h/2+.5); });
+  cx.restore();
+}
+const rcpPrevDraw=draw; draw=function(d,X,Y,W,H){ if(d&&d.type==='rcpview') return rcpDraw(d,X,Y,W,H); return rcpPrevDraw.apply(this,arguments); };
+IND.rcp={label:'Rolling Candle Profile – pressure gradient + BUY/SELL (Zeiierman)',title:'Rolling Candle Profile',cat:'Trend',cols:[],calc:()=>[],live:true,
+  nm:p=>`Rolling Candle Profile ${p.anch} ${p.len}`,
+  p:Object.assign({},RCP_DEF),
+  inputsTab:(b,d)=>{ const p=d.p, F=(k,t,l,o)=>fld(b,p,k,t,l,o);
+    F('anch','sel','Anchor',{opts:['EMA','SMA','VWMA','VWAP','Donchian Mid']}); F('len','num','Anchor length',{min:5,max:200,step:1});
+    F('mode','sel','Pressure input',{opts:['Price Pressure','Volume Delta','Hybrid']}); F('pxW','num','Price-localization width',{min:.01,max:2,step:.05}); F('wickW','num','Wick rejection influence',{min:0,max:2.5,step:.05});
+    F('bright','num','Brightness',{min:.5,max:3,step:.1}); F('showAnch','chk','Show anchor'); F('sig','chk','BUY / SELL signals');
+    F('dom','num','Pressure dominance threshold',{min:.05,max:.95,step:.05}); F('minB','num','Minimum colored bands',{min:1,max:12,step:1}); F('gap','num','Minimum signal spacing',{min:1,max:40,step:1});
+    F('txt','sel','Text size',{opts:['Tiny','Small','Normal','Large','Huge']}); F('lbk','num','Label extremes lookback',{min:1,max:30,step:1}); F('labGap','num','Max label distance (ATR)',{min:.15,max:3,step:.05}); },
+  styleTab:(b,d)=>{ const p=d.p, F=(k,l)=>fld(b,p,k,'col',l); F('buyCol','Buying pressure'); F('sellCol','Selling pressure'); F('txtCol','Label text'); F('buyLab','BUY label'); F('sellLab','SELL label'); },
+  extras:(c,p)=>({mk:[],boxes:[{type:'rcpview',pts:[],r:rcpCompute(c,p),o:p}],labels:[]})};
+}catch(err){ console.error('rcp failed',err); window.__rcpErr=err; }
 //# sourceURL=tools-3.js
