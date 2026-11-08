@@ -8047,7 +8047,7 @@ const SR_STK={NVDA:'NVIDIA',TSLA:'Tesla',AAPL:'Apple',AMZN:'Amazon',MSFT:'Micros
 const SR_STK_EXACT=['NVDA','TSLA','AAPL','AMZN','MSFT','GOOGL','MSTR','CRCL','PYPL','AMAT','FLNC'];
 const srStock=c=>{ if(!/USDT$/.test(c)) return false; const core=c.slice(0,-4); for(const t of Object.keys(SR_STK)){ if((SR_STK_EXACT.includes(t)&&core===t)||(core===t+'B'&&t.length>2)) return true; } return false; };
 const srCats=()=>{ const d=srTy.pd; if(!d) return []; return Object.keys(d.cat).filter(k=>d.cat[k].size>=3).sort((a,b)=>d.cat[b].size-d.cat[a].size||a.localeCompare(b)); };
-const srTypeLabel=t=>t==='all'?'All':t==='spot'?'Spot':t==='perps'?'Perps':t==='stocks'?'Stocks':t==='alpha'?'Alpha':(t.slice(2)==='Meme'?'Memes':t.slice(2));
+const srTypeLabel=t=>t==='all'?'All':t==='spot'?'Spot':t==='perps'?'Perps':t==='stocks'?'Stocks':t==='alpha'?'Alpha':t==='deriv'?'Deriv':(t.slice(2)==='Meme'?'Memes':t.slice(2));
 async function srTypeSet(ty,m){
   if(ty==='all') return null;
   const usdt=Object.keys(m).filter(c=>/USDT$/.test(c)&&!SR_STABLE.test(c.slice(0,-4)));
@@ -8078,11 +8078,24 @@ function srSheet(initial,prefill){
     const sec=t=>{ const e=document.createElement('div'); e.className='sr-sec'; e.textContent=t; list.appendChild(e); };
     const minV=()=>{ try{ return (window.mpXO&&window.mpXO.XO&&window.mpXO.XO.scMin)||1e6; }catch(e){ return 1e6; } };
     const paintTabs=()=>{ tabs.innerHTML=''; SR_TABS.forEach(([k,l])=>{ const b=document.createElement('button'); b.type='button'; b.textContent=l; b.className=(k===srTab&&!cq())?'on':''; b.onclick=()=>{ srTab=k; srSet('mpSrTab',k); inp.value=''; pristine=false; clr.style.display='none'; paintTabs(); draw(); }; tabs.appendChild(b); }); };
-    const paintTypes=()=>{ const sl=types.scrollLeft; types.innerHTML=''; const base=[['all','All'],['spot','Spot'],['perps','Perps'],['stocks','Stocks'],['alpha','Alpha']].concat(srCats().map(c=>['c:'+c,c==='Meme'?'Memes':c]));
+    const paintTypes=()=>{ const sl=types.scrollLeft; types.innerHTML=''; const base=[['all','All'],['spot','Spot'],['perps','Perps'],['stocks','Stocks'],['alpha','Alpha'],['deriv','Deriv']].concat(srCats().map(c=>['c:'+c,c==='Meme'?'Memes':c]));
       base.forEach(([k,l])=>{ const b=document.createElement('button'); b.type='button'; b.textContent=l; b.className=k===srType?'on':''; b.onclick=()=>{ srType=k; srSet(SR_TYK,k); srLim=100; paintTypes(); draw(); }; types.appendChild(b); }); types.scrollLeft=sl; };
     const usdt=m=>Object.values(m).filter(t=>/USDT$/.test(t.s)&&!SR_STABLE.test(t.s.slice(0,-4))&&t.n>0);
+    const dvList=q=>{ const f=String(q||'').toLowerCase().replace(/[\s\/\-_]/g,''); return SYMS.filter(s=>isDv(s[0])&&(!f||(s[0].slice(4)+s[1]).toLowerCase().replace(/[\s\/\-_]/g,'').includes(f))); };
+    const dvRow=s=>{ const r=srRow({base:'DV',img:'data:,',title:s[0].slice(4),sub:s[1]+' \u00b7 '+s[2].replace(/^Deriv /,''),price:'\u2026',chg:NaN,open:()=>{ close(); setTimeout(()=>{ const t=SYMS.find(x=>x[0]===s[0]); if(t){ sym=t; load(); } },30); }}); r.dataset.dv=s[0]; return r; };
+    async function dvPrices(my,rows){ const todo=rows.slice(0,60);
+      for(let i=0;i<todo.length;i+=4){ if(my!==seq||!alive()) return; const ch=todo.slice(i,i+4);
+        try{ const res=await DVX.tick24(ch.map(r=>r.dataset.dv)); res.forEach(x=>{ const r=ch.find(rr=>rr.dataset.dv===x.symbol); if(!r) return; const pc=+x.priceChangePercent; r.children[2].textContent=(+x.lastPrice).toLocaleString(undefined,{minimumFractionDigits:DVX.pd(x.symbol)||2,maximumFractionDigits:DVX.pd(x.symbol)||2}); const c=r.children[3]; c.className='sr-c '+(pc>=0?'up':'down'); c.textContent=srPct(pc); }); }catch(e){}
+        await new Promise(z=>setTimeout(z,250)); } }
+    function drawDeriv(my,q){ list.innerHTML=''; const arr=dvList(q);
+      const nt=document.createElement('div'); nt.className='sr-note'; nt.textContent='Deriv markets: free public data from Deriv (synthetic indices, forex, metals, crypto). Opens on your chart. Deriv has no volume data.'; list.appendChild(nt);
+      if(!arr.length){ msg(q?'No Deriv markets match \u201c'+q+'\u201d.':'Loading Deriv markets\u2026'); if(!q){ try{ DVX.symbols().then(l=>{ if(l.length&&alive()&&srType==='deriv'&&!cq()){ DVX.addTo(SYMS); if(dvList('').length) draw(); } }); }catch(e){} } return; }
+      const order=[]; arr.forEach(s=>{ if(!order.includes(s[2])) order.push(s[2]); }); const rows=[];
+      order.forEach(g=>{ sec(g.toUpperCase()); arr.filter(s=>s[2]===g).forEach(s=>{ const r=dvRow(s); list.appendChild(r); rows.push(r); }); });
+      dvPrices(my,rows); }
     async function draw(){
       const my=++seq, q=cq(); list.innerHTML=''; head.style.display=''; paintCur(q);
+      if(srType==='deriv') return drawDeriv(my,q);
       msg('Loading…'); let m;
       try{ m=await srTickers(); }catch(e){ if(my!==seq||!alive()) return; list.innerHTML=''; msg('Could not load market data. Check your connection and try again.'); return; }
       if(my!==seq||!alive()) return;
@@ -8100,7 +8113,7 @@ function srSheet(initial,prefill){
         if(ts&&d.length) sec(srTypeLabel(srType).toUpperCase()+' · '+d.length+' MARKETS');
         srLazy(list,ts?d:d.slice(0,50),t=>srBinRow(t,subOf(t)));
         if(!d.length) msg(ts?'No '+srTypeLabel(srType)+' markets with a live price right now.':'Nothing matches the volume filter.'); }
-      else if(srTab==='w'){ const w=(window.wl||[]).filter(c=>m[c]&&inT(c)); if(!w.length) return void msg(ts?'None of your watchlist markets are in '+srTypeLabel(srType)+'.':'Your watchlist is empty, or none of its markets have a live price. Add markets with the ☆ button.'); w.forEach(c=>list.appendChild(srBinRow(m[c]))); }
+      else if(srTab==='w'){ const w=(window.wl||[]).filter(c=>m[c]&&inT(c)), dw=ts?[]:(window.wl||[]).map(c=>isDv(c)?SYMS.find(x=>x[0]===c):null).filter(Boolean); if(!w.length&&!dw.length) return void msg(ts?'None of your watchlist markets are in '+srTypeLabel(srType)+'.':'Your watchlist is empty, or none of its markets have a live price. Add markets with the ☆ button.'); w.forEach(c=>list.appendChild(srBinRow(m[c]))); if(dw.length){ const rs=dw.map(dvRow); if(w.length) sec('DERIV'); rs.forEach(r=>list.appendChild(r)); dvPrices(my,rs); } }
       else if(srTab==='r'){ const r=srLS(SR_RK,[]).filter(c=>m[c]&&inT(c)); if(!r.length) return void msg(ts?'No recently opened markets in '+srTypeLabel(srType)+'.':'Markets you open on the chart will show up here.'); r.forEach(c=>list.appendChild(srBinRow(m[c]))); }
       else if(srTab==='n'){ const nw=srLS(SR_NEW,[]).filter(x=>m[x.s]&&inT(x.s)); const since=srLS('mpSeenSince',Date.now());
         if(!nw.length){ msg('No new exchange USDT listings seen yet. There is no free listing-date feed, so this list fills in whenever a new pair appears after the app first looked (since '+new Date(since).toLocaleDateString()+').'); return; }
@@ -8111,7 +8124,8 @@ function srSheet(initial,prefill){
       const sc=t=>{ const [b,qa]=srSplit(t.s); return (b===u?0:t.s.startsWith(u)?2:4)+(qa==='USDT'?0:qa==='USDC'||qa==='FDUSD'?1:qa==='BTC'||qa==='ETH'?1.5:2.5); };
       hits.sort((a,b)=>sc(a)-sc(b)||b.v-a.v); hits=hits.slice(0,30);
       if(hits.length){ sec(ts?srTypeLabel(srType).toUpperCase()+' MARKETS · opens on your chart':'EXCHANGE MARKETS · opens on your chart'); srLazy(list,hits,t=>srBinRow(t,(ts&&ts.sub&&ts.sub[t.s]?ts.sub[t.s]+' · ':'/ '+(srSplit(t.s)[1]||'')+' · ')+'vol '+srV(t.v)),20); }
-      else msg('No results for “'+q+'”'+(ts?' in '+srTypeLabel(srType):'')+'.');
+      else if(!(!ts&&dvList(q).length)) msg('No results for “'+q+'”'+(ts?' in '+srTypeLabel(srType):'')+'.');
+      if(!ts){ const dh=dvList(q).slice(0,8); if(dh.length){ sec('DERIV MARKETS · opens on your chart'); const rs=dh.map(dvRow); rs.forEach(r=>list.appendChild(r)); dvPrices(seq,rs); } }
     }
     let dbt=0; inp.oninput=()=>{ pristine=false; clr.style.display=inp.value?'':'none'; paintTabs(); clearTimeout(dbt); dbt=setTimeout(()=>{ if(alive()) draw(); },200); };
     clr.onclick=()=>{ inp.value=''; pristine=false; clr.style.display='none'; paintTabs(); draw(); inp.focus(); };
