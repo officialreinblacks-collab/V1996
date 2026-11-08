@@ -1,5 +1,5 @@
 /* tools-3.js — MarketPlusView tool code. index.html loads this file and runs it inside start() at the spot where this code used to be (same order, same scope).
-   Keep the file name. Tools in this file: IND.afib, IND.smc, IND.srh, IND.wvadp, IND.amfc, IND.ppa, IND.rcp, IND.cfp */
+   Keep the file name. Tools in this file: IND.afib, IND.smc, IND.srh, IND.wvadp, IND.amfc, IND.ppa, IND.rcp, IND.cfp, IND.obsr */
 try{
 // =====================================================================================
 // UPGRADE PACK (isolated): [wlx] watchlist · [afx] Auto Fibonacci · [fbx] Fib drawing · [avx] Anchored VWAP
@@ -1629,4 +1629,108 @@ IND.cfp={label:'Confluence Profile \u2013 Fib, order blocks, FVG & volume nodes 
   styleTab:(b,d)=>{ const p=d.p, F=(k,l)=>fld(b,p,k,'col',l); F('colBull','Support / bullish'); F('colBear','Resistance / bearish'); },
   extras:(c,p)=>({mk:[],boxes:[{type:'cfpview',pts:[],r:cfpCompute(c,p),o:p}],labels:[]})};
 }catch(err){ console.error('cfp failed',err); window.__cfpErr=err; }
+try{
+// =====================================================================================
+// [obsr] ORDERFLOW VOLUME SUPPORT & RESISTANCE ZONES - isolated block (names start with obsr / OBSR_).
+// Pivot highs / lows with strong volume become resistance / support zones. Each zone fades in, shrinks when price pokes into it,
+// is removed when price closes through it, and marks retests with diamonds. The box next to the last candle shows the zone's
+// buy volume, sell volume, delta and its volume strength.
+// Based on "OrderFlow Volume Support and Resistance [BigBeluga]" by BigBeluga, licensed CC BY-NC-SA 4.0
+// (https://creativecommons.org/licenses/by-nc-sa/4.0/): attribution, non-commercial use only, share alike. Keep this credit.
+// =====================================================================================
+const OBSR_DEF={ len:5, thRes:50, thSup:50, infoBox:10, boxTxt:'small', lblTxt:'large', showMid:true, colRes:'#5297FF', colSup:'#4CAF50' };
+const obsrClamp=(x,a,b)=>Math.max(a,Math.min(b,x)), obsrMix=(x,y,a)=>x*(1-a)+y*a;
+const obsrRgb=h=>{ const m=/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(h||''); return m?[parseInt(m[1],16),parseInt(m[2],16),parseInt(m[3],16)]:[120,123,134]; };
+const obsrFont={auto:12,tiny:8,small:10,normal:12,large:14,huge:20};
+const obsrVol=v=>{ const a=Math.abs(v), f=(x,s)=>(+(x).toFixed(2))+s; return a>=1e12?f(v/1e12,'T'):a>=1e9?f(v/1e9,'B'):a>=1e6?f(v/1e6,'M'):a>=1e3?f(v/1e3,'K'):String(+(v).toFixed(2)); };
+
+function obsrCompute(c0,p){
+  const CAP=5000, off=Math.max(0,c0.length-CAP), c=off?c0.slice(off):c0, n=c.length, R={off,n,ok:false};
+  if(n<120) return R;
+  const len=Math.max(1,Math.round(p.len)), thR=p.thRes/100, thS=p.thSup/100, ne=(a,b)=>!(a!=null&&b!=null&&a===b);
+  const dist=new Array(n).fill(null), mxv=new Array(n).fill(null);
+  { let s=0; for(let i=0;i<n;i++){ s+=c[i].high-c[i].low; if(i>=100) s-=c[i-100].high-c[i-100].low; if(i>=99) dist[i]=s/100; } }
+  for(let i=99;i<n;i++){ let m=0; for(let k=i-99;k<=i;k++){ const v=c[k].volume||0; if(v>m) m=v; } mxv[i]=m; }
+  let topFlow=[], botFlow=[], topH=null, lowH=null, topL=null, lowL=null, pTopH=null, pLowH=null, pTopL=null, pLowL=null, bsr=100, bss=100, lastR=0, lastS=0;
+  const mk=()=>new Array(n).fill(null);
+  const rTop=mk(), rBot=mk(), rMid=mk(), rTr=mk(), rTm=mk(), sTop=mk(), sBot=mk(), sMid=mk(), sTr=mk(), sTm=mk(), rtR=new Array(n).fill(false), rtS=new Array(n).fill(false);
+  const flow=(i,price,isHigh)=>{ const q=i-len, d=dist[i]==null?NaN:dist[i]; let buy=0, sell=0;
+    for(let k=0;k<=len*2;k++){ const b=c[i-k]; if(b.close>b.open) buy+=b.volume||0; else if(b.close<b.open) sell+=b.volume||0; }
+    const nv=(mxv[q]!=null&&mxv[q]>0)?(c[q].volume||0)/mxv[q]:null;
+    return {top:price+d,bot:price-d,price,vol:nv,buyVol:buy,sellVol:sell}; };
+  for(let i=0;i<n;i++){ const q=c[i]; let ph=null, pl=null;
+    if(i>=2*len){ const m=i-len, vh=c[m].high, vl=c[m].low; let isH=true, isL=true;
+      for(let k=m-len;k<=i;k++){ if(c[k].high>vh) isH=false; if(c[k].low<vl) isL=false; if(!isH&&!isL) break; } if(isH) ph=vh; if(isL) pl=vl; }
+    if(ph!=null) topFlow.push(flow(i,ph,true)); if(topFlow.length>100) topFlow.shift();
+    topFlow=topFlow.filter(f=>!(q.close>f.top));
+    topFlow.forEach(f=>{ if(f.vol!=null&&f.vol>thR){ topH=f.top; lowH=f.bot; } });
+    if(pl!=null) botFlow.push(flow(i,pl,false)); if(botFlow.length>50) botFlow.shift();
+    botFlow=botFlow.filter(f=>!(q.close<f.bot));
+    botFlow.forEach(f=>{ if(f.vol!=null&&f.vol>thS){ topL=f.top; lowL=f.bot; } });
+    let topPH=ne(topH,pTopH)?null:topH, botPH=ne(lowH,pLowH)?null:lowH, midH=(topPH!=null&&botPH!=null)?(topPH+botPH)/2:null;
+    if(botPH!=null&&q.high>botPH) botPH=q.high;
+    if(topPH!=null&&q.close>topPH){ topPH=null; botPH=null; midH=null; topH=null; lowH=null; }
+    let topPL=ne(topL,pTopL)?null:topL, botPL=ne(lowL,pLowL)?null:lowL, midL=(topPL!=null&&botPL!=null)?(topPL+botPL)/2:null;
+    if(topPL!=null&&q.low<topPL) topPL=q.low;
+    if(botPL!=null&&q.close<botPL){ topPL=null; botPL=null; midL=null; topL=null; lowL=null; }
+    if(ne(topH,pTopH)||ne(lowH,pLowH)) bsr=0; else bsr++;
+    if(ne(topL,pTopL)||ne(lowL,pLowL)) bss=0; else bss++;
+    const fr=obsrClamp(bsr/50,0,1), fs=obsrClamp(bss/50,0,1), d=dist[i];
+    const dR=botPH!=null?Math.max(0,botPH-q.high):null, prR=(dR!=null&&d>0)?obsrClamp(1-dR/d,0,1):0;
+    const dS=topPL!=null?Math.max(0,q.low-topPL):null, prS=(dS!=null&&d>0)?obsrClamp(1-dS/d,0,1):0;
+    rTop[i]=topPH; rBot[i]=botPH; rMid[i]=midH; rTr[i]=Math.trunc(obsrMix(100,obsrMix(85,60,prR),fr)); rTm[i]=Math.trunc(obsrMix(100,0,fr));
+    sTop[i]=topPL; sBot[i]=botPL; sMid[i]=midL; sTr[i]=Math.trunc(obsrMix(100,obsrMix(85,60,prS),fs)); sTm[i]=Math.trunc(obsrMix(100,0,fs));
+    const rawR=botPH!=null&&topPH!=null&&midH!=null&&q.high>=midH&&q.high<=topPH, rawS=topPL!=null&&botPL!=null&&midL!=null&&q.low<=midL&&q.low>=botPL;
+    if(rawR&&(i-lastR>=10)){ rtR[i]=true; lastR=i; } if(rawS&&(i-lastS>=10)){ rtS[i]=true; lastS=i; }
+    pTopH=topH; pLowH=lowH; pTopL=topL; pLowL=lowL; }
+  let aT=null, aB=null; topFlow.forEach(f=>{ if(f.vol!=null&&f.vol>thR) aT=f; }); botFlow.forEach(f=>{ if(f.vol!=null&&f.vol>thS) aB=f; });
+  let anyVol=false; for(let i=0;i<n;i++){ if(c[i].volume>0){ anyVol=true; break; } }
+  Object.assign(R,{ok:true,last:n-1,rTop,rBot,rMid,rTr,rTm,sTop,sBot,sMid,sTr,sTm,rtR,rtS,aT,aB,hi:c.map(q=>q.high),lo:c.map(q=>q.low),noVol:!anyVol});
+  return R;
+}
+
+const obsrRs=new Set();
+function obsrDraw(d,X,Y,W,H){
+  const r=d.r, o=d.o; if(!r||!r.ok) return;
+  const XI=i=>X(i+r.off), last=r.last, xl=XI(last); if(xl==null) return;
+  const xp=XI(last-1); let sp=xp!=null?xl-xp:0; if(!(sp>0)) sp=6;
+  const info=Math.max(0,Math.round(o.infoBox)), need=(info+20+12)*sp;
+  if(xl+need>W&&!obsrRs.has(o)){ obsrRs.add(o); try{ const ts=chart.timeScale(), bs=ts.options().barSpacing||6; ts.applyOptions({rightOffset:(ts.options().rightOffset||0)+Math.ceil((xl+need-W)/bs)}); }catch(e){} }
+  const light=document.documentElement.getAttribute('data-theme')==='light', FG=light?'#131722':'#d1d4dc';
+  const res=obsrRgb(o.colRes), sup=obsrRgb(o.colSup), rgba=(c,t)=>'rgba('+c[0]+','+c[1]+','+c[2]+','+(Math.max(0,Math.min(100,100-t))/100).toFixed(3)+')';
+  cx.save(); cx.beginPath(); cx.rect(0,0,W,H); cx.clip(); cx.setLineDash([]);
+  const zone=(T,B,M,TR,TM,rgb)=>{ cx.lineWidth=1;
+    for(let i=last;i>=1;i--){ const x1=XI(i); if(x1==null) continue; if(x1<-30) break; const x0=XI(i-1); if(x0==null||x0>W+30) continue;
+      if(T[i]!=null&&B[i]!=null&&T[i-1]!=null&&B[i-1]!=null&&TR[i]<100){ const a=Y(T[i-1]), b=Y(T[i]), c2=Y(B[i]), e=Y(B[i-1]); if(a==null||b==null||c2==null||e==null) continue;
+        cx.fillStyle=rgba(rgb,TR[i]); cx.beginPath(); cx.moveTo(x0,a); cx.lineTo(x1,b); cx.lineTo(x1,c2); cx.lineTo(x0,e); cx.closePath(); cx.fill(); }
+      if(o.showMid&&M[i]!=null&&M[i-1]!=null&&TM[i]<100){ const a=Y(M[i-1]), b=Y(M[i]); if(a==null||b==null) continue; cx.strokeStyle=rgba(rgb,TM[i]); cx.beginPath(); cx.moveTo(x0,a); cx.lineTo(x1,b); cx.stroke(); } } };
+  zone(r.rTop,r.rBot,r.rMid,r.rTr,r.rTm,res); zone(r.sTop,r.sBot,r.sMid,r.sTr,r.sTm,sup);
+  // retest diamonds
+  const dia=(x,y,col)=>{ cx.fillStyle=col; cx.beginPath(); cx.moveTo(x,y-4); cx.lineTo(x+4,y); cx.lineTo(x,y+4); cx.lineTo(x-4,y); cx.closePath(); cx.fill(); };
+  for(let i=last;i>=0;i--){ const x=XI(i); if(x==null) continue; if(x<-10) break; if(x>W+10) continue;
+    if(r.rtR[i]){ const y=Y(r.hi[i]); if(y!=null) dia(x,y-9,'#FF9800'); } if(r.rtS[i]){ const y=Y(r.lo[i]); if(y!=null) dia(x,y+9,'#FFEB3B'); } }
+  // info box next to the last candle
+  const xb=xl+info*sp, xc=xl+(info+20)*sp, bf=obsrFont[o.boxTxt]||10, lf=obsrFont[o.lblTxt]||14;
+  const infoBox=(act,T,B,M,tr,tm,rgb)=>{ if(!act||T==null||B==null) return; const yT=Y(act.top), yB=Y(act.bot), yM=Y((act.top+act.bot)/2), a=Y(T), b=Y(B); if(yT==null||yB==null||a==null||b==null) return;
+    cx.fillStyle=rgba(rgb,tr); cx.beginPath(); cx.moveTo(xl,a); cx.lineTo(xb,yT); cx.lineTo(xb,yB); cx.lineTo(xl,b); cx.closePath(); cx.fill();
+    if(o.showMid&&M!=null){ const ym=Y(M); if(ym!=null){ cx.strokeStyle=rgba(rgb,tm); cx.lineWidth=1; cx.beginPath(); cx.moveTo(xl,ym); cx.lineTo(xb,yM); cx.stroke(); } }
+    const top=Math.min(yT,yB), h=Math.max(2,Math.abs(yB-yT)); cx.fillStyle=rgba(rgb,tr); cx.fillRect(xb,top,xc-xb,h); cx.strokeStyle=rgba(rgb,tm); cx.lineWidth=1; cx.strokeRect(xb,top,xc-xb,h);
+    const lines=['B: '+obsrVol(act.buyVol),'S: '+obsrVol(act.sellVol),'D: '+obsrVol(act.buyVol-act.sellVol)]; cx.fillStyle=FG; cx.font=bf+'px system-ui'; cx.textAlign='center'; cx.textBaseline='middle';
+    lines.forEach((t,i)=>cx.fillText(t,(xb+xc)/2,top+h/2+(i-1)*(bf+2)));
+    cx.fillStyle=rgba(rgb,0); cx.font='bold '+lf+'px system-ui'; cx.textAlign='left'; cx.fillText((+(act.vol*100).toFixed(2))+'%',xc+4,(yT+yB)/2); };
+  infoBox(r.aT,r.rTop[last],r.rBot[last],r.rMid[last],r.rTr[last],r.rTm[last],res);
+  infoBox(r.aB,r.sTop[last],r.sBot[last],r.sMid[last],r.sTr[last],r.sTm[last],sup);
+  if(r.noVol){ cx.font='11px system-ui'; cx.textAlign='right'; cx.textBaseline='top'; cx.fillStyle='#ff9800'; cx.fillText('OrderFlow Volume S/R Zones: this market has no volume data, so no zones can form.',W-8,8); }
+  cx.restore();
+}
+const obsrPrevDraw=draw; draw=function(d,X,Y,W,H){ if(d&&d.type==='obsrview') return obsrDraw(d,X,Y,W,H); return obsrPrevDraw.apply(this,arguments); };
+IND.obsr={label:'OrderFlow Volume S/R Zones \u2013 high-volume pivot zones with buy / sell / delta (BigBeluga)',title:'OrderFlow Volume S/R Zones',cat:'Volume',cols:[],calc:()=>[],live:true,
+  nm:p=>'OrderFlow Volume S/R Zones',
+  p:Object.assign({},OBSR_DEF),
+  inputsTab:(b,d)=>{ const p=d.p, F=(k,t,l,o)=>fld(b,p,k,t,l,o), N=(k,l,mn,mx,st)=>F(k,'num',l,{min:mn,max:mx,step:st}), sz={opts:['auto','tiny','small','normal','large','huge']};
+    N('len','Pivot length',1,50,1); N('thRes','Resistance volume threshold %',0,100,5); N('thSup','Support volume threshold %',0,100,5); N('infoBox','Info box offset',0,100,1);
+    F('boxTxt','sel','Box text size',sz); F('lblTxt','sel','Label text size',sz); F('showMid','chk','Show midlines'); },
+  styleTab:(b,d)=>{ const p=d.p, F=(k,l)=>fld(b,p,k,'col',l); F('colRes','Resistance color'); F('colSup','Support color'); },
+  extras:(c,p)=>({mk:[],boxes:[{type:'obsrview',pts:[],r:obsrCompute(c,p),o:p}],labels:[]})};
+}catch(err){ console.error('obsr failed',err); window.__obsrErr=err; }
 //# sourceURL=tools-3.js
