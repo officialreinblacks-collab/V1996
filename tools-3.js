@@ -20,7 +20,7 @@ const wlxSave=()=>{ try{ localStorage.setItem('rcWatch',JSON.stringify(window.wl
 let wlxSort='def'; try{ wlxSort=localStorage.getItem('mpWlSort')||'def'; }catch(e){}
 const wlxSp={};
 const wlxName=s=>(SYMS.find(x=>x[0]===s)||[s,s])[1].split(' / ')[0];
-const wlxBase=s=>s.replace(/(USDT|BTC|ETH)$/,'')||s;
+const wlxBase=s=>(typeof isDv==='function'&&isDv(s))?s.slice(4):(s.replace(/(USDT|BTC|ETH)$/,'')||s);
 const wlxAlertsFor=s=>alerts.filter(a=>a.sym===s&&a.on);
 function wlxSpark(v,up){ if(!v||v.length<2) return ''; const w=64,h=26,mn=Math.min(...v),mx=Math.max(...v),r=(mx-mn)||1;
   const pts=v.map((x,i)=>(i/(v.length-1)*w).toFixed(1)+','+(h-2-(x-mn)/r*(h-4)).toFixed(1)).join(' ');
