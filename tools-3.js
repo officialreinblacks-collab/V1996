@@ -1,5 +1,5 @@
 /* tools-3.js — MarketPlusView tool code. index.html loads this file and runs it inside start() at the spot where this code used to be (same order, same scope).
-   Keep the file name. Tools in this file: IND.afib, IND.smc, IND.srh, IND.wvadp, IND.amfc, IND.ppa, IND.rcp, IND.cfp, IND.obsr */
+   Keep the file name. Tools in this file: IND.afib, IND.smc, IND.srh, IND.wvadp, IND.amfc, IND.ppa, IND.rcp, IND.cfp, IND.obsr, IND.cbx */
 try{
 // =====================================================================================
 // UPGRADE PACK (isolated): [wlx] watchlist · [afx] Auto Fibonacci · [fbx] Fib drawing · [avx] Anchored VWAP
@@ -1733,4 +1733,261 @@ IND.obsr={label:'OrderFlow Volume S/R Zones \u2013 high-volume pivot zones with 
   styleTab:(b,d)=>{ const p=d.p, F=(k,l)=>fld(b,p,k,'col',l); F('colRes','Resistance color'); F('colSup','Support color'); },
   extras:(c,p)=>({mk:[],boxes:[{type:'obsrview',pts:[],r:obsrCompute(c,p),o:p}],labels:[]})};
 }catch(err){ console.error('obsr failed',err); window.__obsrErr=err; }
+
+try{
+// =====================================================================================
+// [cbx] 4H CANDLE BOX CONTINUATION DETECTOR - isolated block (names start with cbx / CBX_).
+// Overlay indicator. The previous fully closed higher-timeframe candle (4H by default) becomes a box with
+// quarter levels and zones, a hidden close level, bias, IRS stages, an entry-confirmation chain
+// (retrace -> sweep / change in delivery -> structure break by candle close -> breaker / rebalance),
+// second entries, a candle-quality filter, trade levels, an analysis panel and historical statistics.
+// Higher-timeframe candles are built from the chart's own candles, so it follows the selected market.
+// Only closed candles feed bias and signals; nothing is repainted.
+// =====================================================================================
+/*CBX-ENGINE-START*/
+const CBX_HTF={'1h':3600,'2h':7200,'4h':14400,'6h':21600,'8h':28800,'12h':43200,'1D':86400};
+const CBX_QR=['Off','Medium or better','High only'];
+const CBX_DEF={ htf:'4h', offH:0, needAlign:true, bodyMin:.45, oppMax:.3, qualReq:'Medium or better', blockLow:true,
+  swingLen:3, atrLen:14, impM:1.2, rngMin:3, rngMax:3, irsExp:25, sweepLook:40, seqWin:30, minGap:6, maxEntries:2, slBuf:.1,
+  rr1:1, rr2:2, riskPct:1, acct:10000,
+  showBox:true, showZones:true, showFibs:true, showHid:true, showIrs:true, showSw:true, showBrk:true, showMarks:true, showLv:true, hist:2,
+  dash:true, dashFull:false, dashPos:'Top Right', stats:true,
+  zPre:'#26a69a', zOpt:'#2196f3', zOver:'#f9a825', zDng:'#ef5350', boxCol:'#b0b8cc', hidCol:'#e040fb',
+  bull:'#26a69a', bear:'#ef5350', swCol:'#ffeb3b', bosCol:'#90caf9', brkCol:'#7e57c2', slCol:'#ef5350', entCol:'#2196f3', tpCol:'#26a69a' };
+const cbxCache={k:'',r:null};
+const cbxHex=(h,a)=>{ const m=/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(h||''); return m?`rgba(${parseInt(m[1],16)},${parseInt(m[2],16)},${parseInt(m[3],16)},${a})`:h; };
+function cbxAtr(c,len){ const n=c.length,o=new Array(n).fill(null); let r=0,s=0;
+  for(let i=0;i<n;i++){ const b=c[i], tr=i?Math.max(b.high-b.low,Math.abs(b.high-c[i-1].close),Math.abs(b.low-c[i-1].close)):b.high-b.low;
+    if(i<len){ s+=tr; if(i===len-1){ r=s/len; o[i]=r; } } else { r=(r*(len-1)+tr)/len; o[i]=r; } }
+  return o; }
+// previous-candle quality: body share of the range and the wick against its direction
+function cbxGrade(B,p){ const R=B.hi-B.lo; if(!(R>0)) return {body:0,opp:0,grade:'Low'};
+  const body=Math.abs(B.cl-B.op)/R, opp=B.cl>=B.op?(B.hi-Math.max(B.op,B.cl))/R:(Math.min(B.op,B.cl)-B.lo)/R;
+  const grade=(body<p.bodyMin||opp>p.oppMax)?'Low':(body>=Math.min(1,p.bodyMin+.2)&&opp<=p.oppMax*.5)?'High':'Medium';
+  return {body,opp,grade}; }
+const cbxQOk=(g,p)=>p.qualReq==='Off'||(p.qualReq==='High only'?g==='High':g!=='Low');
+// depth (0..1) inside the box measured from the broken / candle-direction extreme
+const cbxDepth=(B,o,px)=>o>0?(B.hi-px)/B.R:(px-B.lo)/B.R;
+const cbxLvl=(B,o,f)=>o>0?B.hi-f*B.R:B.lo+f*B.R;
+function cbxZone(dep){ return dep<0?'Beyond box':dep>1?'Beyond box':dep<.25?'Premature':dep<.5?'Optimum':dep<.75?'Overextended':'Danger'; }
+// Impulse -> Range -> Sweep on the chart timeframe (closed candles only)
+function cbxIrs(c,atr,p){ const n=c.length, ev=[]; let st=0, rng=null, swI=-1, dir=0;
+  for(let i=1;i<n-1;i++){ const a=atr[i], b=c[i]; if(!a) continue; const body=Math.abs(b.close-b.open), rg=b.high-b.low;
+    if(body>=p.impM*a&&rg>0&&body/rg>=.5){ st=1; dir=b.close>b.open?1:-1; rng=null; ev.push({i,k:'I',dir}); continue; }
+    if(st===1){ if(!rng) rng={hi:b.high,lo:b.low,n:1}; else { rng.hi=Math.max(rng.hi,b.high); rng.lo=Math.min(rng.lo,b.low); rng.n++; }
+      if(rng.hi-rng.lo>p.rngMax*a) rng={hi:b.high,lo:b.low,n:1};
+      if(rng.n>=p.rngMin){ st=2; ev.push({i,k:'R',dir:0}); } }
+    else if(st===2){ if(b.high>rng.hi&&b.close<=rng.hi){ st=3; swI=i; ev.push({i,k:'S',dir:-1}); }
+      else if(b.low<rng.lo&&b.close>=rng.lo){ st=3; swI=i; ev.push({i,k:'S',dir:1}); }
+      else if(b.close>rng.hi||b.close<rng.lo){ st=0; } }
+    else if(st===3){ if(i-swI>p.irsExp) st=0; } }
+  return {ev,st}; }
+function cbxBlock(c,L,from,to,close){
+  for(let k=to-1;k>=Math.max(from,1);k--){ const x=c[k], opp=L?x.close<x.open:x.close>x.open; if(opp&&(L?x.high<close:x.low>close)) return {lo:x.low,hi:x.high,i:k,kind:'Breaker block'}; }
+  for(let k=to-1;k>=Math.max(from+2,2);k--){ if(L?c[k].low>c[k-2].high:c[k].high<c[k-2].low) return {lo:L?c[k-2].high:c[k].high,hi:L?c[k].low:c[k-2].low,i:k-1,kind:'Rebalance (FVG)'}; }
+  return null; }
+function cbxRun(c,p){
+  const n=c.length, key=n+'|'+(n?c[0].time+'|'+c[n-1].time+'|'+c[n-1].close+'|'+c[n-1].high+'|'+c[n-1].low:'')+'|'+JSON.stringify(p);
+  if(cbxCache.k===key) return cbxCache.r;
+  const R={n,bars:c,per:[],trades:[],mk:[],irs:[],hid:[],ev:[],last:null,err:'',warn:'',st:null,ltf:0}; cbxCache.k=key; cbxCache.r=R;
+  if(n<40){ R.err='Not enough candles loaded'; return R; }
+  const sec=CBX_HTF[p.htf]||14400, off=Math.round((+p.offH||0)*3600);
+  { const d=[]; for(let i=Math.max(1,n-60);i<n;i++){ const x=c[i].time-c[i-1].time; if(x>0) d.push(x); } R.ltf=d.length?Math.min.apply(null,d):0; }
+  if(R.ltf>=sec){ R.err='Chart timeframe must be lower than '+p.htf+' (use 2m to 1h)'; return R; }
+  if(R.ltf>900) R.warn='Confirmation works best on 2m / 5m';
+  const atr=cbxAtr(c,Math.max(2,Math.round(p.atrLen)));
+  let pd=4; try{ const q=candle.options().priceFormat.precision; if(q!=null) pd=q; }catch(e){} const mt=Math.pow(10,-pd);
+  // higher-timeframe candles from the chart candles
+  const bk=[], bkOf=new Array(n); let cur=null;
+  for(let i=0;i<n;i++){ const x=c[i], id=Math.floor((x.time-off)/sec);
+    if(!cur||cur.id!==id){ cur={id,i0:i,i1:i,op:x.open,hi:x.high,lo:x.low,cl:x.close,t0:x.time,t1:x.time}; bk.push(cur); }
+    else { cur.i1=i; cur.hi=Math.max(cur.hi,x.high); cur.lo=Math.min(cur.lo,x.low); cur.cl=x.close; cur.t1=x.time; }
+    bkOf[i]=bk.length-1; }
+  const full=b=>{ const s=b.id*sec+off; return b.t0-s<=sec*.25&&b.t1>=s+sec*.5; }, gapMax=Math.ceil(72*3600/sec)+1;
+  const irs=cbxIrs(c,atr,p); R.irs=irs.ev; R.irsSt=irs.st;
+  const L=Math.max(1,Math.round(p.swingLen)), PL=[], PH=[], ev=[];
+  const newCy=s=>({start:s,armed:false,ext:NaN,extI:-1,dmax:0,over:false,dead:false,sw:null,bos:-1,blk:null,mks:[]});
+  let P=null, curK=-1;
+  const mkP=(k,i)=>{ const pv=bk[k-1]; let box=null;
+    if(k>0&&pv&&full(pv)&&bk[k].id-pv.id<=gapMax&&pv.hi>pv.lo){ box={hi:pv.hi,lo:pv.lo,op:pv.op,cl:pv.cl,bull:pv.cl>=pv.op,R:pv.hi-pv.lo,t0:pv.t0,t1:pv.t1};
+      box.q=cbxGrade(box,p); box.qOk=cbxQOk(box.q.grade,p); }
+    const Q={k,i0:bk[k].i0,i1:bk[k].i1,box,dir:0,dead:false,aboveI:-1,belowI:-1,brkI:-1,mis:false,n:0,lastSigI:-1,cy:newCy(i),hidSide:0,lastBrk:null,hidLast:'',trades:[],note:''};
+    R.per.push(Q); return Q; };
+  for(let i=0;i<n-1;i++){ const b=c[i];
+    const kq=i-L; if(kq>=L){ let lo=true,hi=true; for(let j=1;j<=L;j++){ if(!(c[kq].low<=c[kq-j].low&&c[kq].low<c[kq+j].low)) lo=false; if(!(c[kq].high>=c[kq-j].high&&c[kq].high>c[kq+j].high)) hi=false; }
+      if(lo) PL.push({i:kq,p:c[kq].low}); if(hi) PH.push({i:kq,p:c[kq].high}); }
+    if(bkOf[i]!==curK){ curK=bkOf[i]; P=mkP(curK,i); }
+    const B=P.box; if(!B) continue;
+    const hi=B.hi, lo=B.lo, lvl=B.cl, pb=c[i-1]||b;
+    // hidden level (previous close): breakout, rejection, retest
+    { let k=null,dr=0;
+      if(pb.close<=lvl&&b.close>lvl){ k='Breakout'; dr=1; P.lastBrk={i,dir:1}; } else if(pb.close>=lvl&&b.close<lvl){ k='Breakout'; dr=-1; P.lastBrk={i,dir:-1}; }
+      else if(b.low<lvl&&b.close>lvl&&pb.close>lvl){ k='Rejection'; dr=1; } else if(b.high>lvl&&b.close<lvl&&pb.close<lvl){ k='Rejection'; dr=-1; }
+      else if(P.lastBrk&&i>P.lastBrk.i&&i-P.lastBrk.i<=12&&b.low<=lvl&&b.high>=lvl&&(P.lastBrk.dir>0?b.close>lvl:b.close<lvl)){ k='Retest'; dr=P.lastBrk.dir; P.lastBrk=null; }
+      if(k){ R.hid.push({i,k,dir:dr,p:lvl}); P.hidLast=k+(dr>0?' up':' down'); }
+      P.hidSide=b.close>lvl?1:b.close<lvl?-1:0; }
+    // bias: closes beyond the box (a wick is not a break)
+    if(!P.dead){
+      if(b.close>hi){ if(P.belowI>=0){ P.dead=true; P.dir=0; P.note='Both extremes broken'; ev.push({k:'cbx-x',time:b.time,msg:'4H box invalidated (both extremes broken)',col:p.slCol}); }
+        else { if(P.aboveI<0){ P.aboveI=i; if(B.bull||!p.needAlign){ P.dir=1; P.brkI=i; P.cy=newCy(i); ev.push({k:'cbx-b',time:b.time,msg:'4H box: bullish bias (closed above previous 4H high)',col:p.bull}); } else { P.mis=true; P.note='Break against candle direction'; } }
+          else if(P.dir===1&&(P.cy.dead||P.cy.over)) P.cy=newCy(i); } }
+      else if(b.close<lo){ if(P.aboveI>=0){ P.dead=true; P.dir=0; P.note='Both extremes broken'; ev.push({k:'cbx-x',time:b.time,msg:'4H box invalidated (both extremes broken)',col:p.slCol}); }
+        else { if(P.belowI<0){ P.belowI=i; if(!B.bull||!p.needAlign){ P.dir=-1; P.brkI=i; P.cy=newCy(i); ev.push({k:'cbx-b',time:b.time,msg:'4H box: bearish bias (closed below previous 4H low)',col:p.bear}); } else { P.mis=true; P.note='Break against candle direction'; } }
+          else if(P.dir===-1&&(P.cy.dead||P.cy.over)) P.cy=newCy(i); } } }
+    if(!P.dir||P.dead) continue;
+    // entry chain (retrace -> sweep / change in delivery -> structure break by close -> breaker / rebalance)
+    const d=P.dir, Lg=d>0, cy=P.cy; if(i<=cy.start||cy.dead||cy.over) continue;
+    const dep=Lg?(hi-b.low)/B.R:(b.high-lo)/B.R;
+    if(dep>=0){ cy.armed=true; if(!(cy.dmax>=dep)) cy.dmax=dep; if(isNaN(cy.ext)||(Lg?b.low<cy.ext:b.high>cy.ext)){ cy.ext=Lg?b.low:b.high; cy.extI=i; } }
+    if(cy.dmax>.75){ cy.dead=true; continue; } if(cy.dmax>.5){ cy.over=true; continue; }
+    if(!cy.armed) continue;
+    if(cy.sw&&i-cy.sw.i>p.seqWin){ cy.sw=null; cy.bos=-1; cy.blk=null; }
+    if(!cy.sw){ let kind=null;
+      const pivs=Lg?PL:PH; for(let q=pivs.length-1;q>=0&&i-pivs[q].i<=p.sweepLook;q--){ const pv=pivs[q]; if(pv.i<cy.start) break; if(Lg?(b.low<pv.p&&b.close>pv.p):(b.high>pv.p&&b.close<pv.p)){ kind='Liquidity sweep'; break; } }
+      if(!kind){ let run=0,top=-Infinity,bot=Infinity; for(let j=i-1;j>cy.start;j--){ const x=c[j], opp=Lg?x.close<x.open:x.close>x.open; if(!opp) break; run++; top=Math.max(top,x.open); bot=Math.min(bot,x.open); }
+        if(run>=2&&(Lg?(b.close>b.open&&b.close>top):(b.close<b.open&&b.close<bot))) kind='Change in delivery'; }
+      if(kind){ const sp=Lg?PH:PL; let st=null; for(let q=sp.length-1;q>=0;q--){ if(sp[q].i<i){ st=sp[q]; break; } }
+        if(!st){ let v=Lg?-Infinity:Infinity; for(let j=Math.max(0,i-5);j<i;j++) v=Lg?Math.max(v,c[j].high):Math.min(v,c[j].low); st={i:i-1,p:v}; }
+        cy.sw={i,kind,st}; const mk={i,k:'sw',long:Lg,p:Lg?b.low:b.high,txt:kind==='Liquidity sweep'?'SWEEP':'CISD',conf:false}; R.mk.push(mk); cy.mks.push(mk); } }
+    if(cy.sw&&i>=cy.sw.i){ const st=cy.sw.st;
+      if(Lg?b.close>st.p:b.close<st.p){ if(cy.bos<0){ cy.bos=i; const mk={i,k:'bos',long:Lg,p:st.p,txt:'BOS',conf:false}; R.mk.push(mk); cy.mks.push(mk); }
+        const z=cbxBlock(c,Lg,cy.start,i,b.close); if(z) cy.blk=z;
+        const gapOk=P.n===0||i-P.lastSigI>=p.minGap;
+        if(z&&gapOk&&P.n<p.maxEntries&&!(p.blockLow&&!B.qOk)){
+          const a=atr[i]||0, sl=Lg?cy.ext-p.slBuf*a:cy.ext+p.slBuf*a, entry=b.close, risk=Lg?entry-sl:sl-entry;
+          if(risk>mt&&risk>0){ const tp1=entry+d*risk*p.rr1, tp2=entry+d*risk*p.rr2;
+            const T={i0:i,long:Lg,no:P.n+1,entry,sl,tp1,tp2,struct:st.p,zone:z,sw:cy.sw,h1:-1,h2:-1,hs:-1,closeI:-1,res:null,k:P.k};
+            R.trades.push(T); P.trades.push(T); P.n++; P.lastSigI=i; cy.mks.forEach(m=>m.conf=true);
+            ev.push({k:'cbx-s',time:b.time,msg:'4H Box '+(Lg?'BUY':'SELL')+(T.no===2?' (second entry)':'')+' @ '+entry.toFixed(pd),col:Lg?p.bull:p.bear});
+            P.cy=newCy(i); } } } } }
+  // the forming candle: make sure its period (and box) exists
+  if(bkOf[n-1]!==curK){ curK=bkOf[n-1]; P=mkP(curK,n-1); }
+  // trade simulation (stop checked before targets inside one candle: conservative)
+  R.trades.forEach(T=>{ const Lg=T.long;
+    for(let j=T.i0+1;j<n;j++){ const x=c[j], s=Lg?x.low<=T.sl:x.high>=T.sl, t1=Lg?x.high>=T.tp1:x.low<=T.tp1, t2=Lg?x.high>=T.tp2:x.low<=T.tp2;
+      if(s){ T.hs=j; T.closeI=j; T.res=-1; ev.push({k:'cbx-sl',time:x.time,msg:'4H Box SL hit',col:p.slCol}); break; }
+      if(t1&&T.h1<0){ T.h1=j; ev.push({k:'cbx-t1',time:x.time,msg:'4H Box TP1 hit',col:p.tpCol}); }
+      if(t2){ T.h2=j; T.closeI=j; T.res=p.rr2; ev.push({k:'cbx-t2',time:x.time,msg:'4H Box TP2 hit',col:p.tpCol}); break; } } });
+  // historical statistics (full exit at TP2 or stop; trades still open are not counted)
+  { const cl=R.trades.filter(t=>t.res!=null), w=cl.filter(t=>t.res>0), l=cl.filter(t=>t.res<0); let eq=0,pk=0,dd=0; cl.slice().sort((a,b)=>a.closeI-b.closeI).forEach(t=>{ eq+=t.res; pk=Math.max(pk,eq); dd=Math.max(dd,pk-eq); });
+    const e=k=>{ const q=cl.filter(t=>t.no===k); return {n:q.length,w:q.filter(t=>t.res>0).length}; };
+    R.st={total:R.trades.length,closed:cl.length,open:R.trades.length-cl.length,wins:w.length,losses:l.length,tp1:cl.filter(t=>t.h1>=0).length,
+      net:w.length*p.rr2-l.length,pf:l.length?(w.length*p.rr2)/l.length:(w.length?Infinity:0),dd,e1:e(1),e2:e(2)}; }
+  ev.sort((a,b)=>a.time-b.time); R.ev=ev.slice(-30).map(e=>({...e,k:e.k+'|'+e.time}));
+  // live read-out for the panel
+  { const q=R.per[R.per.length-1], B=q.box, x=c[n-1], lt=R.trades.length?R.trades[R.trades.length-1]:null; const o=B?(q.dir||(B.bull?1:-1)):0;
+    const dep=B?cbxDepth(B,o,x.close):null, cy=q.cy, openT=lt&&lt.res==null&&lt.k===q.k;
+    const prog=B&&q.dir&&!q.dead?[cy.armed&&!cy.over&&!cy.dead,!!cy.sw,cy.bos>=0,!!cy.blk]:[false,false,false,false];
+    R.last={P:q,B,o,dep,zone:B?(dep<0||dep>1?(dep<0?'Above box':'Below box'):cbxZone(dep)).replace('Above box',o>0?'Beyond high':'Beyond low').replace('Below box',o>0?'Beyond low':'Beyond high'):null,
+      bias:q.dead||!q.dir?'Neutral':q.dir>0?'Bullish':'Bearish',trade:lt,openT,prog,
+      entry:openT||(lt&&lt.k===q.k&&lt.res==null)?'Confirmed':(q.dead||(B&&q.dir&&(cy.dead||cy.over)&&!openT))?'Invalidated':'Waiting',
+      second:B&&q.dir&&!q.dead&&q.n>=1&&q.n<p.maxEntries&&!cy.dead&&!cy.over?'Available':'Not Available'}; }
+  return R;
+}
+/*CBX-ENGINE-END*/
+
+function cbxDraw(d,X,Y,W,H){
+  const R=d.r, p=d.o; if(!R||!R.n) return;
+  const c=R.bars, n=R.n; let pd=4; try{ const q=candle.options().priceFormat.precision; if(q!=null) pd=q; }catch(e){}
+  const fp=v=>v==null||!isFinite(v)?'\u2014':v.toFixed(pd);
+  cx.save(); cx.beginPath(); cx.rect(0,0,W,H); cx.clip(); cx.setLineDash([]);
+  const rr=(x,y,w,h,r)=>{ cx.beginPath(); cx.moveTo(x+r,y); cx.arcTo(x+w,y,x+w,y+h,r); cx.arcTo(x+w,y+h,x,y+h,r); cx.arcTo(x,y+h,x,y,r); cx.arcTo(x,y,x+w,y,r); cx.closePath(); };
+  const tag=(x,y,txt,col,al)=>{ cx.font='bold 9px system-ui'; const w=cx.measureText(txt).width+8; const bx=al==='r'?x-w:x; rr(bx,y-7,w,14,3); cx.fillStyle=col; cx.fill(); cx.fillStyle='#fff'; cx.textAlign='left'; cx.textBaseline='middle'; cx.fillText(txt,bx+4,y+.5); };
+  const hl=(y,x0,x1,col,dash,w)=>{ cx.strokeStyle=col; cx.lineWidth=w||1; cx.setLineDash(dash||[]); cx.beginPath(); cx.moveTo(x0,y); cx.lineTo(x1,y); cx.stroke(); cx.setLineDash([]); };
+  if(!R.err){
+    const per=R.per, from=Math.max(0,per.length-1-Math.max(0,Math.round(p.hist)));
+    for(let q=from;q<per.length;q++){ const P=per[q], B=P.box; if(!B) continue; const latest=q===per.length-1, o=P.dir||(B.bull?1:-1);
+      const x0=X(P.i0), x1=latest?X(n-1+12):X(P.i1+1); if(x0==null||x1==null||x1<0) continue; const xa=Math.max(x0,0);
+      const yh=Y(B.hi), yl=Y(B.lo); if(yh==null||yl==null) continue;
+      if(p.showZones&&latest){ const zc=[p.zPre,p.zOpt,p.zOver,p.zDng]; for(let z=0;z<4;z++){ const ya=Y(cbxLvl(B,o,z*.25)), yb=Y(cbxLvl(B,o,(z+1)*.25)); if(ya==null||yb==null) continue; cx.fillStyle=cbxHex(zc[z],.16); cx.fillRect(xa,Math.min(ya,yb),x1-xa,Math.abs(yb-ya)); } }
+      else if(p.showBox){ cx.fillStyle=cbxHex(p.boxCol,.05); cx.fillRect(xa,Math.min(yh,yl),x1-xa,Math.abs(yl-yh)); }
+      if(p.showBox){ cx.strokeStyle=latest?p.boxCol:cbxHex(p.boxCol,.5); cx.lineWidth=latest?1.5:1; cx.setLineDash(latest?[]:[4,4]); cx.strokeRect(xa+.5,Math.min(yh,yl)+.5,x1-xa,Math.abs(yl-yh)); cx.setLineDash([]); }
+      if(p.showFibs&&latest){ const nm=['0%','25%','50%','75%','100%']; for(let f=0;f<5;f++){ const pr=cbxLvl(B,o,f*.25), y=Y(pr); if(y==null) continue; if(f>0&&f<4) hl(y,xa,x1,cbxHex(p.boxCol,.7),[2,4],1);
+        cx.font='9px system-ui'; cx.fillStyle='#d6dbe8'; cx.textAlign='right'; cx.textBaseline='bottom'; cx.fillText(nm[f]+'  '+fp(pr),x1-4,y-1); }
+        const zn=['Premature','Optimum','Overextended','Danger'], zc2=[p.zPre,p.zOpt,p.zOver,p.zDng]; cx.font='bold 9px system-ui'; cx.textAlign='left'; cx.textBaseline='middle';
+        for(let z=0;z<4;z++){ const ya=Y(cbxLvl(B,o,z*.25)), yb=Y(cbxLvl(B,o,(z+1)*.25)); if(ya==null||yb==null) continue; cx.fillStyle=cbxHex(zc2[z],.95); cx.fillText(zn[z],xa+4,(ya+yb)/2); } }
+      if(p.showHid){ const y=Y(B.cl); if(y!=null){ hl(y,xa,x1,latest?p.hidCol:cbxHex(p.hidCol,.5),[6,4],latest?1.5:1); if(latest) tag(x1-2,y,'Prev close '+fp(B.cl),p.hidCol,'r'); } }
+      if(latest){ const t=(B.bull?'\u25B2 Bull':'\u25BC Bear')+' 4H  O '+fp(B.op)+'  H '+fp(B.hi)+'  L '+fp(B.lo)+'  C '+fp(B.cl); cx.font='bold 9px system-ui'; const w=cx.measureText(t).width+10; rr(xa+2,Math.min(yh,yl)-18,w,14,3); cx.fillStyle=cbxHex(B.bull?p.bull:p.bear,.9); cx.fill(); cx.fillStyle='#fff'; cx.textAlign='left'; cx.textBaseline='middle'; cx.fillText(t,xa+7,Math.min(yh,yl)-10.5); } }
+    // hidden-level interaction marks
+    if(p.showHid){ cx.font='8px system-ui'; cx.textAlign='center'; cx.textBaseline='middle'; R.hid.slice(-60).forEach(h=>{ const x=X(h.i), y=Y(h.p); if(x==null||y==null||x<-20||x>W+20) return; cx.fillStyle=cbxHex(p.hidCol,.95); cx.fillText(h.k==='Breakout'?'BRK':h.k==='Rejection'?'REJ':'RT',x,y+(h.dir>0?-9:9)); }); }
+    // IRS labels
+    if(p.showIrs){ cx.font='bold 8px system-ui'; cx.textAlign='center'; cx.textBaseline='middle'; R.irs.slice(-90).forEach(e=>{ const x=X(e.i); if(x==null||x<-10||x>W+10) return; const b=c[e.i], up=e.k==='I'?e.dir<0:e.k==='S'?e.dir>0:false; const y=Y(up?b.low:b.high); if(y==null) return; const yy=up?y+11:y-11;
+      cx.fillStyle=e.k==='I'?(e.dir>0?p.bull:p.bear):e.k==='S'?p.swCol:'#787b86'; cx.beginPath(); cx.arc(x,yy,6,0,6.283); cx.fill(); cx.fillStyle=e.k==='S'?'#000':'#fff'; cx.fillText(e.k,x,yy+.5); }); }
+    // sweep / change in delivery / structure break (developing = faint, confirmed = solid)
+    if(p.showSw){ cx.font='bold 8px system-ui'; cx.textAlign='center'; cx.textBaseline='middle'; R.mk.slice(-80).forEach(m=>{ const x=X(m.i), y=Y(m.p); if(x==null||y==null||x<-20||x>W+20) return; const col=m.k==='sw'?p.swCol:p.bosCol;
+      cx.globalAlpha=m.conf?1:.55; if(m.k==='bos'){ hl(y,x-14,x+14,col,[3,3],1); } else { cx.fillStyle=col; cx.beginPath(); cx.moveTo(x,y-5); cx.lineTo(x+5,y); cx.lineTo(x,y+5); cx.lineTo(x-5,y); cx.closePath(); cx.fill(); }
+      cx.fillStyle=col; cx.fillText(m.txt+(m.conf?'':'?'),x,y+(m.long?(m.k==='bos'?-9:13):(m.k==='bos'?9:-13))); cx.globalAlpha=1; }); }
+    // breaker blocks / rebalance zones
+    if(p.showBrk) R.trades.slice(-12).forEach(T=>{ const z=T.zone; if(!z) return; const xa=X(z.i), xb=X(Math.min(n-1,(T.closeI>=0?T.closeI:n-1))+2), ya=Y(z.hi), yb=Y(z.lo); if(xa==null||xb==null||ya==null||yb==null||xb<0) return;
+      cx.fillStyle=cbxHex(p.brkCol,.22); cx.fillRect(Math.max(xa,0),Math.min(ya,yb),Math.max(2,xb-Math.max(xa,0)),Math.max(1,Math.abs(yb-ya))); cx.strokeStyle=cbxHex(p.brkCol,.8); cx.lineWidth=1; cx.strokeRect(Math.max(xa,0)+.5,Math.min(ya,yb)+.5,Math.max(2,xb-Math.max(xa,0)),Math.max(1,Math.abs(yb-ya))); cx.font='8px system-ui'; cx.fillStyle='#c9b8ff'; cx.textAlign='left'; cx.textBaseline='top'; cx.fillText(z.kind,Math.max(xa,0)+3,Math.min(ya,yb)+2); });
+    // entry arrows
+    if(p.showMarks){ cx.font='bold 10px system-ui'; cx.textAlign='center'; cx.textBaseline='middle'; R.trades.forEach(T=>{ const x=X(T.i0); if(x==null||x<-40||x>W+40) return; const b=c[T.i0], y=Y(T.long?b.low:b.high); if(y==null) return;
+      const txt=(T.long?'BUY':'SELL')+(T.no===2?' \u00B7 2nd':''), w=cx.measureText(txt).width+12, h=16, col=T.long?p.bull:p.bear, ty=T.long?y+10:y-10-h;
+      cx.fillStyle=col; cx.beginPath(); if(T.long){ cx.moveTo(x,y+4); cx.lineTo(x-4,y+10); cx.lineTo(x+4,y+10); } else { cx.moveTo(x,y-4); cx.lineTo(x-4,y-10); cx.lineTo(x+4,y-10); } cx.closePath(); cx.fill();
+      rr(x-w/2,ty,w,h,3); cx.fill(); cx.fillStyle='#fff'; cx.fillText(txt,x,ty+h/2+.5); }); }
+    // trade levels (latest trade)
+    const T=R.trades.length?R.trades[R.trades.length-1]:null;
+    if(p.showLv&&T){ const x0=X(T.i0), x1=X((T.closeI>=0?T.closeI:n-1)+10); if(x0!=null&&x1!=null&&x1>0){ const xa=Math.max(x0,0), ys=Y(T.sl), ye=Y(T.entry), y1=Y(T.tp1), y2=Y(T.tp2), yst=Y(T.struct);
+      if(ys!=null&&ye!=null&&y1!=null&&y2!=null){ cx.fillStyle=cbxHex(p.slCol,.18); cx.fillRect(xa,Math.min(ys,ye),x1-xa,Math.abs(ye-ys)); cx.fillStyle=cbxHex(p.tpCol,.14); cx.fillRect(xa,Math.min(ye,y2),x1-xa,Math.abs(y2-ye));
+        hl(ys,xa,x1,p.slCol,[],2); hl(ye,xa,x1,p.entCol,[5,4],1); hl(y1,xa,x1,cbxHex(p.tpCol,.7),[5,4],1); hl(y2,xa,x1,p.tpCol,[5,4],1); if(yst!=null) hl(yst,xa,x1,'rgba(144,202,249,.6)',[2,3],1);
+        const lab=(y,t,col)=>{ cx.font='bold 10px system-ui'; const w=cx.measureText(t).width+10; let bx=x1+6; if(bx+w>W-2) bx=W-2-w; cx.fillStyle=col; cx.beginPath(); cx.moveTo(x1+1,y); cx.lineTo(x1+6,y-4); cx.lineTo(x1+6,y+4); cx.closePath(); cx.fill(); rr(bx,y-8,w,16,3); cx.fill(); cx.fillStyle='#fff'; cx.textAlign='left'; cx.textBaseline='middle'; cx.fillText(t,bx+5,y+.5); };
+        lab(ys,T.hs>=0?'SL \u2713 HIT':'\u2715 SL '+fp(T.sl),p.slCol); lab(ye,'\u25B6 Entry '+fp(T.entry),p.entCol); lab(y1,T.h1>=0?'TP1 \u2713 HIT':'\u25C6 TP1 '+fp(T.tp1),cbxHex(p.tpCol,.7)); lab(y2,T.h2>=0?'TP2 \u2713 HIT':'\u2726 TP2 '+fp(T.tp2),p.tpCol); } } }
+  }
+  // analysis panel
+  if(p.dash){ const Lv=R.last, bull=p.bull, bear=p.bear, WARN='rgba(249,168,37,.85)', rows=[];
+    if(R.err) rows.push([R.err,'','#fff',1]);
+    else if(Lv){ const B=Lv.B, q=B?B.q.grade:null;
+      if(!B) rows.push(['No complete previous '+p.htf+' candle yet','','#fff',1]);
+      rows.push(['Market Bias',Lv.bias,Lv.bias==='Bullish'?bull:Lv.bias==='Bearish'?bear:'#fff']);
+      rows.push(['Candle Quality',q?(q==='Low'?'Low':q):'\u2014',q==='High'?'#26a69a':q==='Low'?'#ef5350':'#f9a825']);
+      if(B&&!B.qOk) rows.push(['LOW QUALITY CANDLE',p.blockLow?'signals off':'signals on','#fff',1]);
+      rows.push(['Current Zone',Lv.zone||'\u2014',Lv.zone==='Premature'?p.zPre:Lv.zone==='Optimum'?p.zOpt:Lv.zone==='Overextended'?p.zOver:Lv.zone==='Danger'?p.zDng:'#fff']);
+      rows.push(['IRS Status',R.irsSt===1?'Impulse':R.irsSt===2?'Range':R.irsSt===3?'Sweep':'None',R.irsSt===3?p.swCol:'#fff']);
+      const pg=Lv.prog, ns=pg.filter(Boolean).length;
+      rows.push(['Entry Status',Lv.entry+(Lv.entry==='Waiting'&&ns?' ('+ns+'/4)':''),Lv.entry==='Confirmed'?'#26a69a':Lv.entry==='Invalidated'?'#ef5350':'#fff']);
+      rows.push(['Second Entry',Lv.second,Lv.second==='Available'?'#26a69a':'#fff']);
+      if(p.dashFull&&B){ rows.push(['Prev '+p.htf,(B.bull?'Bullish':'Bearish')+' \u00B7 body '+Math.round(B.q.body*100)+'% \u00B7 opp wick '+Math.round(B.q.opp*100)+'%','#fff']); rows.push(['Open / Close',fp(B.op)+' / '+fp(B.cl),'#fff']); rows.push(['High / Low',fp(B.hi)+' / '+fp(B.lo),'#fff']);
+        rows.push(['Hidden level',(Lv.P.hidSide>0?'Close above':Lv.P.hidSide<0?'Close below':'At level')+(Lv.P.hidLast?' \u00B7 '+Lv.P.hidLast:''),'#fff']);
+        rows.push(['Setup chain',['Retrace','Sweep','BOS','Block'].map((s,i)=>(pg[i]?'\u2713':'\u00B7')+s).join(' '),'#fff']); if(Lv.P.note) rows.push(['Note',Lv.P.note,'#fff',1]); }
+      const T=Lv.trade; if(T&&Lv.P.trades.length){ const risk=Math.abs(T.entry-T.sl), rd=p.acct*p.riskPct/100;
+        rows.push(['Last trade',(T.long?'BUY':'SELL')+(T.no===2?' \u00B7 2nd entry':'')+(T.res!=null?(T.res>0?' \u00B7 TP2 \u2713':' \u00B7 stopped'):T.h1>=0?' \u00B7 TP1 \u2713':' \u00B7 open'),T.long?bull:bear]);
+        rows.push(['Entry / Stop',fp(T.entry)+' / '+fp(T.sl),'#fff']); rows.push(['TP1 / TP2',fp(T.tp1)+' / '+fp(T.tp2),'#fff']); rows.push(['Struct level',fp(T.struct),'#fff']);
+        rows.push(['Reward : Risk','1 : '+p.rr1+'  \u00B7  1 : '+p.rr2,'#fff']); rows.push(['Risk '+p.riskPct+'%',rd.toFixed(2)+' \u00B7 size '+(risk>0?(rd/risk).toFixed(4):'\u2014'),'#fff']); }
+      if(R.warn) rows.push([R.warn,'','#fff',1]); }
+    const RH=15, DW=210, DH=(rows.length+1)*RH; let dx=p.dashPos.indexOf('Right')>=0?W-DW-4:4, dy=p.dashPos.indexOf('Bottom')>=0?H-DH-4:4; if(dx<0) dx=0; if(dy<0) dy=0;
+    cx.font='10px system-ui'; cx.textBaseline='middle'; cx.fillStyle='rgba(58,42,109,.85)'; cx.fillRect(dx,dy,DW,RH); cx.fillStyle='#fff'; cx.textAlign='left'; cx.fillText('4H Candle Box',dx+6,dy+RH/2+.5);
+    let tk=''; try{ tk=sym[0]+' \u00B7 '+tf[0]; }catch(e){} cx.textAlign='right'; cx.fillText(tk,dx+DW-6,dy+RH/2+.5);
+    rows.forEach((r,qq)=>{ const y=dy+(qq+1)*RH; cx.fillStyle=r[3]?WARN:qq%2?'rgba(10,15,26,.82)':'rgba(10,15,26,.92)'; cx.fillRect(dx,y,DW,RH);
+      cx.fillStyle=r[3]?'#111':'rgba(255,255,255,.72)'; cx.textAlign='left'; cx.fillText(r[0],dx+6,y+RH/2+.5); if(r[1]){ cx.fillStyle=r[3]?'#111':r[2]; cx.textAlign='right'; cx.fillText(r[1],dx+DW-6,y+RH/2+.5); } });
+    cx.strokeStyle='rgba(58,42,109,.6)'; cx.lineWidth=1; cx.strokeRect(dx+.5,dy+.5,DW-1,DH-1);
+    // historical statistics
+    if(p.stats&&R.st){ const S=R.st, wr=S.closed?Math.round(S.wins/S.closed*100)+'%':'\u2014', t1=S.closed?Math.round(S.tp1/S.closed*100)+'%':'\u2014';
+      const sr=[['Signals',S.total+' ('+S.open+' open)'],['Win rate (TP2)',wr+' \u00B7 '+S.wins+'W / '+S.losses+'L'],['TP1 reached',t1],['Net R / PF',(S.net>=0?'+':'')+S.net.toFixed(1)+'R \u00B7 '+(S.pf===Infinity?'\u221E':S.pf.toFixed(2))],['Max drawdown',S.dd.toFixed(1)+'R'],['1st / 2nd entry',S.e1.w+'/'+S.e1.n+'  \u00B7  '+S.e2.w+'/'+S.e2.n],['Loaded history only. Not a forecast.','']];
+      const sy=dy+DH+4, SH=(sr.length+1)*RH; cx.fillStyle='rgba(58,42,109,.85)'; cx.fillRect(dx,sy,DW,RH); cx.fillStyle='#fff'; cx.textAlign='left'; cx.fillText('Historical test',dx+6,sy+RH/2+.5);
+      sr.forEach((r,qq)=>{ const y=sy+(qq+1)*RH; cx.fillStyle=qq%2?'rgba(10,15,26,.82)':'rgba(10,15,26,.92)'; cx.fillRect(dx,y,DW,RH); cx.fillStyle=r[1]?'rgba(255,255,255,.72)':'rgba(255,255,255,.5)'; cx.textAlign='left'; cx.fillText(r[0],dx+6,y+RH/2+.5); if(r[1]){ cx.fillStyle='#fff'; cx.textAlign='right'; cx.fillText(r[1],dx+DW-6,y+RH/2+.5); } });
+      cx.strokeStyle='rgba(58,42,109,.6)'; cx.strokeRect(dx+.5,sy+.5,DW-1,SH-1); } }
+  cx.restore();
+}
+const cbxPrevDraw=draw; draw=function(d,X,Y,W,H){ if(d&&d.type==='cbxview') return cbxDraw(d,X,Y,W,H); return cbxPrevDraw.apply(this,arguments); };
+const cbxHead=(b,t)=>{ const h=document.createElement('div'); h.style.cssText='color:#9aa3b5;font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin:16px 0 2px;padding-top:8px;border-top:1px solid #232a3a'; h.textContent=t; b.appendChild(h); };
+IND.cbx={label:'4H Candle Box Continuation Detector',title:'4H Candle Box Continuation Detector',cat:'Trend',cols:[],calc:()=>[],live:true,
+  nm:p=>'4H Candle Box '+p.htf,
+  p:Object.assign({},CBX_DEF),
+  inputsTab:(b,d)=>{ const p=d.p, F=(k,t,l,o)=>fld(b,p,k,t,l,o), N=(k,l,mn,mx,st)=>F(k,'num',l,{min:mn,max:mx,step:st});
+    cbxHead(b,'Higher-timeframe candle'); F('htf','sel','Box timeframe',{opts:Object.keys(CBX_HTF)}); N('offH','Session offset (hours)',-12,12,1); F('needAlign','chk','Break must follow candle direction');
+    cbxHead(b,'Candle quality filter'); N('bodyMin','Min body share of range',.1,.9,.05); N('oppMax','Max opposing wick share',.05,.8,.05); F('qualReq','sel','Required quality',{opts:CBX_QR}); F('blockLow','chk','Block signals on LOW QUALITY candle');
+    cbxHead(b,'Confirmation (chart timeframe)'); N('swingLen','Swing length (bars)',1,10,1); N('seqWin','Sweep to break window (bars)',3,200,1); N('sweepLook','Sweep look-back (bars)',5,300,5); N('maxEntries','Max entries per box',1,2,1); N('minGap','Min bars before second entry',1,100,1);
+    cbxHead(b,'IRS pattern'); N('atrLen','ATR length',2,100,1); N('impM','Impulse body x ATR',.5,5,.1); N('rngMin','Range min bars',2,30,1); N('rngMax','Range max height x ATR',.5,10,.1); N('irsExp','Sweep stays active (bars)',3,200,1);
+    cbxHead(b,'Trade management'); N('slBuf','Stop buffer x ATR',0,3,.05); N('rr1','TP1 reward : risk',.2,20,.1); N('rr2','TP2 reward : risk',.2,40,.1); N('riskPct','Risk per trade %',.05,20,.05); N('acct','Account size',1,1e9,100);
+    cbxHead(b,'Show'); F('showBox','chk','Previous candle box'); F('showZones','chk','Zones'); F('showFibs','chk','Quarter levels'); F('showHid','chk','Hidden level (previous close)'); F('showIrs','chk','IRS labels'); F('showSw','chk','Sweep / break markers'); F('showBrk','chk','Breaker / rebalance blocks'); F('showMarks','chk','BUY / SELL arrows'); F('showLv','chk','Trade levels'); N('hist','Older boxes shown',0,20,1);
+    cbxHead(b,'Panel'); F('dash','chk','Show analysis panel'); F('dashFull','chk','Full panel'); F('dashPos','sel','Position',{opts:['Top Right','Top Left','Bottom Right','Bottom Left']}); F('stats','chk','Historical test table'); },
+  styleTab:(b,d)=>{ const p=d.p, F=(k,l)=>fld(b,p,k,'col',l);
+    cbxHead(b,'Zones'); F('zPre','Premature 0-25%'); F('zOpt','Optimum 25-50%'); F('zOver','Overextended 50-75%'); F('zDng','Danger 75-100%');
+    cbxHead(b,'Box and levels'); F('boxCol','Box'); F('hidCol','Hidden level');
+    cbxHead(b,'Signals'); F('bull','Bullish'); F('bear','Bearish'); F('swCol','Sweep'); F('bosCol','Structure break'); F('brkCol','Breaker / rebalance');
+    cbxHead(b,'Trade levels'); F('slCol','Stop loss'); F('entCol','Entry'); F('tpCol','Take profits'); },
+  extras:(c,p)=>{ const R=cbxRun(c,p); return {mk:[],ev:R.ev||[],boxes:[{type:'cbxview',pts:[],r:R,o:p}],labels:[]}; }};
+try{ if(typeof DESC!=='undefined') DESC.cbx='Previous 4H candle box: quarter zones, hidden close level, bias, IRS, sweep + break + breaker entries, second entry, quality filter, stats'; }catch(e){}
+}catch(err){ console.error('cbx failed',err); window.__cbxErr=err; }
+
 //# sourceURL=tools-3.js
