@@ -1,5 +1,5 @@
 /* tools-3.js — MarketPlusView tool code. index.html loads this file and runs it inside start() at the spot where this code used to be (same order, same scope).
-   Keep the file name. Tools in this file: IND.afib, IND.smc, IND.srh, IND.wvadp, IND.amfc, IND.ppa, IND.rcp, IND.cfp, IND.obsr, IND.cbx */
+   Keep the file name. Tools in this file: IND.afib, IND.smc, IND.srh, IND.wvadp, IND.amfc, IND.ppa, IND.rcp, IND.cfp, IND.obsr, IND.cbx, IND.bsc */
 try{
 // =====================================================================================
 // UPGRADE PACK (isolated): [wlx] watchlist · [afx] Auto Fibonacci · [fbx] Fib drawing · [avx] Anchored VWAP
@@ -1989,5 +1989,88 @@ IND.cbx={label:'4H Candle Box Continuation Detector',title:'4H Candle Box Contin
   extras:(c,p)=>{ const R=cbxRun(c,p); return {mk:[],ev:R.ev||[],boxes:[{type:'cbxview',pts:[],r:R,o:p}],labels:[]}; }};
 try{ if(typeof DESC!=='undefined') DESC.cbx='Previous 4H candle box: quarter zones, hidden close level, bias, IRS, sweep + break + breaker entries, second entry, quality filter, stats'; }catch(e){}
 }catch(err){ console.error('cbx failed',err); window.__cbxErr=err; }
+
+
+try{
+// =====================================================================================
+// [bsc] BUY SELL CALENDAR - isolated block (names start with bsc / BSC_).
+// Overlay indicator. Every day (or month) gets a trend reading from the candles inside it. The day / month
+// is coloured bullish or bearish on a calendar table and on a dashed vertical line drawn at its first candle.
+// Works on the chart's own candles, so it follows the selected market. Best on intraday timeframes.
+// =====================================================================================
+/*BSC-ENGINE-START*/
+const BSC_DEF={ freq:'Daily', method:'Linreg', tz:0, useDate:false, setDate:'', showDash:true, dashPos:'Top Right', textSize:'Small', showLines:true, bull:'#089981', bear:'#FF5252' };
+const BSC_MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const bscCache={k:'',r:null};
+// Trend state machines follow the original rules step by step (reset first, then accumulate or add).
+function bscRun(c,p){
+  const n=c.length, key=n+'|'+(n?c[0].time+'|'+c[n-1].time+'|'+c[n-1].close+'|'+c[n-1].open+'|'+c[n-1].high+'|'+c[n-1].low:'')+'|'+JSON.stringify(p);
+  if(bscCache.k===key) return bscCache.r;
+  const R={n,lines:[],cal:{},title:'',pct:null,err:'',year:0}; bscCache.k=key; bscCache.r=R;
+  if(n<3){ R.err='Not enough candles loaded'; return R; }
+  const monthly=p.freq==='Monthly', meth=p.method, off=Math.round((+p.tz||0)*3600);
+  let lim=Infinity; if(p.useDate&&p.setDate){ const m=/^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(String(p.setDate).trim()); if(m) lim=Date.UTC(+m[1],+m[2]-1,+m[3])/1000-off; }
+  let wma=NaN, sma=NaN, den=1, bull=0, up=0, dn=0, mx=c[0].high, mn=c[0].low, row=2, pd=null, pt=null, trend=0, prevClose=NaN;
+  const lregStep=(reset,acc,cl)=>{ if(reset){ bull=0; wma=cl; sma=cl; den=1; }
+    if(acc){ bull+=(wma/(den*(den+1)/2)>sma/den)?1:0; wma=cl; sma=cl; den=1; } else { den+=1; wma+=cl*den; sma+=cl; }
+    trend=(wma/(den*(den+1)/2)>sma/den)?1:0; };
+  const deltaStep=(reset,acc,b)=>{ const d=b.close-b.open; if(reset){ bull=0; up=Math.max(d,0); dn=Math.max(-d,0); }
+    if(acc){ bull+=up>dn?1:0; up=Math.max(d,0); dn=Math.max(-d,0); } else { up+=Math.max(d,0); dn+=Math.max(-d,0); }
+    trend=up>dn?1:0; };
+  const mmStep=(reset,acc,b)=>{ if(reset){ bull=0; mx=b.high; mn=b.low; }
+    if(acc){ bull+=prevClose>(mx+mn)/2?1:0; mx=b.high; mn=b.low; } else { mx=Math.max(b.high,mx); mn=Math.min(b.low,mn); }
+    trend=b.close>(mx+mn)/2?1:0; };
+  const step=(reset,acc,b)=>{ if(meth==='Accumulated Delta') deltaStep(reset,acc,b); else if(meth==='Max/Min') mmStep(reset,acc,b); else lregStep(reset,acc,b.close); };
+  let cur=null; const mons=[];
+  for(let i=0;i<n;i++){ const b=c[i]; if(b.time>=lim) break;
+    const D=new Date((b.time+off)*1000), Y=D.getUTCFullYear(), M=D.getUTCMonth()+1, dm=D.getUTCDate(), dw=D.getUTCDay()+1, has=pd!==null;
+    if(!monthly){
+      if(has&&dm<pd.dm){ R.title=BSC_MON[M-1]+' '+Y; R.cal={}; row=2; }
+      if(has&&dw<pd.dw) row+=1;
+      if(has&&dm!==pd.dm){ cur={i,col:null}; R.lines.push(cur); }
+      step(has&&dm<pd.dm, has&&dm>pd.dm, b);
+      if(cur) cur.col=trend; R.cal[(dw-1)+'|'+row]={t:String(dm),c:trend}; R.pct=dm?(bull+trend)/dm:null;
+    } else {
+      if(!has||Y>pd.y){ R.cal={}; R.title=String(Y); for(let q=1;q<=12;q++) R.cal[((q-1)%4)+'|'+Math.ceil(q/4)]={t:BSC_MON[q-1].slice(0,3),c:-1}; }
+      if(has&&M!==pd.m){ cur={i,col:null}; R.lines.push(cur); }
+      step(!has||Y>pd.y, has&&M!==pd.m, b);
+      if(cur) cur.col=trend; R.cal[((M-1)%4)+'|'+Math.ceil(M/4)]={t:BSC_MON[M-1].slice(0,3),c:trend}; R.pct=(bull+trend)/M; }
+    pd={y:Y,m:M,dm,dw}; prevClose=b.close; }
+  R.lines=R.lines.slice(-500); R.bullDays=bull; return R;
+}
+/*BSC-ENGINE-END*/
+function bscDraw(d,X,Y,W,H){
+  const R=d.r, p=d.o; if(!R||!R.n) return;
+  cx.save(); cx.beginPath(); cx.rect(0,0,W,H); cx.clip(); cx.setLineDash([]);
+  const BU=p.bull, BE=p.bear;
+  if(p.showLines&&!R.err){ cx.lineWidth=1; cx.setLineDash([4,3]); R.lines.forEach(l=>{ if(l.col==null) return; const x=X(l.i); if(x==null||x<-2||x>W+2) return; cx.strokeStyle=l.col?BU:BE; cx.beginPath(); cx.moveTo(Math.round(x)+.5,0); cx.lineTo(Math.round(x)+.5,H); cx.stroke(); }); cx.setLineDash([]); }
+  if(p.showDash){ const mo=p.freq==='Monthly', S={Tiny:[9,24,14],Small:[10,28,16],Normal:[12,34,19]}[p.textSize]||[10,28,16], fs=S[0], cw=S[1], rh=S[2];
+    const cols=mo?4:7, rows=mo?5:9, TW=cols*cw, TH=rows*rh, pos=p.dashPos||'Top Right';
+    let tx=pos.indexOf('Left')>=0?6:W-TW-6, ty=pos.indexOf('Bottom')>=0?H-TH-6:6; if(tx<0) tx=0; if(ty<0) ty=0;
+    cx.font=fs+'px system-ui'; cx.textAlign='center'; cx.textBaseline='middle'; cx.fillStyle='#1e222d'; cx.fillRect(tx,ty,TW,TH);
+    const cell=(col,rw,txt,bg)=>{ const x=tx+col*cw, y=ty+rw*rh; if(bg){ cx.fillStyle=bg; cx.fillRect(x,y,cw,rh); } cx.fillStyle='#fff'; cx.fillText(txt,x+cw/2,y+rh/2+.5); };
+    if(R.err){ cx.fillStyle='#fff'; cx.fillText(R.err,tx+TW/2,ty+TH/2); }
+    else {
+      if(!mo){ ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach((t,i)=>cell(i,1,t)); }
+      Object.keys(R.cal).forEach(k=>{ const q=k.split('|'), v=R.cal[k]; cell(+q[0],+q[1],v.t,v.c<0?null:(v.c?BU:BE)); });
+      cx.fillStyle='#fff'; cx.textAlign='center'; cx.fillText(R.title,tx+TW/2,ty+rh/2+.5);
+      if(R.pct!=null&&isFinite(R.pct)) cx.fillText(Math.round(R.pct*100)+'% Bullish',tx+TW/2,ty+(rows-1)*rh+rh/2+.5); }
+    cx.strokeStyle='#373a46'; cx.lineWidth=1; cx.beginPath(); for(let i=0;i<=cols;i++){ cx.moveTo(tx+i*cw+.5,ty); cx.lineTo(tx+i*cw+.5,ty+TH); }
+    for(let j=0;j<=rows;j++){ cx.moveTo(tx,ty+j*rh+.5); cx.lineTo(tx+TW,ty+j*rh+.5); } cx.stroke(); }
+  cx.restore();
+}
+const bscPrevDraw=draw; draw=function(d,X,Y,W,H){ if(d&&d.type==='bscview') return bscDraw(d,X,Y,W,H); return bscPrevDraw.apply(this,arguments); };
+const bscHead=(b,t)=>{ const h=document.createElement('div'); h.style.cssText='color:#9aa3b5;font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin:16px 0 2px;padding-top:8px;border-top:1px solid #232a3a'; h.textContent=t; b.appendChild(h); };
+IND.bsc={label:'Buy Sell Calendar',title:'Buy Sell Calendar',cat:'Trend',cols:[],calc:()=>[],live:true,
+  nm:p=>'Buy Sell Calendar '+p.freq,
+  p:Object.assign({},BSC_DEF),
+  inputsTab:(b,d)=>{ const p=d.p, F=(k,t,l,o)=>fld(b,p,k,t,l,o);
+    F('freq','sel','Frequency',{opts:['Daily','Monthly']}); F('method','sel','Trend method',{opts:['Linreg','Accumulated Delta','Max/Min']}); F('tz','num','Timezone offset (hours)',{min:-12,max:14,step:1});
+    F('useDate','chk','Choose date'); F('setDate','txt','Show up to date (YYYY-MM-DD)');
+    bscHead(b,'Calendar'); F('showDash','chk','Show calendar'); F('dashPos','sel','Location',{opts:['Top Right','Top Left','Bottom Right','Bottom Left']}); F('textSize','sel','Size',{opts:['Tiny','Small','Normal']}); F('showLines','chk','Show day / month lines'); },
+  styleTab:(b,d)=>{ const p=d.p, F=(k,l)=>fld(b,p,k,'col',l); F('bull','Bullish'); F('bear','Bearish'); },
+  extras:(c,p)=>({mk:[],ev:[],boxes:[{type:'bscview',pts:[],r:bscRun(c,p),o:p}],labels:[]})};
+try{ if(typeof DESC!=='undefined') DESC.bsc='Calendar of bullish and bearish days or months, with a dashed line at the start of each one'; }catch(e){}
+}catch(err){ console.error('bsc failed',err); window.__bscErr=err; }
 
 //# sourceURL=tools-3.js
