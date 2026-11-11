@@ -140,6 +140,30 @@ h2.title{font-size:clamp(2.4rem,3.6vw,3.2rem)}
 table{font-size:1rem}
 th,td{padding:12px 14px}
 }
+
+/* Buy Sell Calendar (same reading as the chart tool) */
+.bsc{margin-top:0;margin-bottom:34px}
+.bsc h3{font:700 1.3rem Georgia,"Times New Roman",serif;color:var(--navy);margin:0 0 4px}
+.bsc .src{font-size:.85rem;color:var(--muted);margin:0 0 12px}
+.bsc-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.bsc-ctl .chip[aria-pressed="true"]{background:var(--blue);color:var(--white)}
+.bsc-ctl select{font:inherit;font-size:.9rem;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;color:var(--ink);background:var(--white)}
+.bsc-box{border:1px solid var(--line);border-top:5px solid var(--blue);border-radius:8px;padding:14px;max-width:460px}
+.bsc-box table{table-layout:fixed;width:100%;border-collapse:separate;border-spacing:3px;font-size:.9rem}
+.bsc-box caption{font:700 1.05rem Georgia,"Times New Roman",serif;color:var(--navy);padding:0 0 8px;text-align:center}
+.bsc-box th{background:none;color:var(--muted);font-weight:600;font-size:.8rem;padding:2px 0;text-align:center;border:0}
+.bsc-box td{padding:0;border:0;height:38px;text-align:center;vertical-align:middle;border-radius:5px;font-weight:600;color:var(--white);background:#eef1f8}
+.bsc-box td:last-child{font-weight:600}
+.bsc-box td.b{background:#0a7d6b}
+.bsc-box td.r{background:#d4202c}
+.bsc-box td.e{background:none}
+.bsc-box td.m{background:#eef1f8;color:var(--muted)}
+.bsc-box td.m.b{background:#0a7d6b;color:var(--white)}
+.bsc-box td.m.r{background:#d4202c;color:var(--white)}
+.bsc-pct{margin:10px 0 0;font:700 1.05rem Georgia,"Times New Roman",serif;color:var(--navy);text-align:center}
+.bsc-key{display:flex;gap:14px;justify-content:center;margin:8px 0 0;font-size:.85rem;color:var(--muted)}
+.bsc-key i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.bsc-note{font-size:.85rem;color:var(--muted);margin:10px 0 0}
 </style>
 </head>
 <body>
@@ -168,6 +192,22 @@ th,td{padding:12px 14px}
     <p class="src">Live price, rank and market data. Search above or tap a coin.</p>
     <div class="quick" id="quick"></div>
     <div id="coinCard"></div>
+  </section>
+
+
+  <section class="bsc" id="bscSec" aria-live="polite">
+    <h3>Buy Sell Calendar</h3>
+    <p class="src" id="bscSrc">Green days and months read bullish, red read bearish. Same calendar as the chart tool.</p>
+    <div class="bsc-ctl">
+      <button class="chip" type="button" id="bscD" aria-pressed="true">Daily</button>
+      <button class="chip" type="button" id="bscM" aria-pressed="false">Monthly</button>
+      <label class="sr" for="bscMeth">Trend method</label>
+      <select id="bscMeth"><option>Linreg</option><option>Accumulated Delta</option><option>Max/Min</option></select>
+      <label class="sr" for="bscTz">Time zone</label>
+      <select id="bscTz"><option value="utc">UTC</option><option value="local">My time</option></select>
+    </div>
+    <div class="bsc-box" id="bscBox"><div class="sm">Loading\u2026</div></div>
+    <p class="bsc-note">It only describes what already happened in each day or month. It does not predict the next one and is not financial advice.</p>
   </section>
 
   <article>
@@ -367,6 +407,99 @@ th,td{padding:12px 14px}
     if(e.key==='Enter'){ e.preventDefault(); clearTimeout(timer); var f=res.querySelector('.ri'); if(f) f.click(); else if(q.value.trim().length>1) doSearch(q.value.trim()); q.blur(); } });
   q.addEventListener('focus',function(){ if(res.children.length) res.hidden=false; });
   document.addEventListener('click',function(e){ if(!e.target.closest('.sbar-in')) res.hidden=true; });
+})();
+</script>
+<script>
+(function(){
+  var $=function(i){return document.getElementById(i);};
+  var box=$('bscBox'), src=$('bscSrc'), bD=$('bscD'), bM=$('bscM'), selM=$('bscMeth'), selT=$('bscTz');
+  var MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var DEF_RB='https://api.binance.com/api/v3';
+  var S={sym:'BTCUSDT', rb:DEF_RB, freq:'Daily', note:''}, tok=0;
+
+  // Same reading as the chart tool: reset first, then accumulate or add (step by step port of the original rules).
+  function run(c,freq,meth,tzH){
+    var monthly=freq==='Monthly', off=Math.round(tzH*3600), R={cal:{},title:'',pct:null,bull:0,days:0};
+    var wma=NaN,sma=NaN,den=1,bull=0,up=0,dn=0,mx=c[0].high,mn=c[0].low,row=2,pd=null,trend=0,prevClose=NaN;
+    function lreg(reset,acc,cl){ if(reset){ bull=0; wma=cl; sma=cl; den=1; }
+      if(acc){ bull+=(wma/(den*(den+1)/2)>sma/den)?1:0; wma=cl; sma=cl; den=1; } else { den+=1; wma+=cl*den; sma+=cl; }
+      trend=(wma/(den*(den+1)/2)>sma/den)?1:0; }
+    function delta(reset,acc,b){ var d=b.close-b.open; if(reset){ bull=0; up=Math.max(d,0); dn=Math.max(-d,0); }
+      if(acc){ bull+=up>dn?1:0; up=Math.max(d,0); dn=Math.max(-d,0); } else { up+=Math.max(d,0); dn+=Math.max(-d,0); }
+      trend=up>dn?1:0; }
+    function mm(reset,acc,b){ if(reset){ bull=0; mx=b.high; mn=b.low; }
+      if(acc){ bull+=prevClose>(mx+mn)/2?1:0; mx=b.high; mn=b.low; } else { mx=Math.max(b.high,mx); mn=Math.min(b.low,mn); }
+      trend=b.close>(mx+mn)/2?1:0; }
+    function step(reset,acc,b){ if(meth==='Accumulated Delta') delta(reset,acc,b); else if(meth==='Max/Min') mm(reset,acc,b); else lreg(reset,acc,b.close); }
+    for(var i=0;i<c.length;i++){ var b=c[i], D=new Date((b.time+off)*1000), Y=D.getUTCFullYear(), M=D.getUTCMonth()+1, dm=D.getUTCDate(), dw=D.getUTCDay()+1, has=pd!==null;
+      if(!monthly){
+        if(has&&dm<pd.dm){ R.title=MON[M-1]+' '+Y; R.cal={}; row=2; }
+        if(has&&dw<pd.dw) row+=1;
+        step(has&&dm<pd.dm, has&&dm>pd.dm, b);
+        R.cal[(dw-1)+'|'+row]={t:String(dm),c:trend,d:dm}; R.pct=dm?(bull+trend)/dm:null; R.days=dm;
+      } else {
+        if(!has||Y>pd.y){ R.cal={}; R.title=String(Y); for(var q=1;q<=12;q++) R.cal[((q-1)%4)+'|'+Math.ceil(q/4)]={t:MON[q-1].slice(0,3),c:-1,n:MON[q-1]}; }
+        step(!has||Y>pd.y, has&&M!==pd.m, b);
+        R.cal[((M-1)%4)+'|'+Math.ceil(M/4)]={t:MON[M-1].slice(0,3),c:trend,n:MON[M-1]}; R.pct=(bull+trend)/M; R.days=M; }
+      pd={y:Y,m:M,dm:dm,dw:dw}; prevClose=b.close; }
+    R.bull=bull+trend; return R;
+  }
+
+  function kl(rb,s,iv,start){
+    return fetch(rb+'/klines?symbol='+encodeURIComponent(s)+'&interval='+iv+(start?'&startTime='+start:'')+'&limit=1000').then(function(r){ if(!r.ok) throw new Error('http'); return r.json(); })
+      .then(function(a){ if(!Array.isArray(a)||!a.length) throw new Error('bad'); return a; });
+  }
+  function rows(a){ return a.map(function(x){ return {time:x[0]/1000,open:+x[1],high:+x[2],low:+x[3],close:+x[4]}; }); }
+  function load(rb,s,freq){
+    if(freq==='Daily') return kl(rb,s,'1h',0).then(rows);            // about 41 days of hourly candles
+    var out=[], from=Date.UTC(new Date().getUTCFullYear()-1,11,30);   // monthly: 4h candles from the end of last year
+    function go(f){ return kl(rb,s,'4h',f).then(function(a){ out=out.concat(rows(a)); if(a.length>=1000&&out.length<5000) return go(a[a.length-1][0]+1); return out; }); }
+    return go(from);
+  }
+  function el(t,c,x){ var e=document.createElement(t); if(c) e.className=c; if(x!=null) e.textContent=x; return e; }
+  function msg(t){ box.textContent=''; box.appendChild(el('div','sm',t)); }
+
+  function paint(R,freq){
+    box.textContent='';
+    var monthly=freq==='Monthly', cols=monthly?4:7, t=el('table'), cap=el('caption',null,R.title||(monthly?'This year':'This month')); t.appendChild(cap);
+    if(!monthly){ var th=el('tr'); ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(function(d){ var h=el('th',null,d); h.scope='col'; th.appendChild(h); }); var thd=el('thead'); thd.appendChild(th); t.appendChild(thd); }
+    var rs={}; Object.keys(R.cal).forEach(function(k){ var q=k.split('|'); (rs[q[1]]=rs[q[1]]||{})[q[0]]=R.cal[k]; });
+    var tb=el('tbody'); Object.keys(rs).map(Number).sort(function(a,b){return a-b;}).forEach(function(rw){
+      var tr=el('tr'); for(var c=0;c<cols;c++){ var v=rs[rw][c], td=el('td'); if(!v){ td.className='e'; }
+        else { td.textContent=v.t; if(monthly) td.className='m'+(v.c===1?' b':v.c===0?' r':'');
+          else td.className=v.c?'b':'r';
+          td.setAttribute('aria-label',(monthly?v.n+' '+R.title:v.t+' '+R.title)+': '+(v.c===1?'bullish':v.c===0?'bearish':'not reached yet')); }
+        tr.appendChild(td); } tb.appendChild(tr); });
+    t.appendChild(tb); box.appendChild(t);
+    if(R.pct!=null&&isFinite(R.pct)) box.appendChild(el('p','bsc-pct',Math.round(R.pct*100)+'% Bullish ('+R.bull+' of '+R.days+(monthly?' months':' days')+')'));
+    var key=el('div','bsc-key'), a=el('span'), b=el('span'); var i1=el('i'); i1.style.background='#0a7d6b'; a.appendChild(i1); a.appendChild(document.createTextNode('Bullish')); var i2=el('i'); i2.style.background='#d4202c'; b.appendChild(i2); b.appendChild(document.createTextNode('Bearish')); key.appendChild(a); key.appendChild(b); box.appendChild(key);
+  }
+
+  function refresh(fallback){
+    var my=++tok, freq=S.freq, tzH=selT.value==='local'?-new Date().getTimezoneOffset()/60:0;
+    src.textContent=S.sym+' \u00B7 '+(freq==='Daily'?'hourly':'4-hour')+' candles. Green days and months read bullish, red read bearish.'+(S.note?' '+S.note:'');
+    if(!box.firstChild||box.firstChild.className==='sm') msg('Loading\u2026');
+    load(S.rb,S.sym,freq).then(function(c){ if(my!==tok) return; if(c.length<5) throw new Error('bad'); paint(run(c,freq,selM.value,tzH),freq); })
+    .catch(function(){ if(my!==tok) return;
+      if(!fallback&&S.sym!=='BTCUSDT'){ S.note='(Could not load '+S.sym+', showing BTCUSDT.)'; S.sym='BTCUSDT'; S.rb=DEF_RB; refresh(true); return; }
+      msg('Could not load candles right now. Check your connection and try again in a minute.'); });
+  }
+  function setFreq(f){ S.freq=f; bD.setAttribute('aria-pressed',f==='Daily'); bM.setAttribute('aria-pressed',f==='Monthly'); refresh(); }
+  bD.onclick=function(){ setFreq('Daily'); }; bM.onclick=function(){ setFreq('Monthly'); };
+  selM.onchange=function(){ refresh(); }; selT.onchange=function(){ refresh(); };
+
+  // The chart app tells this page which market is open. Opened alone, it shows BTCUSDT.
+  window.addEventListener('message',function(e){
+    if(e.source!==window.parent||window.parent===window) return;
+    var d=e.data; if(!d||d.type!=='mkt-sym') return;
+    var s=String(d.sym||'').toUpperCase(), rb=String(d.rb||'');
+    var ok=/^[A-Z0-9]{2,20}$/.test(s)&&/^https:\/\/(api\.binance\.com\/api\/v3|fapi\.binance\.com\/fapi\/v1)$/.test(rb);
+    S.note=ok?'':(s?'('+s+' has no candle feed here, showing BTCUSDT.)':'');
+    S.sym=ok?s:'BTCUSDT'; S.rb=ok?rb:DEF_RB; refresh();
+  });
+  try{ if(window.parent!==window) window.parent.postMessage({type:'mkt-ready'},'*'); }catch(e){}
+  refresh();
+  setInterval(function(){ if(window.innerWidth>0&&document.visibilityState==='visible') refresh(); },60000);
 })();
 </script>
 </body>
