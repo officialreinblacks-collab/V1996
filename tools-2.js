@@ -3348,3 +3348,149 @@ function lgAlerts(q){ if(candles.length<2) return; const cc=candles[candles.leng
 try{ DESC.lgs='Finds the price zone where most trading happened (volume profile over an adjustable number of candles). Zone below price = green box, above = red box, auto-extended to the right. Price sweeping through it and closing back (2nd green / red candle) gives a BUY / SELL; sweeps get a yellow button. Adjustable gaps between sweeps and between signals'; }catch(e){}
 }catch(err){ console.error('lgs indicator failed',err); window.__lgsErr=err; }
 
+
+// ---- [tzc] INDICATOR: Triangle & Cycle Projection - ATH marker, descending (bearish) triangle, red Cycle Bottom line, projected Next ATH (self-contained: every name starts with tz / TZ) ----
+// Built from a Gold 2D chart idea: price makes an ATH, then a descending triangle forms (lower highs on a falling trendline, flat support). A break below the support
+// is expected to run down to the "Cycle Bottom" (red line), and from there the next cycle can climb to a new ATH. The tool draws that whole story on the chart.
+// Closed candles only (the newest, still forming candle is never used for detection), nothing repaints.
+//  ATH     - highest high of the last "Look-back" candles. Green circle + "ATH - price".
+//  TRIANGLE- pivot highs after the ATH give the falling trendline (the upper tangent from the ATH, so no pivot high is above it). Pivot lows give the flat support:
+//            the first price level touched N times (adjustable) within the tolerance. The pattern ends at the apex. Optional small inset "Descending Triangle" like the picture.
+//  BREAK   - a candle CLOSING below the support (plus a small buffer) = breakdown (bearish). A close above the trendline = break up (bullish). Both are alert events.
+//  CYCLE   - red line at the Cycle Bottom: "Impulse base" (top of the base the big rally started from), "Measured move" (support minus a share of the triangle height) or "Manual price".
+//            Red circle with the price where price reached it (or where it is projected to), dashed red path from the breakdown.
+//  NEXT ATH- green circle at the next target: "Fib extension" (ATH + ratio x (ATH - cycle bottom), 0.382 by default) or "Manual price", dashed green path from the cycle bottom.
+try{
+const TZ_POS=['Top Right','Top Left','Bottom Right','Bottom Left'], TZ_BASE=['Impulse base','Measured move','Manual price'], TZ_NEXT=['Fib extension','Manual price'];
+const TZ_DEF={look:800,pivot:5,tol:1.2,touches:2,bkBuf:0.3,
+  cycMode:TZ_BASE[0],cycPrice:0,mmMult:0.3,baseBars:20,projBars:30,
+  nextMode:TZ_NEXT[0],nextFib:0.382,nextPrice:0,nextBars:70,
+  cur:'$',showAth:true,showTri:true,showFill:true,showSup:true,showLabel:true,label:'Bearish Symmetrical Triangle Pattern',showInset:true,insetTxt:'Descending Triangle',
+  showCycle:true,showNext:true,showPath:true,
+  dash:true,dpos:'Bottom Left',dsize:'Small',theme:'Dark',
+  cAth:'#2e9e4f',cTri:'#e0e3eb',cCyc:'#e53935',cNext:'#2e9e4f',
+  alBrk:true,alUp:true,alCyc:false,alSound:false};
+const tzClamp=(v,a,b)=>Math.min(Math.max(v,a),b);
+const tzRgba=(c,a)=>{ const m=/^#?([0-9a-f]{6})$/i.exec(String(c||'')); if(!m) return c; const n=parseInt(m[1],16); return 'rgba('+(n>>16&255)+','+(n>>8&255)+','+(n&255)+','+a+')'; };
+const tzFmt=(v,cur)=>{ if(v==null||!isFinite(v)) return '-'; const a=Math.abs(v); return (cur||'')+v.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:a>=100?2:a>=1?4:a>=0.01?6:9}); };
+function tzCompute(c,p){ const N=c.length, D={N,ok:false,msg:''}; if(N<40){ D.msg='Needs at least 40 candles'; return D; }
+  const H=c.map(x=>x.high), L=c.map(x=>x.low), C=c.map(x=>x.close), T=c.map(x=>x.time);
+  for(let i=0;i<N;i++) if(![H[i],L[i],C[i]].every(isFinite)) return D;
+  const n=N-1, look=tzClamp(Math.round(+p.look)||800,50,20000), st=Math.max(0,n-look), len=tzClamp(Math.round(+p.pivot)||5,2,30), touches=tzClamp(Math.round(+p.touches)||2,1,6), bkB=Math.max(0,+p.bkBuf||0);
+  // ATH = highest high of the window (closed candles only)
+  let ai=st; for(let i=st;i<n;i++) if(H[i]>=H[ai]) ai=i; const athP=H[ai]; D.ath={idx:ai,price:athP};
+  let s0=0,c0=0; const a0=(n-ai>=10)?ai:st; for(let i=Math.max(a0,1);i<n;i++){ s0+=Math.max(H[i]-L[i],Math.abs(H[i]-C[i-1]),Math.abs(L[i]-C[i-1])); c0++; }
+  const atr=c0?s0/c0:Math.max(H[n-1]-L[n-1],1e-9), tolv=Math.max(0.0000001,(+p.tol||1.2)*atr), bkv=bkB*atr;
+  // pivots after the ATH (confirmed: need `len` candles on the right)
+  const PH=[], PL=[]; for(let i=ai+1;i<=n-1-len;i++){ let ph=true,pl=true; for(let k=Math.max(0,i-len);k<=i+len;k++){ if(k===i) continue; if(H[k]>H[i]) ph=false; if(L[k]<L[i]) pl=false; if(!ph&&!pl) break; } if(ph) PH.push({i,p:H[i]}); if(pl) PL.push({i,p:L[i]}); }
+  // flat support: first level touched `touches` times (stops counting once price has already closed through it)
+  let S=null, supFirst=null, supHits=0;
+  for(let a=0;a<PL.length&&S==null;a++){ const g=[PL[a]]; for(let b=a+1;b<PL.length&&g.length<6;b++){ const q=PL[b], lv=PL[a].p; if(Math.abs(q.p-lv)>tolv) continue; let bro=false; for(let k=g[g.length-1].i+1;k<q.i;k++) if(C[k]<lv-tolv-bkv){ bro=true; break; } if(bro) break; g.push(q); }
+    if(g.length>=touches){ S=g.reduce((s,x)=>s+x.p,0)/g.length; supFirst=g[0].i; supHits=g.length; } }
+  if(S==null&&PL.length){ const m=PL.reduce((b,x)=>x.p<b.p?x:b,PL[0]); S=m.p; supFirst=m.i; supHits=1; }
+  let tri=null, bk=-1, up=-1;
+  if(S!=null){ for(let k=supFirst+1;k<=n-1;k++) if(C[k]<S-bkv){ bk=k; break; }
+    // falling trendline = upper tangent from the ATH over the pivot highs before the breakdown
+    let best=null; PH.forEach(q=>{ if(bk>=0&&q.i>=bk) return; if(q.p>=athP) return; const sl=(q.p-athP)/(q.i-ai); if(!best||sl>best.sl) best={sl,q}; });
+    if(best){ const sl=best.sl, jt=best.q.i; let hh=1; PH.forEach(q=>{ if(q.i<=ai) return; if(Math.abs(q.p-(athP+sl*(q.i-ai)))<=tolv) hh++; });
+      const apex=Math.min(ai+(S-athP)/sl,n+2000), lastK=bk>=0?bk-1:n-1; for(let k=jt+1;k<=lastK;k++) if(C[k]>athP+sl*(k-ai)+bkv){ up=k; break; }
+      let left=ai; for(let i=st;i<ai;i++) if(Math.abs(L[i]-S)<=tolv){ left=i; break; }
+      tri={sl,jt,jp:best.q.p,apex,S,left,hi:hh,lo:supHits,bk,up,status:(bk>=0&&bk>=up)?'Broke down':(up>=0?'Broke up':'Forming')}; } }
+  D.tri=tri; D.S=S;
+  if(!tri&&!D.msg) D.msg=(n-ai<len*2+3)?'ATH is recent - waiting for the pullback':'No triangle found yet (try a smaller pivot length)';
+  // cycle bottom
+  const lowAfter=n-1>ai?Math.min.apply(null,L.slice(ai+1,n)):L[n-1], supRef=S!=null?S:lowAfter, hgt=Math.max(athP-supRef,atr);
+  let cp=null, mode=p.cycMode, used=mode;
+  if(mode==='Manual price'&&+p.cycPrice>0) cp=+p.cycPrice;
+  else if(mode==='Impulse base'||(mode==='Manual price')){ let o=st; for(let i=st;i<ai;i++) if(L[i]<L[o]) o=i; if(o<ai){ let top=-Infinity; const bb=Math.max(3,Math.round(+p.baseBars)||20), lim=L[o]+0.15*(athP-L[o]); let e=Math.min(ai-1,o+bb); for(let k=o+1;k<=e;k++) if(C[k]>lim){ e=k-1; break; } for(let i=Math.max(st,o-bb);i<=Math.max(o,e);i++) if(H[i]>top) top=H[i]; if(isFinite(top)&&top<supRef&&top>0) cp=top; } used='Impulse base'; }
+  if(cp==null||cp<=0){ cp=Math.max(supRef-Math.max(0.05,+p.mmMult||0.3)*hgt,athP*0.01); used='Measured move'; }
+  if(mode==='Measured move'){ cp=Math.max(supRef-Math.max(0.05,+p.mmMult||0.3)*hgt,athP*0.01); used='Measured move'; }
+  else if(mode==='Manual price'&&+p.cycPrice>0) used='Manual price';
+  // has price already reached the cycle bottom?
+  let cI=-1; const from=bk>=0?bk:ai+1; for(let k=from;k<=n-1;k++) if(L[k]<=cp+tolv*0.5){ cI=k; break; }
+  let cLow=null; if(cI>=0){ let m=cI; for(let k=cI;k<=Math.min(n-1,cI+len*3);k++) if(L[k]<L[m]) m=k; cI=m; cLow=L[m]; }
+  const projI=cI>=0?cI:(bk>=0?bk:n-1)+Math.max(3,Math.round(+p.projBars)||30);
+  D.cyc={price:cp,idx:projI,reached:cI>=0,low:cLow,mode:used,from};
+  // next ATH target
+  let np=(p.nextMode==='Manual price'&&+p.nextPrice>0)?+p.nextPrice:athP+Math.max(0.01,+p.nextFib||0.382)*(athP-cp); if(!(np>0)) np=athP;
+  let nI=-1; if(cI>=0) for(let k=cI+1;k<=n-1;k++) if(H[k]>=np){ nI=k; break; }
+  D.next={price:np,idx:nI>=0?nI:projI+Math.max(5,Math.round(+p.nextBars)||70),reached:nI>=0};
+  // events
+  const ev=[]; if(tri&&bk>=0) ev.push({type:'brk',time:T[bk],price:C[bk],idx:bk,dir:-1}); if(tri&&up>=0) ev.push({type:'up',time:T[up],price:C[up],idx:up,dir:1}); if(cI>=0) ev.push({type:'cyc',time:T[cI],price:cLow,idx:cI,dir:-1});
+  ev.sort((a,b)=>a.idx-b.idx); D.events=ev; D.close=C[n-1]; D.n=n; D.atr=atr; D.ok=true; return D; }
+let tzMem=null;
+function tzGet(c,p){ const N=c.length, key=JSON.stringify(p)+'|'+sym[0]+'|'+tf[0]+'|'+N+'|'+(N?c[0].time+'|'+c[N-1].time+'|'+c[N-1].close+'|'+c[N-1].high+'|'+c[N-1].low:''); if(tzMem&&tzMem.k===key) return tzMem.D;
+  let D; try{ D=tzCompute(c,p); }catch(e){ console.error('tzc calc failed',e); D={N,ok:false,msg:'',events:[]}; } tzMem={k:key,D}; return D; }
+const TZ_FIELDS=[['look','num','Look-back: find the ATH in the last N candles',{min:50,max:20000,step:50}],['pivot','num','Pivot length (candles each side)',{min:2,max:30,step:1}],['tol','num','Touch tolerance (x ATR)',{min:0.2,max:5,step:0.1}],['touches','num','Support touches needed',{min:1,max:6,step:1}],['bkBuf','num','Break buffer (x ATR, close beyond the line)',{min:0,max:3,step:0.1}],
+  ['showAth','chk','Show ATH marker'],['showTri','chk','Show triangle trendline'],['showFill','chk','Fill the triangle'],['showSup','chk','Show flat support line'],['showLabel','chk','Show pattern label'],['label','txt','Pattern label text'],['showInset','chk','Show small "Descending Triangle" box'],['insetTxt','txt','Small box title'],
+  ['cycMode','sel','Cycle Bottom from',{opts:TZ_BASE}],['cycPrice','num','Cycle Bottom: manual price (0 = off)',{min:0,max:100000000,step:1}],['mmMult','num','Measured move: share of triangle height below support',{min:0.05,max:3,step:0.05}],['baseBars','num','Impulse base: candles after the low',{min:3,max:200,step:1}],['projBars','num','Cycle circle: candles after the breakdown (projection)',{min:3,max:500,step:1}],
+  ['nextMode','sel','Next ATH from',{opts:TZ_NEXT}],['nextFib','num','Next ATH: ratio of (ATH - cycle bottom) above the ATH',{min:0.05,max:5,step:0.01}],['nextPrice','num','Next ATH: manual price (0 = off)',{min:0,max:100000000,step:1}],['nextBars','num','Next ATH circle: candles after the cycle bottom',{min:5,max:1000,step:1}],
+  ['cur','txt','Price prefix (e.g. $)'],['showCycle','chk','Show Cycle Bottom line'],['showNext','chk','Show Next ATH'],['showPath','chk','Show dashed paths'],
+  ['dash','chk','Show info panel'],['dpos','sel','Panel position',{opts:TZ_POS}],['dsize','sel','Panel size',{opts:['Tiny','Small','Normal','Large']}],['theme','sel','Theme',{opts:['Dark','Light']}],
+  ['cAth','col','ATH / Next ATH circle colour'],['cTri','col','Triangle line colour'],['cCyc','col','Cycle Bottom colour'],['cNext','col','Next ATH path colour'],
+  ['alBrk','chk','Alert: breakdown below support'],['alUp','chk','Alert: break above the trendline'],['alCyc','chk','Alert: Cycle Bottom reached'],['alSound','chk','Play a sound']];
+IND.tzc={label:'Triangle & Cycle Projection',cat:'Trend',nm:()=>'Triangle & Cycle Projection',p:Object.assign({},TZ_DEF),cols:['#e53935'],
+  fields:TZ_FIELDS,
+  calc:(c,p)=>[[]],
+  extras:(c,p)=>{ const q=Object.assign({},TZ_DEF,p), D=tzGet(c,q); return {mk:[],boxes:[{type:'tzcview',pts:[],o:q,D}],labels:[],events:D.ok?D.events:[]}; }};
+{ const _D=draw; draw=function(d,X,Y,W,Hh){ if(!d||d.type!=='tzcview') return _D.apply(this,arguments);
+    const p=d.o, D=d.D, n0=candles.length; if(!D||n0<5) return; const dark=p.theme!=='Light', cur=p.cur||'';
+    const fg=dark?'#e6e8ee':'#131722', muted=dark?'rgba(230,232,238,.6)':'rgba(19,23,34,.6)', pill=dark?'rgba(10,13,20,.9)':'rgba(255,255,255,.93)';
+    cx.save(); cx.beginPath(); cx.rect(0,0,W,Hh); cx.clip(); cx.setLineDash([]); cx.textBaseline='middle';
+    if(!D.ok){ if(D.msg){ cx.fillStyle='rgba(255,193,7,.95)'; cx.textAlign='left'; cx.font='11px system-ui,sans-serif'; cx.fillText(D.msg,10,Hh-14); } cx.restore(); return; }
+    const xN=X(n0-1), xP=X(n0-2), step=(xN!=null&&xP!=null&&xN!==xP)?(xN-xP):6;
+    const xa=i=>{ if(i<=n0-1){ const v=X(i); if(v!=null) return v; } return (xN==null?0:xN)+(i-(n0-1))*step; };
+    const dot=(x,y,col)=>{ cx.fillStyle=col; cx.beginPath(); cx.arc(x,y,7,0,6.2832); cx.fill(); cx.strokeStyle='#ffffff'; cx.lineWidth=2; cx.beginPath(); cx.arc(x,y,7,0,6.2832); cx.stroke(); };
+    const tag=(txt,x,y,col,al)=>{ cx.font='bold 11px system-ui,sans-serif'; const w=cx.measureText(txt).width+12; let x0=al==='c'?x-w/2:al==='r'?x-w:x; x0=Math.max(2,Math.min(W-w-2,x0)); cx.fillStyle=pill; cx.fillRect(x0,y-9,w,18); cx.strokeStyle=tzRgba(col,0.9); cx.lineWidth=1; cx.strokeRect(x0+.5,y-8.5,w,18); cx.fillStyle=col; cx.textAlign='left'; cx.fillText(txt,x0+6,y+0.5); };
+    const A=D.ath, T=D.tri, CY=D.cyc, NX=D.next, xAth=xa(A.idx), yAth=Y(A.price);
+    // triangle: fill, falling trendline, flat support, label
+    if(T){ const xs=xAth, xe=xa(T.apex), yS=Y(T.S);
+      if(yS!=null&&yAth!=null){
+        if(p.showFill){ cx.fillStyle=tzRgba(p.cTri,0.07); cx.beginPath(); cx.moveTo(xs,yAth); cx.lineTo(xe,yS); cx.lineTo(xs,yS); cx.closePath(); cx.fill(); }
+        if(p.showSup){ cx.strokeStyle=p.cTri; cx.lineWidth=1.5; cx.beginPath(); cx.moveTo(xa(T.left),yS); cx.lineTo(xe,yS); cx.stroke(); }
+        if(p.showTri){ cx.strokeStyle=p.cTri; cx.lineWidth=1.5; cx.beginPath(); cx.moveTo(xs,yAth); cx.lineTo(xe,yS); cx.stroke(); }
+        if(p.showLabel&&p.label){ cx.font='bold 10px system-ui,sans-serif'; cx.fillStyle=p.cTri; cx.textAlign='center'; cx.fillText(p.label,(Math.max(xs,0)+Math.min(xe,W))/2,yS+12); } } }
+    // small "Descending Triangle" box (top, like the picture)
+    if(p.showInset){ const bw=124, bh=92, bx=tzClamp(xAth+200,8,W-bw-8), by=30;
+      cx.fillStyle=pill; cx.beginPath(); if(cx.roundRect) cx.roundRect(bx,by,bw,bh,6); else cx.rect(bx,by,bw,bh); cx.fill(); cx.strokeStyle='rgba(128,128,128,.55)'; cx.lineWidth=1; cx.stroke();
+      cx.font='bold 10px system-ui,sans-serif'; cx.fillStyle=fg; cx.textAlign='center'; cx.fillText(p.insetTxt||'',bx+bw/2,by+12);
+      const l=bx+10, r=bx+bw-10, t=by+26, b=by+bh-14; cx.strokeStyle=muted; cx.lineWidth=1; cx.beginPath(); cx.moveTo(l,t); cx.lineTo(r-14,b-12); cx.stroke(); cx.beginPath(); cx.moveTo(l,b-12); cx.lineTo(r,b-12); cx.stroke();
+      cx.strokeStyle=p.cCyc; cx.lineWidth=1.3; cx.beginPath(); const zz=[[0,0],[.1,.55],[.2,.1],[.3,.6],[.42,.25],[.52,.62],[.63,.38],[.72,.62],[.8,.55],[.92,1.05]]; zz.forEach((q,k)=>{ const x=l+q[0]*(r-l), y=t+q[1]*(b-12-t); if(k) cx.lineTo(x,y); else cx.moveTo(x,y); }); cx.stroke(); }
+    // Cycle Bottom: red line across the chart, centred pill, circle + price
+    const yC=Y(CY.price), xC=xa(CY.idx);
+    if(p.showCycle&&yC!=null){ cx.strokeStyle=p.cCyc; cx.lineWidth=2; cx.beginPath(); cx.moveTo(0,yC); cx.lineTo(W,yC); cx.stroke(); tag('Cycle Bottom',W*0.5,yC,p.cCyc,'c'); }
+    // dashed paths: breakdown -> cycle bottom (red), cycle bottom -> next ATH (green)
+    const yCp=yC==null?null:(CY.reached&&CY.low!=null&&Y(CY.low)!=null?Y(CY.low):yC), yN=Y(NX.price), xNx=xa(NX.idx);
+    if(p.showPath&&T&&T.bk>=0&&!CY.reached&&yCp!=null){ const bc=candles[T.bk], yb=bc?Y(bc.close):null; if(yb!=null){ cx.strokeStyle=p.cCyc; cx.lineWidth=1.6; cx.setLineDash([6,5]); cx.beginPath(); cx.moveTo(xa(T.bk),yb); cx.lineTo(xC,yCp); cx.stroke(); cx.setLineDash([]); } }
+    if(p.showPath&&p.showNext&&yCp!=null&&yN!=null&&!NX.reached){ cx.strokeStyle=p.cNext; cx.lineWidth=1.8; cx.setLineDash([6,5]); cx.beginPath(); cx.moveTo(xC,yCp); cx.quadraticCurveTo(xC+(xNx-xC)*0.55,yCp,xNx,yN); cx.stroke(); cx.setLineDash([]); }
+    if(p.showCycle&&yCp!=null){ dot(xC,yCp,p.cCyc); const lowP=CY.reached&&CY.low!=null?CY.low:CY.price; tag(tzFmt(lowP,cur),xC,yCp+20,p.cCyc,'c'); }
+    if(p.showNext&&yN!=null){ dot(xNx,yN,p.cAth); tag('Next ATH - '+tzFmt(NX.price,cur),xNx,yN-20,p.cAth,'r'); }
+    // ATH marker
+    if(p.showAth&&yAth!=null){ dot(xAth,yAth,p.cAth); tag('ATH - '+tzFmt(A.price,cur),xAth-8,yAth-20,p.cAth,'c'); }
+    // info panel
+    if(p.dash){ const rows=[], px=D.close; rows.push(['h','Triangle & Cycle','rule-based']);
+      rows.push(['kv','ATH',tzFmt(A.price,cur),p.cAth]);
+      if(T){ rows.push(['kv','Support (flat)',tzFmt(T.S,cur)+' \u00b7 '+T.lo+'x',fg]); rows.push(['kv','Trendline touches',String(T.hi),fg]); rows.push(['kv','Status',T.status,T.status==='Broke down'?p.cCyc:T.status==='Broke up'?p.cAth:'#ffd54f']); }
+      else rows.push(['kv','Triangle',D.msg||'none yet',muted]);
+      rows.push(['kv','Cycle Bottom',tzFmt(CY.price,cur)+(px?' ('+((CY.price/px-1)*100).toFixed(1)+'%)':''),p.cCyc]);
+      rows.push(['kv','Cycle from',CY.mode+(CY.reached?' \u00b7 reached':''),muted]);
+      rows.push(['kv','Next ATH',tzFmt(NX.price,cur)+(px?' (+'+((NX.price/px-1)*100).toFixed(1)+'%)':''),p.cAth]);
+      let fs=({Tiny:9,Small:10,Normal:12,Large:14})[p.dsize]||10, w0=0,w1=0, rh, m=6, pw;
+      for(;;){ w0=0; w1=0; rh=fs+8; rows.forEach(r=>{ cx.font='bold '+fs+'px system-ui'; w0=Math.max(w0,cx.measureText(r[1]).width); w1=Math.max(w1,cx.measureText(r[2]).width); }); pw=w0+w1+36; if(pw<=W-2*m||fs<=6) break; fs--; }
+      const ph=rows.length*rh, x0=/Left/.test(p.dpos)?m:W-pw-m, y0=/Top/.test(p.dpos)?m+34:Hh-ph-m-24;
+      cx.fillStyle=pill; cx.fillRect(x0,y0,pw,ph); rows.forEach((r,k)=>{ const y=y0+k*rh+rh/2; if(r[0]==='h'){ cx.fillStyle=tzRgba(p.cCyc,0.2); cx.fillRect(x0,y-rh/2,pw,rh); cx.font='bold '+fs+'px system-ui'; cx.textAlign='left'; cx.fillStyle=fg; cx.fillText(r[1],x0+8,y); cx.fillStyle=muted; cx.font=fs+'px system-ui'; cx.textAlign='right'; cx.fillText(r[2],x0+pw-8,y); }
+        else { cx.font=fs+'px system-ui'; cx.textAlign='left'; cx.fillStyle=muted; cx.fillText(r[1],x0+8,y); cx.font='bold '+fs+'px system-ui'; cx.fillStyle=r[3]; cx.textAlign='right'; cx.fillText(r[2],x0+pw-8,y); } });
+      cx.strokeStyle='rgba(128,128,128,.4)'; cx.lineWidth=1; cx.strokeRect(x0,y0,pw,ph); }
+    cx.restore(); }; }
+// alerts: fire once, when the candle that carried the event has closed (the newest closed candle), while the app is open
+function tzAlerts(q){ if(candles.length<2) return; const cc=candles[candles.length-2].time, key=sym[0]+'|'+tf[0];
+  inds.forEach(i=>{ if(i.t!=='tzc'||!i._xr||!i._xr.events||!show(i)) return; const P=Object.assign({},TZ_DEF,i.p); let quiet=q; if(i._tzK!==key){ i._tzK=key; i._tzLast={}; quiet=true; }
+    const last=i._tzLast||(i._tzLast={});
+    i._xr.events.forEach(e=>{ if(e.time>cc||e.time<=(last[e.type]||0)) return; last[e.type]=e.time;
+      const on={brk:P.alBrk,up:P.alUp,cyc:P.alCyc}[e.type]; if(quiet||e.time!==cc||!on) return;
+      const nm={brk:'BREAKDOWN - closed below the triangle support',up:'BREAK UP - closed above the triangle trendline',cyc:'CYCLE BOTTOM reached'}[e.type];
+      toast('TRIANGLE & CYCLE \u00b7 '+nm+' \u00b7 '+sym[0]+' '+tf[0]+' \u00b7 '+tzFmt(e.price,P.cur),(e.type==='up')?'#2e7d32':'#c62828'); if(P.alSound&&typeof beep==='function') beep(); }); }); }
+{ const _tzRE=recomputeExtras; recomputeExtras=function(){ const q=quietNext; const rv=_tzRE.apply(this,arguments); try{ tzAlerts(q); }catch(e){ console.error('tzc alerts',e); } return rv; }; }
+try{ DESC.tzc='Marks the ATH, finds the descending (bearish) triangle after it - falling trendline plus flat support - and draws the red Cycle Bottom line with a circle, then a dashed path up to the projected Next ATH. Alerts on the breakdown below support, the break above the trendline and the cycle bottom being reached'; }catch(e){}
+}catch(err){ console.error('tzc indicator failed',err); window.__tzcErr=err; }
+
