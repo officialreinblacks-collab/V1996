@@ -4515,3 +4515,187 @@ function mfAlerts(q){ if(candles.length<2) return; const cc=candles[candles.leng
 { const _mfRE=recomputeExtras; recomputeExtras=function(){ const q=quietNext; const rv=_mfRE.apply(this,arguments); try{ mfAlerts(q); }catch(e){ console.error('mfg alerts',e); } return rv; }; }
 try{ DESC.mfg='MFG 2.5 by Reinblacks Baristar: marks a 3 AM to 7 AM window with two vertical lines. The EMA (13 by default) runs live with price and starts 1000 candles behind (or draws only inside the window, your choice). Trades show only inside the window: price crosses over the EMA, 1-2 pullback candles, then BUY on the next green candle (SELL is the mirror). Stop under the cross candle, TP1 / TP2 / TP3 as dotted lines'; }catch(e){}
 }catch(err){ console.error('mfg indicator failed',err); window.__mfgErr=err; }
+
+// ---- [rsmc] INDICATOR: Smart Money Concepts by Reinblacks B - market structure (BOS / CHoCH), order blocks, EQH / EQL, fair value gaps, previous D / W / M highs & lows, premium / discount zones (self-contained: every name starts with smx / SMX) ----
+// Algorithm after the open-source Pine v5 script "Smart Money Concepts" by LuxAlgo (CC BY-NC-SA 4.0): credit to LuxAlgo for the original method. This version is re-built for the Reinblacks app (own code, own look, closed-candle option).
+// It is an INFORMATION tool: it prints no buy or sell signals, it maps the structure so you can read the market.
+//  SWING STRUCTURE    - swing points use "Swing length" candles (50). A close beyond the last swing high = bullish BOS (same trend) or bullish CHoCH (the trend was bearish). The mirror below the swing low is bearish.
+//  INTERNAL STRUCTURE - the same idea on a 5 candle swing: short dashed lines with small labels (an optional confluence filter drops weak breaks).
+//  ORDER BLOCKS       - when structure breaks, the most extreme (volatility-filtered) candle between the swing and the break is stored. It stays on the chart until price trades through it (mitigation by close or by high / low).
+//  EQH / EQL          - two swing highs (lows) almost equal (within a fraction of the 200 ATR) = liquidity pool.
+//  FAIR VALUE GAPS    - three candle gap, with the auto threshold; removed when price fills it (same rule as the original).
+//  LEVELS             - previous Daily / Weekly / Monthly high and low, drawn from the candles on the chart (UTC days, Monday weeks, UTC months). Needs a lower time frame than the level.
+//  STRONG / WEAK      - the trailing swing high and low. Strong = it goes with the swing trend, Weak = price is likely to take it.
+//  ZONES              - premium (top), equilibrium (middle) and discount (bottom) of the trailing range.
+// With "closed candles only" the forming candle is never used, so nothing repaints. The app has no multi-time-frame feed, so the Fair Value Gap time frame is always the chart time frame.
+try{
+const SMX_LS=['Solid','Dashed','Dotted'], SMX_FL=['All','BOS','CHoCH'];
+const SMX_DEF={mode:'Historical',style:'Colored',closed:true,colorCandles:false,
+  showInt:true,intBull:'All',intBear:'All',cIntBull:'#089981',cIntBear:'#f23645',confl:false,intSize:9,
+  showStr:true,strBull:'All',strBear:'All',cStrBull:'#089981',cStrBear:'#f23645',strSize:11,
+  showSwings:false,swLen:50,showHL:true,
+  showIOB:true,iobN:5,showSOB:false,sobN:5,obFilter:'Atr',obMit:'High/Low',cIOBBull:'#3179f5',cIOBBear:'#f77c80',cSOBBull:'#1848cc',cSOBBear:'#b22833',obA:20,
+  showEq:true,eqLen:3,eqThr:0.1,eqSize:9,
+  showFvg:false,fvgAuto:true,fvgExt:1,cFvgBull:'#00ff68',cFvgBear:'#ff0008',fvgA:30,
+  showD:false,showW:false,showM:false,cD:'#2157f3',cW:'#2157f3',cM:'#2157f3',lvlStyle:'Solid',
+  showPD:false,cPrem:'#f23645',cEqz:'#878b94',cDisc:'#089981',
+  alBos:true,alChoch:true,alOb:false,alEq:false,alFvg:false,alSound:false};
+const smxClamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function smxA(hex,a){ const m=/^#?([0-9a-f]{6})$/i.exec(hex||''); if(!m) return hex||'#888'; const n=parseInt(m[1],16); return 'rgba('+(n>>16&255)+','+(n>>8&255)+','+(n&255)+','+a+')'; }
+function smxFmt(v){ if(v==null||!isFinite(v)) return '-'; const a=Math.abs(v); return v.toFixed(a>=1000?2:a>=10?3:a>=1?4:6); }
+function smxIv(c){ let m=0; for(let i=c.length-1;i>0&&i>c.length-40;i--){ const d=c[i].time-c[i-1].time; if(d>0&&(m===0||d<m)) m=d; } return m; }
+function smxCompute(c,p,iv){
+  const N0=c.length, N=p.closed?N0-1:N0;
+  const D={N,ok:false,str:[],sw:[],eq:[],obI:[],obS:[],fvg:[],lv:[],trail:null,tr:null,events:[],bias:0,tcol:null};
+  if(N<12) return D;
+  const H=new Float64Array(N),L=new Float64Array(N),C=new Float64Array(N),O=new Float64Array(N);
+  for(let i=0;i<N;i++){ H[i]=c[i].high; L[i]=c[i].low; C[i]=c[i].close; O[i]=c[i].open; }
+  // volatility measure (ATR 200 or cumulative mean range) and the "parsed" highs / lows used for order blocks
+  const atr=new Float64Array(N).fill(NaN), PH=new Float64Array(N), PL=new Float64Array(N); let rma=NaN,sum=0,cum=0;
+  for(let i=0;i<N;i++){ const tr=i===0?H[i]-L[i]:Math.max(H[i]-L[i],Math.abs(H[i]-C[i-1]),Math.abs(L[i]-C[i-1]));
+    if(i<199) sum+=tr; else if(i===199){ sum+=tr; rma=sum/200; atr[i]=rma; } else { rma=(rma*199+tr)/200; atr[i]=rma; }
+    if(i>0) cum+=tr; const vm=p.obFilter==='Atr'?atr[i]:(i>0?cum/i:NaN), hv=(H[i]-L[i])>=2*vm;
+    PH[i]=hv?L[i]:H[i]; PL[i]=hv?H[i]:L[i]; }
+  const mkP=()=>({cur:NaN,last:NaN,crossed:false,idx:0});
+  const swH=mkP(),swL=mkP(),inH=mkP(),inL=mkP(),eqH=mkP(),eqL=mkP();
+  const bias={sw:0,int:0}, tr={top:NaN,bot:NaN,idx:0,lastTop:0,lastBot:0}, lg=[{v:0},{v:0},{v:0}], pv={sw:{h:NaN,l:NaN},int:{h:NaN,l:NaN}}, bar={int:{bull:true,bear:true}};
+  const swLen=smxClamp(Math.round(+p.swLen)||50,10,500), eqLen=smxClamp(Math.round(+p.eqLen)||3,1,50), thr=Math.max(0,+p.eqThr||0);
+  const tcol=new Int8Array(N), ev=(type,time,price,msg)=>D.events.push({type,time,price,msg});
+  const iobN=smxClamp(Math.round(+p.iobN)||5,1,20), sobN=smxClamp(Math.round(+p.sobN)||5,1,20);
+  let cumAbs=0;
+  function getCur(k,size,n,pH,pL,kind){
+    const s=lg[k], prev=s.v;
+    if(n>=size){ let hi=-Infinity,lo=Infinity; for(let j=0;j<size;j++){ if(H[n-j]>hi) hi=H[n-j]; if(L[n-j]<lo) lo=L[n-j]; }
+      if(H[n-size]>hi) s.v=0; else if(L[n-size]<lo) s.v=1; }
+    if(n===0) return; const ch=s.v-prev; if(ch===0) return; const pi=n-size;
+    if(ch===1){ const q=pL;
+      if(kind==='eq'&&Math.abs(q.cur-L[pi])<thr*atr[n]){ D.eq.push({x1:q.idx,y1:q.cur,x2:pi,y2:L[pi],hi:false,lx:Math.round(0.5*(q.idx+pi))}); ev('eq',c[n].time,C[n],'Equal lows detected'); }
+      q.last=q.cur; q.cur=L[pi]; q.crossed=false; q.idx=pi;
+      if(kind==='sw'){ tr.bot=q.cur; tr.idx=pi; tr.lastBot=pi; if(p.showSwings) D.sw.push({x:pi,y:q.cur,t:q.cur<q.last?'LL':'HL',hi:false}); }
+    } else { const q=pH;
+      if(kind==='eq'&&Math.abs(q.cur-H[pi])<thr*atr[n]){ D.eq.push({x1:q.idx,y1:q.cur,x2:pi,y2:H[pi],hi:true,lx:Math.round(0.5*(q.idx+pi))}); ev('eq',c[n].time,C[n],'Equal highs detected'); }
+      q.last=q.cur; q.cur=H[pi]; q.crossed=false; q.idx=pi;
+      if(kind==='sw'){ tr.top=q.cur; tr.idx=pi; tr.lastTop=pi; if(p.showSwings) D.sw.push({x:pi,y:q.cur,t:q.cur>q.last?'HH':'LH',hi:true}); } } }
+  function storeOB(q,internal,b,n){
+    if(!(internal?p.showIOB:p.showSOB)) return; let best=-1, bv=b===-1?-Infinity:Infinity; const a=b===-1?PH:PL;
+    for(let j=q.idx;j<n;j++){ const v=a[j]; if(b===-1?v>bv:v<bv){ bv=v; best=j; } } if(best<0) return;
+    const arr=internal?D.obI:D.obS; if(arr.length>=100) arr.pop(); arr.unshift({hi:PH[best],lo:PL[best],idx:best,bias:b}); }
+  function dispStr(internal,n){
+    const pH=internal?inH:swH, pL=internal?inL:swL, key=internal?'int':'sw', P=pv[key];
+    if(internal&&p.confl){ bar.int.bull=H[n]-Math.max(C[n],O[n])>Math.min(C[n],O[n]-L[n]); bar.int.bear=H[n]-Math.max(C[n],O[n])<Math.min(C[n],O[n]-L[n]); }
+    const nm=internal?'Internal ':'';
+    // bullish break of the swing high
+    const upX=n>0&&!isNaN(pH.cur)&&!isNaN(P.h)&&C[n]>pH.cur&&C[n-1]<=P.h;
+    if(upX&&!pH.crossed&&(internal?(inH.cur!==swH.cur&&bar.int.bull):true)){
+      const tag=bias[key]===-1?'CHoCH':'BOS'; ev(tag==='CHoCH'?'choch':'bos',c[n].time,C[n],nm+'Bullish '+tag+' formed'); pH.crossed=true; bias[key]=1;
+      const f=internal?p.intBull:p.strBull, on=internal?p.showInt:p.showStr;
+      if(on&&(f==='All'||(f==='BOS'&&tag!=='CHoCH')||(f==='CHoCH'&&tag==='CHoCH'))) D.str.push({int:internal,dir:1,tag,x1:pH.idx,x2:n,y:pH.cur,lx:Math.round(0.5*(pH.idx+n))});
+      storeOB(pH,internal,1,n); }
+    const dnX=n>0&&!isNaN(pL.cur)&&!isNaN(P.l)&&C[n]<pL.cur&&C[n-1]>=P.l;
+    if(dnX&&!pL.crossed&&(internal?(inL.cur!==swL.cur&&bar.int.bear):true)){
+      const tag=bias[key]===1?'CHoCH':'BOS'; ev(tag==='CHoCH'?'choch':'bos',c[n].time,C[n],nm+'Bearish '+tag+' formed'); pL.crossed=true; bias[key]=-1;
+      const f=internal?p.intBear:p.strBear, on=internal?p.showInt:p.showStr;
+      if(on&&(f==='All'||(f==='BOS'&&tag!=='CHoCH')||(f==='CHoCH'&&tag==='CHoCH'))) D.str.push({int:internal,dir:-1,tag,x1:pL.idx,x2:n,y:pL.cur,lx:Math.round(0.5*(pL.idx+n))});
+      storeOB(pL,internal,-1,n); }
+    P.h=pH.cur; P.l=pL.cur; }
+  function delOB(internal,n){ const arr=internal?D.obI:D.obS, bs=p.obMit==='Close'?C[n]:H[n], us=p.obMit==='Close'?C[n]:L[n];
+    for(let i=arr.length-1;i>=0;i--){ const o=arr[i]; let x=false;
+      if(o.bias===-1&&bs>o.hi){ x=true; ev('ob',c[n].time,C[n],(internal?'Internal ':'Swing ')+'bearish order block broken'); }
+      else if(o.bias===1&&us<o.lo){ x=true; ev('ob',c[n].time,C[n],(internal?'Internal ':'Swing ')+'bullish order block broken'); }
+      if(x) arr.splice(i,1); } }
+  for(let n=0;n<N;n++){
+    // trailing swing extremes
+    tr.top=Math.max(H[n],tr.top); tr.lastTop=tr.top===H[n]?n:tr.lastTop; tr.bot=Math.min(L[n],tr.bot); tr.lastBot=tr.bot===L[n]?n:tr.lastBot;
+    if(p.showFvg) for(let i=D.fvg.length-1;i>=0;i--){ const f=D.fvg[i]; if((L[n]<f.bottom&&f.bias===1)||(H[n]>f.top&&f.bias===-1)) D.fvg.splice(i,1); }
+    getCur(0,swLen,n,swH,swL,'sw'); getCur(1,5,n,inH,inL,'in'); if(p.showEq) getCur(2,eqLen,n,eqH,eqL,'eq');
+    dispStr(true,n); dispStr(false,n);
+    tcol[n]=bias.int===1?1:0;
+    delOB(true,n); delOB(false,n);
+    if(p.showFvg&&n>=2){ const d=(C[n-1]-O[n-1])/(O[n-1]*100); cumAbs+=Math.abs(d); const th=p.fvgAuto?cumAbs/n*2:0;
+      if(L[n]>H[n-2]&&C[n-1]>H[n-2]&&d>th){ ev('fvg',c[n].time,C[n],'Bullish FVG formed'); D.fvg.unshift({x1:n-1,x2:n+smxClamp(Math.round(+p.fvgExt)||0,0,50),top:L[n],bottom:H[n-2],bias:1,lo:H[n-2],hi:L[n]}); }
+      if(H[n]<L[n-2]&&C[n-1]<L[n-2]&&-d>th){ ev('fvg',c[n].time,C[n],'Bearish FVG formed'); D.fvg.unshift({x1:n-1,x2:n+smxClamp(Math.round(+p.fvgExt)||0,0,50),top:H[n],bottom:L[n-2],bias:-1,lo:H[n],hi:L[n-2]}); }
+      if(D.fvg.length>500) D.fvg.pop(); }
+    if(p.showFvg&&n<2){ /* nothing: needs two candles back */ }
+  }
+  // previous Daily / Weekly / Monthly high & low from the candles on the chart
+  if(iv>0){ [['D',86400,p.showD,p.cD],['W',604800,p.showW,p.cW],['M',2419200,p.showM,p.cM]].forEach(a=>{ const k=a[0], sec=a[1]; if(!a[2]||iv>sec*1.05) return;
+    if(iv>=sec*0.97){ D.lv.push({k,col:a[3],hiP:H[N-1],loP:L[N-1],hiI:N-1,loI:N-1}); return; }
+    const key=i=>{ const t=c[i].time; if(k==='D') return Math.floor(t/86400); if(k==='W') return Math.floor((t/86400+3)/7); const d=new Date(t*1000); return d.getUTCFullYear()*12+d.getUTCMonth(); };
+    const kl=key(N-1); let j=N-1; while(j>=0&&key(j)===kl) j--; if(j<0) return; const kp=key(j), i1=j; while(j>=0&&key(j)===kp) j--; const i0=j+1;
+    let hi=-Infinity,lo=Infinity,hiI=i0,loI=i0; for(let i=i0;i<=i1;i++){ if(H[i]>hi){ hi=H[i]; hiI=i; } if(L[i]<lo){ lo=L[i]; loI=i; } }
+    D.lv.push({k,col:a[3],hiP:hi,loP:lo,hiI,loI}); }); }
+  // "Present" mode keeps only the latest drawing of each kind, "Historical" keeps everything
+  if(p.mode==='Present'){ const last=(arr,fn)=>{ const seen={}, out=[]; for(let i=arr.length-1;i>=0;i--){ const k=fn(arr[i]); if(!seen[k]){ seen[k]=1; out.push(arr[i]); } } return out.reverse(); };
+    D.str=last(D.str,s=>(s.int?'i':'s')+s.dir); D.sw=last(D.sw,s=>s.hi?'h':'l'); D.eq=last(D.eq,e=>e.hi?'h':'l'); }
+  D.obI=D.obI.slice(0,iobN); D.obS=D.obS.slice(0,sobN); D.trail=isNaN(tr.top)||isNaN(tr.bot)?null:{top:tr.top,bot:tr.bot,idx:tr.idx,lastTop:tr.lastTop,lastBot:tr.lastBot};
+  D.bias=bias.sw; D.tcol=tcol; D.ok=true; return D; }
+let smxMem=null;
+function smxGet(c,p){ const N=c.length, iv=smxIv(c), key=JSON.stringify(p)+'|'+sym[0]+'|'+tf[0]+'|'+N+'|'+(N?c[0].time+'|'+c[N-1].time+'|'+c[N-1].close+'|'+c[N-1].high+'|'+c[N-1].low:''); if(smxMem&&smxMem.k===key) return smxMem.D;
+  let D; try{ D=smxCompute(c,p,iv); }catch(e){ console.error('rsmc calc failed',e); D={N,ok:false,str:[],sw:[],eq:[],obI:[],obS:[],fvg:[],lv:[],trail:null,events:[],bias:0,tcol:null}; } smxMem={k:key,D}; return D; }
+IND.rsmc={label:'Smart Money Concepts by Reinblacks B',cat:'Trend',nm:()=>'Smart Money Concepts by Reinblacks B',p:Object.assign({},SMX_DEF),cols:['#2157f3'],
+  fields:[['mode','sel','Mode',{opts:['Historical','Present']}],['style','sel','Style',{opts:['Colored','Monochrome']}],['closed','chk','Closed candles only (no repaint)'],['colorCandles','chk','Colour candles by the internal trend'],
+    ['showInt','chk','Internal structure (BOS / CHoCH)'],['intBull','sel','Internal bullish structure',{opts:SMX_FL}],['intBear','sel','Internal bearish structure',{opts:SMX_FL}],['cIntBull','col','Internal bullish colour'],['cIntBear','col','Internal bearish colour'],['confl','chk','Confluence filter (drops weak internal breaks)'],['intSize','num','Internal label size',{min:7,max:16}],
+    ['showStr','chk','Swing structure (BOS / CHoCH)'],['strBull','sel','Swing bullish structure',{opts:SMX_FL}],['strBear','sel','Swing bearish structure',{opts:SMX_FL}],['cStrBull','col','Swing bullish colour'],['cStrBear','col','Swing bearish colour'],['strSize','num','Swing label size',{min:7,max:16}],
+    ['showSwings','chk','Swing point labels (HH / HL / LH / LL)'],['swLen','num','Swing length (candles)',{min:10,max:500,step:5}],['showHL','chk','Strong / Weak high and low'],
+    ['showIOB','chk','Internal order blocks'],['iobN','num','Internal order blocks shown',{min:1,max:20}],['showSOB','chk','Swing order blocks'],['sobN','num','Swing order blocks shown',{min:1,max:20}],
+    ['obFilter','sel','Order block filter',{opts:['Atr','Cumulative Mean Range']}],['obMit','sel','Order block mitigation',{opts:['Close','High/Low']}],['obA','num','Order block opacity (%)',{min:5,max:100,step:5}],
+    ['cIOBBull','col','Internal bullish OB'],['cIOBBear','col','Internal bearish OB'],['cSOBBull','col','Swing bullish OB'],['cSOBBear','col','Swing bearish OB'],
+    ['showEq','chk','Equal highs / lows (EQH / EQL)'],['eqLen','num','EQH / EQL bars confirmation',{min:1,max:50}],['eqThr','num','EQH / EQL threshold (x ATR 200)',{min:0,max:0.5,step:0.1}],['eqSize','num','EQH / EQL label size',{min:7,max:16}],
+    ['showFvg','chk','Fair value gaps'],['fvgAuto','chk','FVG auto threshold'],['fvgExt','num','Extend FVG (candles)',{min:0,max:50}],['fvgA','num','FVG opacity (%)',{min:5,max:100,step:5}],['cFvgBull','col','Bullish FVG'],['cFvgBear','col','Bearish FVG'],
+    ['showD','chk','Previous day high / low'],['cD','col','Daily colour'],['showW','chk','Previous week high / low'],['cW','col','Weekly colour'],['showM','chk','Previous month high / low'],['cM','col','Monthly colour'],['lvlStyle','sel','Levels line style',{opts:SMX_LS}],
+    ['showPD','chk','Premium / Discount zones'],['cPrem','col','Premium zone'],['cEqz','col','Equilibrium zone'],['cDisc','col','Discount zone'],
+    ['alBos','chk','Alert: BOS'],['alChoch','chk','Alert: CHoCH'],['alOb','chk','Alert: order block broken'],['alEq','chk','Alert: equal highs / lows'],['alFvg','chk','Alert: fair value gap'],['alSound','chk','Play a sound']],
+  calc:(c,p)=>[[]],
+  extras:(c,p)=>{ const q=Object.assign({},SMX_DEF,p), D=smxGet(c,q); return {mk:[],boxes:[{type:'rsmcview',pts:[],o:q,D}],labels:[],events:D.ok?D.events:[]}; }};
+{ const _D=draw; draw=function(d,X,Y,W,Hh){ if(!d||d.type!=='rsmcview') return _D.apply(this,arguments);
+    const p=d.o, D=d.D, n0=candles.length; if(!D||!D.ok||n0<5) return;
+    const mono=p.style==='Monochrome', MB='#b2b5be', MR='#5d606b';
+    const cSB=mono?MB:p.cStrBull, cSR=mono?MR:p.cStrBear, cIB=mono?MB:p.cIntBull, cIR=mono?MR:p.cIntBear;
+    cx.save(); cx.beginPath(); cx.rect(0,0,W,Hh); cx.clip(); cx.setLineDash([]); cx.textBaseline='middle';
+    const sp=(()=>{ const a=X(n0-1), b=X(n0-2); return a!=null&&b!=null&&a!==b?Math.abs(a-b):6; })(), xR=W;
+    const ln=(x1,y1,x2,y2,col,w,dash)=>{ cx.strokeStyle=col; cx.lineWidth=w; cx.setLineDash(dash||[]); cx.beginPath(); cx.moveTo(x1,y1); cx.lineTo(x2,y2); cx.stroke(); cx.setLineDash([]); };
+    const tx=(t,x,y,col,fs,al)=>{ cx.font='bold '+fs+'px system-ui'; cx.fillStyle=col; cx.textAlign=al||'center'; cx.fillText(t,x,y); };
+    const rect=(x1,x2,y1,y2,fill,stroke)=>{ const xa=Math.min(x1,x2), w=Math.abs(x2-x1), ya=Math.min(y1,y2), h=Math.abs(y2-y1); if(fill){ cx.fillStyle=fill; cx.fillRect(xa,ya,w,Math.max(h,1)); } if(stroke){ cx.strokeStyle=stroke; cx.lineWidth=1; cx.strokeRect(xa,ya,w,Math.max(h,1)); } };
+    // premium / equilibrium / discount zones
+    if(p.showPD&&D.trail){ const t=D.trail, x1=X(t.idx); if(x1!=null){ const zc=[[mono?MR:p.cPrem,t.top,0.95*t.top+0.05*t.bot,'Premium',-1],[p.cEqz,0.525*t.top+0.475*t.bot,0.525*t.bot+0.475*t.top,'Equilibrium',0],[mono?MB:p.cDisc,0.95*t.bot+0.05*t.top,t.bot,'Discount',1]];
+        zc.forEach(z=>{ const ya=Y(z[1]), yb=Y(z[2]); if(ya==null||yb==null) return; rect(x1,xR,ya,yb,smxA(z[0],0.2),null);
+          if(z[4]===0) tx(z[3],xR-6,(ya+yb)/2,z[0],10,'right'); else tx(z[3],Math.min(xR-40,(x1+xR)/2),z[4]<0?Math.min(ya,yb)-8:Math.max(ya,yb)+8,z[0],10); }); } }
+    // fair value gaps (two halves like the original)
+    if(p.showFvg){ const fa=smxClamp(+p.fvgA||30,5,100)/100; D.fvg.forEach(f=>{ const x1=X(f.x1), x2=X(f.x2); if(x1==null||x2==null||x2<-20||x1>W+20) return; const ya=Y(f.hi), yb=Y(f.lo); if(ya==null||yb==null) return;
+        const col=smxA(f.bias===1?(mono?MB:p.cFvgBull):(mono?MR:p.cFvgBear),fa); rect(x1,x2,ya,yb,col,col); ln(x1,(ya+yb)/2,x2,(ya+yb)/2,col,1); }); }
+    // order blocks (run to the right edge until mitigated)
+    const oa=smxClamp(+p.obA||20,5,100)/100;
+    const drawOB=(arr,internal)=>arr.forEach(o=>{ const x1=X(o.idx); if(x1==null) return; const ya=Y(o.hi), yb=Y(o.lo); if(ya==null||yb==null) return;
+      const base=mono?(o.bias===-1?MR:MB):internal?(o.bias===-1?p.cIOBBear:p.cIOBBull):(o.bias===-1?p.cSOBBear:p.cSOBBull); rect(x1,xR,ya,yb,smxA(base,oa),internal?null:smxA(base,Math.min(1,oa*2.5))); });
+    if(p.showIOB) drawOB(D.obI,true); if(p.showSOB) drawOB(D.obS,false);
+    // equal highs / lows
+    if(p.showEq){ const fs=smxClamp(Math.round(+p.eqSize)||9,7,16); D.eq.forEach(e=>{ const x1=X(e.x1), x2=X(e.x2), y1=Y(e.y1), y2=Y(e.y2), lx=X(e.lx); if(x1==null||x2==null||y1==null||y2==null) return; const col=e.hi?cSR:cSB;
+        ln(x1,y1,x2,y2,col,1,[1,3]); if(lx!=null) tx(e.hi?'EQH':'EQL',lx,e.hi?y2-fs*0.9:y2+fs*0.9,col,fs); }); }
+    // structure lines and labels
+    D.str.forEach(s=>{ const x1=X(s.x1), x2=X(s.x2), y=Y(s.y), lx=X(s.lx); if(x1==null||x2==null||y==null||(x2<-20)||(x1>W+20)) return; const bull=s.dir===1, col=s.int?(bull?cIB:cIR):(bull?cSB:cSR), fs=smxClamp(Math.round(+(s.int?p.intSize:p.strSize))||9,7,16);
+      ln(x1,y,x2,y,col,1,s.int?[5,3]:[]); if(lx!=null) tx(s.tag,lx,bull?y-fs*0.8-2:y+fs*0.8+2,col,fs); });
+    // swing point labels
+    if(p.showSwings) D.sw.forEach(s=>{ const x=X(s.x), y=Y(s.y); if(x==null||y==null||x<-20||x>W+20) return; tx(s.t,x,s.hi?y-9:y+9,s.hi?cSR:cSB,10); });
+    // strong / weak high & low
+    if(p.showHL&&D.trail){ const t=D.trail, xa=X(t.lastTop), xb=X(t.lastBot), yt=Y(t.top), yb=Y(t.bot), xe=Math.min(xR-4,X(n0-1)+20*sp);
+      if(xa!=null&&yt!=null){ ln(xa,yt,xe,yt,cSR,1); tx(D.bias===-1?'Strong High':'Weak High',xe,yt-8,cSR,9,'right'); }
+      if(xb!=null&&yb!=null){ ln(xb,yb,xe,yb,cSB,1); tx(D.bias===1?'Strong Low':'Weak Low',xe,yb+8,cSB,9,'right'); } }
+    // previous D / W / M high and low
+    if(D.lv.length){ const st=p.lvlStyle==='Dashed'?[6,4]:p.lvlStyle==='Dotted'?[1,3]:[], xe=Math.min(xR-4,X(n0-1)+20*sp);
+      D.lv.forEach(l=>{ const xh=X(l.hiI), xl=X(l.loI), yh=Y(l.hiP), yl=Y(l.loP); const col=l.col;
+        if(xh!=null&&yh!=null){ ln(xh,yh,xe,yh,col,1,st); tx('P'+l.k+'H',xe,yh-8,col,9,'right'); }
+        if(xl!=null&&yl!=null){ ln(xl,yl,xe,yl,col,1,st); tx('P'+l.k+'L',xe,yl+8,col,9,'right'); } }); }
+    // candles coloured by the internal trend
+    if(p.colorCandles&&D.tcol){ const bw=Math.max(1,sp*0.62); for(let i=0;i<D.N;i++){ const x=X(i); if(x==null||x<-bw||x>W+bw) continue; const cd=candles[i]; if(!cd) continue; const col=D.tcol[i]===1?cSB:cSR, yh=Y(cd.high), yl=Y(cd.low), yo=Y(cd.open), yc=Y(cd.close); if(yh==null||yl==null||yo==null||yc==null) continue;
+        ln(x,yh,x,yl,col,1); cx.fillStyle=col; cx.fillRect(x-bw/2,Math.min(yo,yc),bw,Math.max(1,Math.abs(yc-yo))); } }
+    cx.restore(); }; }
+// alerts: fire once, when the candle that carried the event has closed (the newest closed candle), while the app is open
+function smxAlerts(q){ if(candles.length<2) return; const cc=candles[candles.length-2].time, key=sym[0]+'|'+tf[0];
+  inds.forEach(i=>{ if(i.t!=='rsmc'||!i._xr||!i._xr.events||!show(i)) return; const P=Object.assign({},SMX_DEF,i.p); let quiet=q; if(i._smK!==key){ i._smK=key; i._smLast={}; quiet=true; }
+    const last=i._smLast||(i._smLast={}), on={bos:P.alBos,choch:P.alChoch,ob:P.alOb,eq:P.alEq,fvg:P.alFvg};
+    i._xr.events.forEach(e=>{ const k=e.type+'|'+e.msg; if(e.time>cc||e.time<=(last[k]||0)) return; last[k]=e.time; if(quiet||e.time!==cc||!on[e.type]) return;
+      const bear=/bearish|Equal highs/i.test(e.msg);
+      toast('SMC \u00b7 '+e.msg+' \u00b7 '+sym[0]+' '+tf[0]+' \u00b7 '+smxFmt(e.price),bear?'#c62828':'#2e7d32'); if(P.alSound&&typeof beep==='function') beep(); }); }); }
+{ const _smRE=recomputeExtras; recomputeExtras=function(){ const q=quietNext; const rv=_smRE.apply(this,arguments); try{ smxAlerts(q); }catch(e){ console.error('rsmc alerts',e); } return rv; }; }
+try{ DESC.rsmc='Smart Money Concepts by Reinblacks B: swing and internal market structure (BOS / CHoCH), order blocks, equal highs / lows, fair value gaps, previous day / week / month high and low, strong / weak high and low and premium / discount zones. An information tool - it prints no buy or sell signals'; }catch(e){}
+}catch(err){ console.error('rsmc indicator failed',err); window.__rsmcErr=err; }
