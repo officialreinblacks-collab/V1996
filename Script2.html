@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Script 2 · MarketPlusView tool guides</title>
+<style>
+  :root{--navy:#0b2a6f;--blue:#1f4fd1;--sky:#e8efff;--red:#e53950;--redsoft:#fdebee;--ink:#14213d;--mut:#55627f;--line:#d6def0;--white:#fff}
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth;scroll-padding-top:70px}
+  body{margin:0;background:var(--white);color:var(--ink);font:15px/1.6 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-text-size-adjust:100%}
+  .top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:max(10px,env(safe-area-inset-top)) 14px 10px;background:var(--navy);color:#fff;border-bottom:3px solid var(--red)}
+  .top b{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .top button{flex:0 0 auto;border:0;border-radius:20px;padding:8px 14px;background:var(--red);color:#fff;font:700 13px system-ui,sans-serif;cursor:pointer}
+  .top button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #ffb3be;outline-offset:2px}
+  main{max-width:760px;margin:0 auto;padding:18px 16px calc(40px + env(safe-area-inset-bottom))}
+  h1{margin:6px 0 4px;font-size:26px;line-height:1.2;color:var(--navy)}
+  h2{margin:30px 0 8px;font-size:19px;color:var(--navy);padding-left:10px;border-left:5px solid var(--red)}
+  h3{margin:18px 0 4px;font-size:15px;color:var(--blue)}
+  p{margin:8px 0}
+  .lead{color:var(--mut);font-size:15px;margin:0 0 14px}
+  .tag{display:inline-block;background:var(--red);color:#fff;font-weight:700;font-size:12px;padding:2px 10px;border-radius:12px;vertical-align:middle}
+  .where{background:var(--sky);border:1px solid var(--line);border-left:5px solid var(--blue);border-radius:10px;padding:10px 12px;margin:12px 0}
+  .warn{background:var(--redsoft);border:1px solid #f4bcc5;border-left:5px solid var(--red);border-radius:10px;padding:10px 12px;margin:14px 0}
+  ol.steps{counter-reset:s;list-style:none;padding:0;margin:10px 0}
+  ol.steps li{counter-increment:s;position:relative;padding:8px 10px 8px 46px;margin:8px 0;background:#fff;border:1px solid var(--line);border-radius:10px}
+  ol.steps li::before{content:counter(s);position:absolute;left:10px;top:8px;width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center}
+  ol.steps li:nth-child(even)::before{background:var(--red)}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--navy);color:#fff;font-size:13px;white-space:nowrap}
+  tr:nth-child(even) td{background:#f6f9ff}
+  td:first-child{font-weight:600;color:var(--navy)}
+  .sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px;border:1px solid rgba(0,0,0,.25)}
+  details{border:1px solid var(--line);border-radius:10px;margin:8px 0;background:#fff}
+  summary{cursor:pointer;padding:10px 12px;font-weight:700;color:var(--navy)}
+  details[open] summary{border-bottom:1px solid var(--line);background:var(--sky);border-radius:10px 10px 0 0}
+  details>div{padding:4px 12px 10px}
+  .toollist a{display:block;padding:12px 14px;margin:8px 0;border:1px solid var(--line);border-left:5px solid var(--red);border-radius:10px;color:var(--navy);font-weight:700;text-decoration:none;background:#fff}
+  .done{display:block;width:100%;margin:26px 0 0;padding:13px;border:0;border-radius:12px;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;font:700 15px system-ui,sans-serif;cursor:pointer;box-shadow:0 0 0 2px rgba(229,57,80,.45) inset}
+  .tool{display:none}
+  .tool.on{display:block}
+  #home.off{display:none}
+  .foot{margin-top:26px;color:var(--mut);font-size:12.5px;text-align:center}
+</style>
+</head>
+<body>
+<div class="top"><b id="topTitle">Script 2 · tool guides</b><button type="button" id="closeTop">✕ Close</button></div>
+<main>
+
+<!-- ============ HOME (only shown when no tool is named in the link) ============ -->
+<section id="home">
+  <h1>Script 2 · tool guides</h1>
+  <p class="lead">Guides for the newer MarketPlusView tools. Open a tool's <b>Read script</b> button on the chart and it lands straight on its guide.</p>
+  <div class="toollist"><a href="#icp">ICT Playbook</a></div>
+</section>
+
+<!-- ============ ICT PLAYBOOK ============ -->
+<section class="tool" id="icp" data-title="ICT Playbook">
+  <h1>ICT Playbook <span class="tag">Indicator</span></h1>
+  <p class="lead">Draws the full ICT story on your chart: liquidity gets taken, structure shifts, then a trade box with stop, target and the levels to watch.</p>
+
+  <div class="where"><b>Where to find it:</b> Indicators → Trend → <b>ICT Playbook</b>. Tap the indicator's settings and the <b>📖 Read script</b> button at the top of Inputs opens this page.</div>
+
+  <h2>What it does</h2>
+  <p>ICT Playbook looks for one specific story and draws every step of it so you can read it at a glance:</p>
+  <p>Price builds <b>liquidity</b> (a tight sideways box, or a clear swing high or low) → price <b>grabs</b> that liquidity and snaps back → the market makes a <b>Market Structure Shift (MSS)</b> → a <b>trade box</b> appears with entry, stop and target. Around that story it marks the gaps, order blocks and levels that usually matter next.</p>
+  <p>Both directions are covered. A <b>sell setup</b> starts with buyside liquidity taken above. A <b>buy setup</b> is the exact mirror and starts with sellside liquidity taken below.</p>
+
+  <h2>Quick start</h2>
+  <ol class="steps">
+    <li>Open a liquid market on 5m, 15m or 1h. Scalping and intraday timeframes suit it best.</li>
+    <li>Add <b>ICT Playbook</b> from Indicators → Trend. By default it shows the latest <b>2</b> setups, so the chart stays clean.</li>
+    <li>Wait for the <b>MSS</b> label and the red/green trade box. That is the moment the setup is complete.</li>
+    <li>Read the extra levels (-FVG, -OB, -IOFED, HTF block) to decide where you want to enter. The box entry is the MSS close, the levels give you better prices if price comes back.</li>
+    <li>Check the bigger picture on a higher timeframe before you act. The indicator shows structure, not the news.</li>
+  </ol>
+
+  <h2>How one setup is built</h2>
+  <details open><summary>1 · Liquidity pool</summary><div>
+    <p>Two things count as liquidity. A <b>Liquidity Generation box</b>: a sideways range at least <i>Liquidity box min bars</i> long and not taller than <i>Liquidity box max height</i> × ATR. And a <b>swing high / low</b>, found with <i>Swing length</i> bars on each side (you can turn swings off).</p>
+    <p>The pool line is labelled <b>Buyside Liquidity</b> (above, for sells) or <b>Sellside Liquidity</b> (below, for buys).</p>
+  </div></details>
+  <details open><summary>2 · Liquidity Grab</summary><div>
+    <p>Price pushes through the pool by a meaningful amount, then a candle closes back inside within two candles. A small arc and the words <b>Liquidity Grab</b> mark the spike. The lowest point (or highest, for buys) of the build-up is marked as <b>Accumulation Low / High</b>.</p>
+  </div></details>
+  <details open><summary>3 · MSS (market structure shift)</summary><div>
+    <p>Before the grab, the indicator remembers the last swing in the opposite direction. When a candle <b>closes through that swing</b> inside the <i>MSS search window</i> (and before price makes a new extreme beyond the grab), the dashed <b>MSS</b> line is drawn. If it never closes through in time, there is no setup.</p>
+  </div></details>
+  <details open><summary>4 · Trade box</summary><div>
+    <p><b>Entry</b> is the close of the MSS candle. <b>Stop</b> sits just beyond the grab extreme. <b>Target</b> is the risk multiplied by your <i>Reward : risk</i> (default 1:3). Red = risk, green = reward. The label shows <b>1:3</b> while the trade is open and adds <b>TP</b> or <b>SL</b> once price has hit one of them.</p>
+  </div></details>
+
+  <h2>What you will see on the chart</h2>
+  <div class="scroll"><table>
+    <tr><th>Mark</th><th>Meaning</th></tr>
+    <tr><td>Liquidity Generation</td><td>The grey box where price built up resting orders.</td></tr>
+    <tr><td>Buyside / Sellside Liquidity</td><td>The solid line that price later takes.</td></tr>
+    <tr><td>Liquidity Grab</td><td>The candle that took the liquidity and snapped back.</td></tr>
+    <tr><td>Accumulation Low / High</td><td>Dotted line at the extreme of the build-up.</td></tr>
+    <tr><td>Inversion FVG</td><td>An amber block: a gap that price closed back through, so it flipped from support to resistance (or the reverse).</td></tr>
+    <tr><td>MSS</td><td>Amber dashed line with a 💡 marker where structure breaks.</td></tr>
+    <tr><td>-FVG / -OB / -IOFED</td><td>Levels after the shift. Sell setups use the minus sign. Buy setups mirror them as <b>+FVG, +OB, +IOFED</b>. FVG is a fair value gap, OB an order block, IOFED the midpoint of a gap that price returns into.</td></tr>
+    <tr><td>Breakaway Gap</td><td>Thick red line: a gap that price left behind with strength.</td></tr>
+    <tr><td>Exhaustion Gap</td><td>Blue candle highlight: a late gap far from entry, a sign the move may be tiring.</td></tr>
+    <tr><td>HTF - Rejection Block / Body Lows (Highs)</td><td>The lowest candle body in the look-back window. A sell setup that runs there often reacts.</td></tr>
+  </table></div>
+
+  <h2>Settings</h2>
+  <h3>Setup finding</h3>
+  <div class="scroll"><table>
+    <tr><th>Setting</th><th>Default</th><th>What it does</th></tr>
+    <tr><td>Setups shown (latest)</td><td>2</td><td>How many of the newest setups are drawn. Raise it to see more history, lower it to 1 for the cleanest chart.</td></tr>
+    <tr><td>Swing length</td><td>5</td><td>Bars on each side to count a swing as liquidity. Bigger = fewer, stronger pools.</td></tr>
+    <tr><td>Swing highs / lows count as liquidity</td><td>On</td><td>Turn off to use only the sideways boxes.</td></tr>
+    <tr><td>Liquidity box min bars</td><td>10</td><td>Shortest sideways range that counts as a box.</td></tr>
+    <tr><td>Liquidity box max height</td><td>4 × ATR</td><td>Tallest a range can be and still count as tight.</td></tr>
+    <tr><td>MSS search window</td><td>20 bars</td><td>How long after the grab price has to break structure.</td></tr>
+    <tr><td>Reward : risk</td><td>3</td><td>Target distance as a multiple of the stop distance.</td></tr>
+    <tr><td>HTF body-low look back</td><td>150 bars</td><td>How far back to look for the rejection block.</td></tr>
+    <tr><td>Exhaustion distance</td><td>3 × ATR</td><td>How far from entry a gap must be to count as exhaustion.</td></tr>
+  </table></div>
+  <h3>Show or hide parts</h3>
+  <p>Each part of the drawing has its own switch: Liquidity generation box, Buyside / sellside liquidity line, Liquidity grab, MSS, Accumulation low / high, Inversion FVG, FVG levels, OB levels, IOFED levels, Breakaway gaps, Exhaustion gap, Trade box, HTF rejection block, and the Legend. Switch off what you do not need to keep a minimal chart.</p>
+  <h3>Colours</h3>
+  <div class="scroll"><table>
+    <tr><th>Colour setting</th><th>Default</th></tr>
+    <tr><td>Liquidity box</td><td><span class="sw" style="background:#9aa0a6"></span>#9aa0a6</td></tr>
+    <tr><td>Liquidity line</td><td><span class="sw" style="background:#e6e8ee"></span>#e6e8ee</td></tr>
+    <tr><td>Label</td><td><span class="sw" style="background:#e6e8ee"></span>#e6e8ee</td></tr>
+    <tr><td>Breakaway gap</td><td><span class="sw" style="background:#ef4444"></span>#ef4444</td></tr>
+    <tr><td>Inversion FVG</td><td><span class="sw" style="background:#f59e0b"></span>#f59e0b</td></tr>
+    <tr><td>Exhaustion gap</td><td><span class="sw" style="background:#3b82f6"></span>#3b82f6</td></tr>
+    <tr><td>Risk box</td><td><span class="sw" style="background:#ef4444"></span>#ef4444</td></tr>
+    <tr><td>Reward box</td><td><span class="sw" style="background:#2dd4a7"></span>#2dd4a7</td></tr>
+  </table></div>
+  <p>On a light chart theme, change <b>Label colour</b> and <b>Liquidity line colour</b> to something dark so the words stay readable.</p>
+
+  <h2>Alerts</h2>
+  <p><b>Alert: new setup (MSS)</b> shows a banner such as “ICT Playbook · LONG setup (MSS) · BTCUSDT 15m” when a setup completes on the candle that just closed. Turn on <b>Play a sound</b> for an audible beep. Loading a new symbol or timeframe never fires old alerts.</p>
+
+  <h2>Settings to try</h2>
+  <div class="scroll"><table>
+    <tr><th>Goal</th><th>Try</th></tr>
+    <tr><td>Cleanest chart</td><td>Setups shown 1. Switch off FVG, OB, IOFED, Breakaway and Exhaustion. Keep Liquidity line, Grab, MSS and Trade box.</td></tr>
+    <tr><td>More setups</td><td>Swing length 3, MSS window 30, Setups shown 5.</td></tr>
+    <tr><td>Fewer, stronger setups</td><td>Swing length 8, Liquidity box min bars 15, Reward : risk 3 or higher.</td></tr>
+    <tr><td>Slower markets (4h, 1D)</td><td>Raise HTF look back to 300 and Swing length to 7 or more.</td></tr>
+  </table></div>
+
+  <h2>Good to know</h2>
+  <ul>
+    <li>Setups are built from <b>closed candles</b>. The candle still forming is ignored, so a drawn setup does not vanish when it closes.</li>
+    <li>After a setup completes, the next setup on the same side has to start with a new liquidity grab after that MSS.</li>
+    <li>Only the latest setups are drawn. Raise <i>Setups shown</i> to bring older ones back.</li>
+    <li>Box height, exhaustion distance and stops are measured in ATR, so they scale by themselves between markets.</li>
+  </ul>
+
+  <div class="warn"><b>Important:</b> this is a chart-reading aid, not a promise of profit. Every setup can fail and hit its stop. Test it on a demo or on past candles first and risk only what you can afford to lose.</div>
+
+  <button type="button" class="done" id="closeBottom">Close and return to the chart</button>
+  <p class="foot">Reinblacks Creativz · MarketPlusView</p>
+</section>
+
+</main>
+<script>
+(function(){
+  var home=document.getElementById('home'), tools=[].slice.call(document.querySelectorAll('.tool')), title=document.getElementById('topTitle');
+  function route(){
+    var k=(location.hash||'').replace('#','').trim(), hit=null;
+    tools.forEach(function(t){ var on=t.id===k; t.classList.toggle('on',on); if(on) hit=t; });
+    home.classList.toggle('off',!!hit);
+    title.textContent=hit?('Script 2 · '+hit.getAttribute('data-title')):'Script 2 · tool guides';
+    window.scrollTo(0,0);
+  }
+  function closeMe(){
+    try{ if(window.parent&&window.parent!==window){ window.parent.postMessage({rcs:'close'},'*'); return; } }catch(e){}
+    if(history.length>1) history.back(); else location.hash='';
+  }
+  document.getElementById('closeTop').onclick=closeMe;
+  document.getElementById('closeBottom').onclick=closeMe;
+  window.addEventListener('hashchange',route); route();
+})();
+</script>
+</body>
+</html>
