@@ -1,0 +1,87 @@
+// MarketPlusView service worker: lets the app open with no connection.
+const CACHE = 'marketplusview-shell-v11';
+const LIB = 'https://cdnjs.cloudflare.com/ajax/libs/lightweight-charts/4.1.3/lightweight-charts.standalone.production.js';
+const STATIC_HOSTS = ['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'unpkg.com', 'fonts.googleapis.com', 'fonts.gstatic.com', 'res.cloudinary.com'];
+
+self.addEventListener('install', e => {
+  e.waitUntil((async () => {
+    const c = await caches.open(CACHE);
+    await Promise.all(['./', './index.html', 'manifest.json'].map(async u => { try { await c.put(u, await fetch(new Request(u, { cache: 'reload' }))); } catch (err) {} }));
+    try { await c.put(LIB, await fetch(new Request(LIB, { mode: 'no-cors' }))); } catch (err) {}
+    self.skipWaiting();
+  })());
+});
+
+self.addEventListener('activate', e => {
+  e.waitUntil((async () => {
+    for (const k of await caches.keys()) if (k !== CACHE) await caches.delete(k);
+    await self.clients.claim();
+  })());
+});
+
+const store = async (req, res) => {
+  if (res && (res.ok || res.type === 'opaque')) { try { (await caches.open(CACHE)).put(req, res.clone()); } catch (e) {} }
+  return res;
+};
+
+self.addEventListener('fetch', e => {
+  const req = e.request, url = new URL(req.url);
+  if (req.method !== 'GET' || url.hostname.endsWith('binance.com')) return; // live market data is handled by the app
+
+  // The page itself: network first (so updates arrive), saved copy when offline.
+  if (req.mode === 'navigate') {
+    e.respondWith((async () => {
+      try {
+        const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 4000);
+        const res = await fetch(req, { signal: ctl.signal }); clearTimeout(t);
+        return store('./', res);
+      } catch (err) {
+        return (await caches.match('./')) || (await caches.match(req)) || Response.error();
+      }
+    })());
+    return;
+  }
+
+  // The app's own scripts and pages (auth.js, tools-*.js, engine.js ...): network first so edits show up
+  // right away, saved copy when offline.
+  if (url.origin === location.origin && /\.(js|html|json)$/.test(url.pathname) && url.pathname !== '/sw.js') {
+    e.respondWith((async () => {
+      try {
+        const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 5000);
+        const res = await fetch(req, { signal: ctl.signal, cache: 'no-cache' }); clearTimeout(t);
+        return store(req, res);
+      } catch (err) {
+        return (await caches.match(req)) || Response.error();
+      }
+    })());
+    return;
+  }
+
+  // Libraries, fonts, logo and other files: saved copy first, refreshed in the background.
+  if (url.origin === location.origin || STATIC_HOSTS.includes(url.hostname)) {
+    e.respondWith((async () => {
+      const hit = await caches.match(req);
+      const net = fetch(req).then(res => store(req, res)).catch(() => null);
+      return hit || (await net) || Response.error();
+    })());
+  }
+});
+
+// Tapping an alert notification brings the app forward.
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  e.waitUntil((async () => {
+    const list = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    if (list.length) return list[0].focus();
+    return clients.openWindow('./');
+  })());
+});
+
+// Background push: the push server sends BUY / SELL / TP / SL signals even when the app is closed.
+self.addEventListener('push', e => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (x) { d = { body: e.data ? e.data.text() : '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'MarketPlusView signal', {
+    body: d.body || '', tag: d.tag, renotify: true, vibrate: [200, 100, 200], data: { url: d.url || './' }
+  }));
+});
