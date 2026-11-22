@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Time-of-Day / Session Stats</title>
+<style>
+:root{--bg:#0b0e14;--bg2:#141923;--line:#262c3a;--txt:#e8ecf5;--mut:#8a93ad;--acc:#7c8cff}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--txt);font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;font-size:13px;-webkit-text-size-adjust:100%}
+body{padding:10px 10px calc(env(safe-area-inset-bottom,0px) + 24px)}
+h1{font-size:15px;margin:2px 0 2px}
+.sub{color:var(--mut);font-size:11px;line-height:1.4;margin-bottom:8px}
+.bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}
+.bar input,.bar select{background:var(--bg2);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:7px 8px;font-size:12px;min-width:0}
+.bar input.sy{width:104px;text-transform:uppercase}
+.bar button,.tabs button,.btn{border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--txt);border-radius:9px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer}
+.bar button.go{background:var(--acc);border-color:var(--acc);color:#fff}
+details{border:1px solid var(--line);border-radius:12px;background:var(--bg2);margin:8px 0;padding:0 10px}
+summary{cursor:pointer;padding:9px 0;font-weight:700;font-size:12.5px}
+.set{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:2px 0 10px}
+.set label{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--mut)}
+.set select,.set input[type=number],.set input[type=text]{background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:6px 7px;font-size:12px;width:100%}
+.set .full{grid-column:1/-1}
+.sess{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px;align-items:center;grid-column:1/-1;font-size:12px;color:var(--txt)}
+.sess input[type=text]{font-variant-numeric:tabular-nums}
+.chk{flex-direction:row!important;align-items:center;gap:6px!important;color:var(--txt)!important;font-size:12px!important}
+.status{color:var(--mut);font-size:11px;line-height:1.45;margin:6px 2px}
+.err{color:#ff8097}
+.card{margin:10px 0}
+.card h2{font-size:12.5px;margin:0 0 5px;display:flex;justify-content:space-between;align-items:center}
+.card h2 small{color:var(--mut);font-weight:600;font-size:10.5px}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:11.5px;font-variant-numeric:tabular-nums}
+th,td{padding:5px 7px;text-align:center;white-space:nowrap;border:1px solid #0d0d0d}
+th{font-weight:800}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding:2px 0 6px;-webkit-overflow-scrolling:touch}
+.tabs button{flex:none}
+.tabs button.on{background:rgba(124,140,255,.22);border-color:var(--acc)}
+.note{font-size:10.5px;color:var(--mut);line-height:1.45;margin:10px 2px 0}
+.now{font-weight:900}
+</style>
+</head>
+<body>
+<h1>Time-of-Day / Session Performance Stats</h1>
+<div class="sub">Which hours and sessions move most, and which lean bullish or bearish. Ported from the QuantAlgo Pine script. Runs on Binance candles.</div>
+
+<div class="bar">
+  <input class="sy" id="sym" value="BTCUSDT" aria-label="Binance symbol" spellcheck="false" autocapitalize="characters">
+  <select id="iv" aria-label="Candle interval">
+    <option value="5m">5m</option><option value="15m" selected>15m</option><option value="30m">30m</option><option value="1h">1H</option>
+  </select>
+  <button class="go" id="go" type="button">Load</button>
+</div>
+
+<details>
+  <summary>⚙ Settings</summary>
+  <div class="set">
+    <label>Timezone<select id="tz"></select></label>
+    <label>Lookback (days)<input type="number" id="lb" min="5" max="730" value="90"></label>
+    <label>Min bars per hour<input type="number" id="mb" min="1" max="500" value="10"></label>
+    <label>Range units<select id="ru"><option value="pct">Percent</option><option value="px">Price</option></select></label>
+    <label class="full">Bars to include<select id="inc">
+      <option value="all">All bars</option><option value="any">Any enabled session</option>
+      <option value="0">Sydney</option><option value="1">Tokyo</option><option value="2">London</option><option value="3">New York</option>
+    </select></label>
+    <div class="sess" id="sessBox"></div>
+    <label class="chk full"><input type="checkbox" id="wk"> Weekdays only (Mon-Fri)</label>
+  </div>
+</details>
+
+<div class="status" id="status">Waiting for chart symbol…</div>
+
+<div class="card" id="focusCard"></div>
+<div class="card" id="sessCard"></div>
+
+<div class="card">
+  <h2>Hour ranking <small id="hourSub"></small></h2>
+  <div class="tabs" id="tabs"></div>
+  <div class="scroll" id="board"></div>
+</div>
+
+<div class="note">Hours are bucketed in the chosen timezone. Sessions use the windows above (HHMM-HHMM, an optional :days mask where 1 = Sunday … 7 = Saturday). A bar inside two sessions counts toward both. This reads past behaviour, it is not a prediction or advice.</div>
+
+<script>
+(function(){
+'use strict';
+var $=function(id){ return document.getElementById(id); };
+var BULL=[0,255,170], BEAR=[255,0,0];
+var TZS=[['UTC','UTC'],['local','Device time'],['America/New_York','New York'],['America/Chicago','Chicago'],['Europe/London','London'],['Europe/Berlin','Berlin'],['Africa/Nairobi','Nairobi'],['Asia/Tokyo','Tokyo'],['Asia/Singapore','Singapore'],['Asia/Hong_Kong','Hong Kong'],['Australia/Sydney','Sydney']];
+var SESS=[{n:'Sydney',w:'2200-0700'},{n:'Tokyo',w:'0000-0900'},{n:'London',w:'0800-1600'},{n:'New York',w:'1300-2200'}];
+var IVMS={'5m':300000,'15m':900000,'30m':1800000,'1h':3600000};
+var KEY='rcTodCfg';
+var S={cfg:{tz:'UTC',lb:90,mb:10,ru:'pct',inc:'all',wk:false,sess:[{on:1,w:'2200-0700'},{on:1,w:'0000-0900'},{on:1,w:'0800-1600'},{on:1,w:'1300-2200'}],tab:'act'},
+  sym:'BTCUSDT',iv:'15m',userIv:false,bars:[],busy:false,res:null,token:0,truncated:false};
+try{ var sv=JSON.parse(localStorage.getItem(KEY)||'null'); if(sv){ for(var k in sv) S.cfg[k]=sv[k]; if(!S.cfg.sess||S.cfg.sess.length!==4) S.cfg.sess=[{on:1,w:'2200-0700'},{on:1,w:'0000-0900'},{on:1,w:'0800-1600'},{on:1,w:'1300-2200'}]; } }catch(e){}
+function save(){ try{ localStorage.setItem(KEY,JSON.stringify(S.cfg)); }catch(e){} }
+
+/* ---------- settings UI ---------- */
+$('tz').innerHTML=TZS.map(function(t){ return '<option value="'+t[0]+'">'+t[1]+'</option>'; }).join('');
+$('sessBox').innerHTML=SESS.map(function(s,i){ return '<label class="chk"><input type="checkbox" id="son'+i+'"> '+s.n+'</label><input type="text" id="sw'+i+'" maxlength="16" spellcheck="false"><span></span>'; }).join('');
+function pushCfg(){ var c=S.cfg; $('tz').value=c.tz; $('lb').value=c.lb; $('mb').value=c.mb; $('ru').value=c.ru; $('inc').value=c.inc; $('wk').checked=!!c.wk;
+  for(var i=0;i<4;i++){ $('son'+i).checked=!!c.sess[i].on; $('sw'+i).value=c.sess[i].w; } }
+function pullCfg(){ var c=S.cfg; c.tz=$('tz').value; c.lb=Math.max(5,Math.min(730,+$('lb').value||90)); c.mb=Math.max(1,Math.min(500,+$('mb').value||10)); c.ru=$('ru').value; c.inc=$('inc').value; c.wk=$('wk').checked;
+  for(var i=0;i<4;i++){ c.sess[i].on=$('son'+i).checked?1:0; c.sess[i].w=$('sw'+i).value.trim()||SESS[i].w; } save(); }
+pushCfg();
+
+/* ---------- time helpers (timezone aware) ---------- */
+var fmtCache={};
+function fmtFor(tz){ var key=tz; if(!fmtCache[key]){ var o={hourCycle:'h23',hour:'2-digit',minute:'2-digit',weekday:'short'}; if(tz!=='local') o.timeZone=tz; try{ fmtCache[key]=new Intl.DateTimeFormat('en-GB',o); }catch(e){ o.timeZone='UTC'; fmtCache[key]=new Intl.DateTimeFormat('en-GB',o); } } return fmtCache[key]; }
+var DOW={Sun:1,Mon:2,Tue:3,Wed:4,Thu:5,Fri:6,Sat:7};
+function parts(t,tz){ var p=fmtFor(tz).formatToParts(new Date(t)), h=0,m=0,d=1; for(var i=0;i<p.length;i++){ var x=p[i]; if(x.type==='hour') h=+x.value%24; else if(x.type==='minute') m=+x.value; else if(x.type==='weekday') d=DOW[x.value]||1; } return {h:h,m:m,d:d}; }
+function parseWin(s){ var m=/^(\d{2})(\d{2})-(\d{2})(\d{2})(?::(\d+))?$/.exec(String(s).replace(/\s/g,'')); if(!m) return null; return {s:+m[1]*60+ +m[2],e:+m[3]*60+ +m[4],days:m[5]||''}; }
+function inWin(w,min,dow){ if(!w) return false; if(w.days&&w.days.indexOf(String(dow))<0) return false; if(w.s===w.e) return true; return w.s<w.e?(min>=w.s&&min<w.e):(min>=w.s||min<w.e); }
+function winLabel(s){ var m=/^(\d{2})(\d{2})-(\d{2})(\d{2})/.exec(s); return m?m[1]+':'+m[2]+'-'+m[3]+':'+m[4]:s; }
+function hh(h){ return (h<10?'0':'')+h+':00'; }
+
+/* ---------- colours (same gradient logic as the Pine script) ---------- */
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function grad(t){ var f=t==null||isNaN(t)?0:clamp(t,0,1);
+  var r=BULL[0]+(BEAR[0]-BULL[0])*f, g=BULL[1]+(BEAR[1]-BULL[1])*f, b=BULL[2]+(BEAR[2]-BULL[2])*f;
+  var want=Math.max.apply(null,BULL)+(Math.max.apply(null,BEAR)-Math.max.apply(null,BULL))*f, mx=Math.max(r,g,b), k=mx>0?want/mx:1;
+  return [Math.min(255,r*k),Math.min(255,g*k),Math.min(255,b*k)]; }
+function rgb(c){ return 'rgb('+Math.round(c[0])+','+Math.round(c[1])+','+Math.round(c[2])+')'; }
+function ink(c){ return (0.299*c[0]+0.587*c[1]+0.114*c[2])>128?'#000':'#fff'; }
+function dim(c,k){ return [c[0]*k,c[1]*k,c[2]*k]; }
+
+/* ---------- number formatting ---------- */
+function trim(v,d){ return (+v.toFixed(d)).toString(); }
+function fRange(v){ if(v==null) return '-'; if(S.cfg.ru==='pct') return trim(v,3)+'%'; return v>=1000?trim(v/1000,2)+'K':v>=1?trim(v,2):trim(v,5); }
+function fVol(v){ if(v==null) return '-'; return v>=1e9?trim(v/1e9,2)+'B':v>=1e6?trim(v/1e6,2)+'M':v>=1e3?trim(v/1e3,1)+'K':trim(v,0); }
+function fPct(v){ return v==null?'-':trim(v,1)+'%'; }
+function fSgn(v){ return v==null?'-':(v>0?'+':'')+trim(v,3)+'%'; }
+function fNum(v){ return v==null?'-':trim(v,1); }
+
+/* ---------- ranking maths ---------- */
+function rankDesc(vals){ var idx=[]; for(var i=0;i<vals.length;i++) if(vals[i]!=null) idx.push(i); idx.sort(function(a,b){ return vals[b]-vals[a]||a-b; }); return idx; }
+function rankPos(vals,i){ var here=vals[i]; if(here==null) return null; var hi=0,tot=0; for(var k=0;k<vals.length;k++){ var o=vals[k]; if(o!=null){ tot++; if(o>here) hi++; } } return tot>1?hi/(tot-1):0; }
+function percentiles(vals){ return vals.map(function(v,i){ var p=rankPos(vals,i); return p==null?null:100*(1-p); }); }
+
+/* ---------- core statistics ---------- */
+function compute(){
+  var c=S.cfg, bars=S.bars, tz=c.tz, W=c.sess.map(function(s){ return parseWin(s.w); });
+  var H={rp:new Array(24).fill(0),rx:new Array(24).fill(0),vol:new Array(24).fill(0),dr:new Array(24).fill(0),n:new Array(24).fill(0),up:new Array(24).fill(0),di:new Array(24).fill(0)};
+  var X={rp:[0,0,0,0],rx:[0,0,0,0],dr:[0,0,0,0],n:[0,0,0,0],up:[0,0,0,0],di:[0,0,0,0]};
+  var hs=new Array(96).fill(0), sampled=0, volTotal=0, oldest=null;
+  if(!bars.length) return null;
+  var lastT=bars[bars.length-1][0], earliest=lastT-c.lb*86400000;
+  for(var i=0;i<bars.length;i++){
+    var b=bars[i], t=b[0], o=b[1], h=b[2], l=b[3], cl=b[4], v=b[5];
+    if(t<earliest) continue;
+    if(!(cl>0&&o>0)) continue;
+    var p=parts(t,tz), min=p.h*60+p.m, dayOk=c.wk?(p.d>=2&&p.d<=6):true;
+    var ins=[0,0,0,0], any=false;
+    for(var s=0;s<4;s++){ ins[s]=(c.sess[s].on&&dayOk&&inWin(W[s],min,p.d))?1:0; if(ins[s]) any=true; }
+    var incl=c.inc==='all'?true:c.inc==='any'?any:!!ins[+c.inc];
+    if(!incl) continue;
+    var rpx=Math.max(h-l,0), rpc=rpx/cl*100, dr=(cl-o)/o*100, dir=cl!==o, up=cl>o, hr=p.h;
+    H.rx[hr]+=rpx; H.rp[hr]+=rpc; H.vol[hr]+=v||0; H.dr[hr]+=dr; H.n[hr]++; if(dir){ H.di[hr]++; if(up) H.up[hr]++; }
+    for(var s2=0;s2<4;s2++) if(ins[s2]){ X.rx[s2]+=rpx; X.rp[s2]+=rpc; X.dr[s2]+=dr; X.n[s2]++; if(dir){ X.di[s2]++; if(up) X.up[s2]++; } hs[hr*4+s2]++; }
+    volTotal+=v||0; sampled++; if(oldest==null) oldest=t;
+  }
+  var hasVol=volTotal>0, mb=c.mb;
+  function avg(sum,n,min){ return sum.map(function(s,i){ return n[i]>=min?s/n[i]:null; }); }
+  var R=avg(c.ru==='pct'?H.rp:H.rx,H.n,mb), V=avg(H.vol,H.n,mb), D=avg(H.dr,H.n,mb);
+  var B=H.n.map(function(n,i){ return (n>=mb&&H.di[i]>0)?100*H.up[i]/H.di[i]:null; });
+  var E=B.map(function(x){ return x==null?null:Math.abs(x-50); });
+  var pR=percentiles(R), pV=percentiles(V), pE=percentiles(E);
+  var SC=pR.map(function(a,i){ if(a==null) return null; var tot=a,cnt=1; if(hasVol&&pV[i]!=null){ tot+=pV[i]; cnt++; } if(pE[i]!=null){ tot+=pE[i]; cnt++; } return tot/cnt; });
+  var SR=[0,1,2,3].map(function(s){ return X.n[s]>0?(c.ru==='pct'?X.rp[s]:X.rx[s])/X.n[s]:null; });
+  var SB=[0,1,2,3].map(function(s){ return X.di[s]>0?100*X.up[s]/X.di[s]:null; });
+  var SD=[0,1,2,3].map(function(s){ return X.n[s]>0?X.dr[s]/X.n[s]:null; });
+  var keys=[0,1,2,3].map(function(s){ return c.sess[s].on?(SR[s]==null?-1:SR[s]):null; });
+  return {H:H,hasVol:hasVol,sampled:sampled,days:oldest==null?0:(lastT-oldest)/86400000,R:R,V:V,B:B,D:D,SC:SC,hs:hs,
+    rank:{act:rankDesc(R),vol:rankDesc(V),bias:rankDesc(B),drift:rankDesc(D),score:rankDesc(SC)},
+    S:{R:SR,B:SB,D:SD,n:X.n,rank:rankDesc(keys)}};
+}
+
+/* ---------- rendering ---------- */
+function cell(txt,bg,tag,extra){ var c=bg; return '<'+(tag||'td')+' style="background:'+rgb(c)+';color:'+ink(c)+(extra||'')+'">'+txt+'</'+(tag||'td')+'>'; }
+function band(txt,span){ return '<tr>'+'<th colspan="'+span+'" style="background:'+rgb(BULL)+';color:'+ink(BULL)+'">'+txt+'</th></tr>'; }
+function hourSess(res,h){ var n=res.H.n[h], out=[]; if(n>0) for(var s=0;s<4;s++) if(res.hs[h*4+s]*5>=n) out.push(SESS[s].n); return out.length?out.join(' / '):'None'; }
+function nowHour(){ return parts(Date.now(),S.cfg.tz).h; }
+
+function renderBoard(res){
+  var tabs=[['act','Activity','Range'],['vol','Volume','Volume'],['bias','Bias','Bull %'],['drift','Drift','Drift'],['score','Aggregated','Score']].filter(function(t){ return t[0]!=='vol'||res.hasVol; });
+  if(!tabs.some(function(t){ return t[0]===S.cfg.tab; })) S.cfg.tab='act';
+  $('tabs').innerHTML=tabs.map(function(t){ return '<button type="button" data-t="'+t[0]+'" class="'+(S.cfg.tab===t[0]?'on':'')+'">'+t[1]+'</button>'; }).join('');
+  [].forEach.call($('tabs').querySelectorAll('button'),function(b){ b.onclick=function(){ S.cfg.tab=b.dataset.t; save(); renderBoard(res); }; });
+  var tab=tabs.filter(function(t){ return t[0]===S.cfg.tab; })[0];
+  var map={act:[res.rank.act,res.R,fRange],vol:[res.rank.vol,res.V,fVol],bias:[res.rank.bias,res.B,fPct],drift:[res.rank.drift,res.D,fSgn],score:[res.rank.score,res.SC,fNum]}[tab[0]];
+  var order=map[0], vals=map[1], f=map[2], n=order.length, nh=nowHour();
+  var head=dim(BULL,.42), html='<table>'+band(tab[1]+' ranking',3)+'<tr>'+cell('Hour',head,'th')+cell(tab[2],head,'th')+cell('Rank',head,'th')+'</tr>';
+  for(var i=0;i<n;i++){ var h=order[i], bg=grad(n<=1?0:i/(n-1)), cur=h===nh;
+    html+='<tr>'+cell(hh(h)+(cur?' ◀':''),bg,'td',cur?';font-weight:900':'')+cell(f(vals[h]),bg)+cell(String(i+1),bg)+'</tr>'; }
+  html+='</table>';
+  $('board').innerHTML=n?html:'<div class="status">No hour has enough bars yet. Lower “Min bars per hour” or raise the lookback.</div>';
+  $('hourSub').textContent=n+' of 24 hours listed · now '+hh(nh);
+}
+function renderSessions(res){
+  var o=res.S.rank, head=dim(BULL,.42);
+  if(!o.length){ $('sessCard').innerHTML=''; return; }
+  var html='<h2>Session ranking <small>'+tzLabel()+'</small></h2><div class="scroll"><table><tr>'+['Session','Window','Range','Bull %','Drift','Bars','Rank'].map(function(x){ return cell(x,head,'th'); }).join('')+'</tr>';
+  for(var i=0;i<o.length;i++){ var s=o[i], bg=grad(o.length<=1?0:i/(o.length-1)), nb=res.S.n[s];
+    html+='<tr>'+cell(SESS[s].n,bg)+cell(winLabel(S.cfg.sess[s].w),bg)+cell(fRange(res.S.R[s]),bg)+cell(fPct(res.S.B[s]),bg)+cell(fSgn(res.S.D[s]),bg)+cell(String(nb),bg)+cell(nb>0?String(i+1):'-',bg)+'</tr>'; }
+  $('sessCard').innerHTML=html+'</table></div>';
+}
+function renderFocus(res){
+  var src=res.rank.score.length?res.rank.score:res.rank.act; if(!src.length){ $('focusCard').innerHTML=''; return; }
+  var a=src[0], b=src.length>1?src[1]:a, c3=src.length>2?src[2]:b, worst=res.rank.act[res.rank.act.length-1], head=dim(BULL,.42);
+  function row(plan,hours,w,h,bg){ return '<tr>'+cell(plan,bg)+cell(hours,bg)+cell(w,bg)+cell(hourSess(res,h),bg)+cell(fPct(res.B[h]),bg)+cell(fSgn(res.D[h]),bg)+cell(fNum(res.SC[h]),bg)+'</tr>'; }
+  var html='<h2>Focus hours <small>now '+hh(nowHour())+' · '+hourSess(res,nowHour())+'</small></h2><div class="scroll"><table><tr>'+['Plan','Hours','Weights','Session','Bull %','Drift','Score'].map(function(x){ return cell(x,head,'th'); }).join('')+'</tr>'
+   +row('Aggressive',hh(a),'100%',a,grad(0))
+   +row('Mix',hh(a)+' / '+hh(b),'80 / 20%',b,grad(.18))
+   +row('Conservative',hh(a)+' / '+hh(b)+' / '+hh(c3),'50 / 30 / 20%',c3,grad(.36))
+   +row('Avoid',hh(worst),'quietest',worst,grad(1))
+   +'</table></div>';
+  $('focusCard').innerHTML=html;
+}
+function tzLabel(){ var t=S.cfg.tz; return t==='local'?'Device time':t.split('/').pop().replace(/_/g,' '); }
+function render(){
+  var res=S.res; if(!res){ return; }
+  $('status').className='status';
+  if(!res.sampled){ $('status').textContent='No bars matched for '+S.sym+'. Widen the lookback or relax “Bars to include”.'; $('focusCard').innerHTML=$('sessCard').innerHTML=$('board').innerHTML=''; $('tabs').innerHTML=''; return; }
+  $('status').textContent=S.sym+' · '+S.iv+' · '+Math.round(res.days)+' of '+S.cfg.lb+' days measured'+(S.truncated?' (hit the 5000-bar cap, use a higher interval to reach further)':'')+' · '+res.sampled.toLocaleString()+' bars · '+res.rank.act.length+' of 24 hours qualified'+(res.hasVol?'':' · no volume reported');
+  renderFocus(res); renderSessions(res); renderBoard(res);
+}
+function recompute(){ try{ S.res=compute(); render(); }catch(e){ $('status').className='status err'; $('status').textContent='Could not calculate: '+e.message; } }
+
+/* ---------- data (Binance klines, paged back up to 5000 bars) ---------- */
+function fetchJson(u){ return fetch(u).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); }); }
+function page(base,sym,iv,end){ var u='/klines?symbol='+encodeURIComponent(sym)+'&interval='+iv+'&limit=1000'+(end?'&endTime='+end:''); return fetchJson(base[0]+base[1]+u); }
+function load(){
+  var token=++S.token, sym=S.sym.toUpperCase().replace(/[^A-Z0-9]/g,''), iv=S.iv, step=IVMS[iv]*1000;
+  if(!sym){ return; }
+  if(/^DRV/.test(sym)){ $('status').className='status err'; $('status').textContent='This tool reads Binance candles. '+S.sym+' is not a Binance symbol, so type one above (for example BTCUSDT) and tap Load.'; return; }
+  S.busy=true; $('status').className='status'; $('status').textContent='Loading '+sym+' '+iv+'…';
+  var need=Math.min(5000,Math.ceil(S.cfg.lb*86400000/IVMS[iv])), pages=Math.max(1,Math.ceil(need/1000)), now=Date.now();
+  S.truncated=Math.ceil(S.cfg.lb*86400000/IVMS[iv])>5000;
+  var bases=[['https://api.binance.com','/api/v3'],['https://fapi.binance.com','/fapi/v1']];
+  function run(bi){
+    var jobs=[]; for(var p=0;p<pages;p++) jobs.push(page(bases[bi],sym,iv,p===0?0:now-p*step));
+    return Promise.all(jobs).then(function(arrs){ var all=[]; arrs.forEach(function(a){ all=all.concat(a); }); return all; });
+  }
+  run(0).catch(function(){ return run(1); }).then(function(all){
+    if(token!==S.token) return;
+    var seen={}, out=[]; all.forEach(function(k){ if(!seen[k[0]]){ seen[k[0]]=1; out.push([+k[0],+k[1],+k[2],+k[3],+k[4],+k[5]]); } });
+    out.sort(function(a,b){ return a[0]-b[0]; });
+    if(out.length>5000) out=out.slice(out.length-5000);
+    S.bars=out; S.busy=false; recompute();
+  }).catch(function(e){ if(token!==S.token) return; S.busy=false; $('status').className='status err'; $('status').textContent='Could not load '+sym+' ('+(e&&e.message||'network error')+'). Check the symbol, e.g. BTCUSDT, and your connection.'; });
+}
+
+/* ---------- wiring ---------- */
+$('go').onclick=function(){ S.sym=$('sym').value.trim()||'BTCUSDT'; S.iv=$('iv').value; S.userIv=true; load(); };
+$('sym').addEventListener('keydown',function(e){ if(e.key==='Enter') $('go').click(); });
+$('iv').onchange=function(){ S.iv=$('iv').value; S.userIv=true; load(); };
+['tz','ru','inc','wk'].forEach(function(id){ $(id).onchange=function(){ pullCfg(); recompute(); }; });
+['lb','mb'].forEach(function(id){ $(id).onchange=function(){ var old=S.cfg.lb; pullCfg(); if(id==='lb'&&S.cfg.lb!==old) load(); else recompute(); }; });
+for(var i=0;i<4;i++){ $('son'+i).onchange=function(){ pullCfg(); recompute(); }; $('sw'+i).onchange=function(){ pullCfg(); recompute(); }; }
+
+var started=false;
+function begin(){ if(started) return; started=true; load(); }
+window.addEventListener('message',function(e){
+  var d=e.data; if(!d||d.type!=='tod-sym') return;
+  var sym=String(d.sym||'').toUpperCase(), tfv=String(d.tf||'');
+  var ivNew=S.userIv?S.iv:(IVMS[tfv]?tfv:S.iv), changed=false;
+  if(sym&&sym!==S.sym){ S.sym=sym; $('sym').value=sym; changed=true; }
+  if(ivNew!==S.iv){ S.iv=ivNew; $('iv').value=ivNew; changed=true; }
+  if(!started){ started=true; load(); } else if(changed) load();
+});
+try{ if(window.parent&&window.parent!==window) window.parent.postMessage({type:'tod-ready'},'*'); }catch(e){}
+setTimeout(begin,900);
+setInterval(function(){ if(S.res&&!document.hidden) render(); },60000);   /* keeps the "now" marker current */
+})();
+</script>
+</body>
+</html>
