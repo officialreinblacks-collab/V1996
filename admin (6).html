@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>MarketPlusView Admin</title>
+<style>
+:root{--bg:#eef3fb;--card:#fff;--line:#d9e2f2;--txt:#0b1f4d;--mut:#5b6b8c;--blue:#1d4ed8;--blue2:#2563eb;--red:#dc2626;--ok:#16a34a;--soft:#eaf0fc;--acc:#1d4ed8;--acc2:#dc2626}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--txt);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;padding:calc(env(safe-area-inset-top,0px) + 14px) 12px 40px;border-top:5px solid var(--red)}
+.wrap{max-width:980px;margin:0 auto}
+h1{font-size:23px;margin:4px 0 2px}
+h2{font-size:16px;margin:0}
+.sub{color:var(--mut);font-size:13px;margin:0 0 14px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px;box-shadow:0 2px 10px rgba(29,78,216,.07)}
+select,input{width:100%;background:#fff;color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:16px;margin-bottom:10px;outline:none}
+input:focus,select:focus{border-color:var(--blue)}
+label{display:block;font-size:13px;color:var(--mut);margin:0 0 4px}
+.row{display:flex;gap:10px}.row>div{flex:1}
+button{border:0;border-radius:12px;padding:12px 14px;font-size:15px;font-weight:600;color:#fff;background:linear-gradient(135deg,var(--blue),var(--blue2));cursor:pointer}
+button.ghost{background:var(--soft);color:var(--blue)}
+button.sm{padding:7px 10px;font-size:12.5px;border-radius:9px;white-space:nowrap}
+button.danger{background:#fde8e8;color:var(--red)}
+.full{width:100%}
+.tabs{display:flex;gap:6px;margin-bottom:14px;position:sticky;top:0;z-index:5;background:var(--bg);padding:6px 0}
+.tabs button,.ptabs button{flex:1;background:#fff;color:var(--mut);border:1px solid var(--line)}
+.tabs button.on,.ptabs button.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+.ptabs{display:flex;gap:6px;margin:10px 0}.ptabs button{padding:8px;font-size:13px}
+.live{display:flex;align-items:center;gap:10px;font-size:15px}.live b{font-size:34px;line-height:1;color:var(--blue)}.dot{width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:0 0 0 0 rgba(220,38,38,.6);animation:pu 1.6s infinite}
+@keyframes pu{70%{box-shadow:0 0 0 9px rgba(220,38,38,0)}100%{box-shadow:0 0 0 0 rgba(220,38,38,0)}}
+.msg{font-size:14px;color:var(--red);min-height:18px;margin-bottom:8px}.msg.ok{color:var(--ok)}
+.item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:0}
+.code{font-weight:700;letter-spacing:.05em;font-variant-numeric:tabular-nums}
+.meta{font-size:12px;color:var(--mut);margin-top:2px;word-break:break-word}
+.acts{display:flex;gap:6px;flex:none}
+textarea{width:100%;height:120px;background:#fff;color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:12px;font:600 15px ui-monospace,monospace;letter-spacing:.04em;margin:10px 0}
+.empty{color:var(--mut);font-size:14px;padding:8px 0}
+.hide{display:none}
+.tabs button{padding:12px 4px;font-size:13px}
+.bar{display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0}.bar span{width:34px;color:var(--mut)}.bt{flex:1;background:var(--soft);border-radius:4px;height:8px}.bt i{display:block;height:8px;border-radius:4px;background:linear-gradient(90deg,var(--blue),var(--red));min-width:2px}.bar b{width:30px;text-align:right}
+.st{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}.st div{background:var(--soft);border-radius:12px;padding:10px;border-left:4px solid var(--blue)}.st div:nth-child(4n+3),.st div:nth-child(4n+4){border-left-color:var(--red)}.st b{display:block;font-size:24px}.st span{font-size:12px;color:var(--mut)}
+@media(min-width:700px){.st{grid-template-columns:repeat(4,1fr)}}
+.vn{font-size:22px;font-weight:700}
+.tag{font-size:11px;padding:2px 7px;border-radius:20px;background:var(--blue);color:#fff;margin-left:6px;font-weight:600}.tag.g{background:#e6e9f1;color:var(--mut)}.tag.r{background:var(--red)}
+/* simple tables */
+table{width:100%;border-collapse:collapse;font-size:14px}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:12px;border:1px solid var(--line)}
+.dt{min-width:100%;font-size:13px}
+.dt th{background:var(--blue);color:#fff;text-align:left;padding:9px 8px;font-size:11.5px;font-weight:700;letter-spacing:.03em;white-space:nowrap;position:sticky;top:0}
+.dt td{padding:8px;text-align:left;border-top:1px solid var(--line);vertical-align:middle;white-space:nowrap;font-variant-numeric:tabular-nums}
+.dt tbody tr:nth-child(even){background:#f6f9ff}
+.dt td.em{white-space:normal;word-break:break-all;min-width:150px;font-weight:600}
+.dt td b{display:block;font-weight:700}.dt td small{display:block;color:var(--mut);font-size:11px}
+.dt .mut,.mut{color:var(--mut)}
+.dt td.r,.dt th.r{text-align:right}
+.sec .sh{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px}
+.cnt{font-style:normal;font-size:12px;background:var(--red);color:#fff;border-radius:20px;padding:2px 9px;margin-left:6px;vertical-align:2px}
+.left{font-weight:700;color:var(--blue)}.left.low{color:var(--red)}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:var(--soft);color:var(--blue)}.pill.r{background:#fde8e8;color:var(--red)}
+.wrap{position:relative}
+.xexit{position:absolute;top:2px;right:0;width:34px;height:34px;border-radius:50%;border:0;background:#0b2a5b;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;margin:0;box-shadow:0 2px 10px rgba(11,42,91,.3);z-index:5}
+.xexit svg{width:15px;height:15px}
+.xexit:active{transform:scale(.94)}
+h1{padding-right:44px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <button class="xexit" id="xexit" type="button" aria-label="Exit admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+  <h1><span style="color:#dc2626">Market</span><span style="color:#2563eb">Plus</span><span style="color:#0b1f4d">View</span> Admin</h1>
+  <p class="sub" id="who">Sign in with your admin email.</p>
+
+  <div class="box" id="login">
+    <input id="e" type="email" inputmode="email" placeholder="Admin email" autocomplete="email">
+    <input id="p" type="password" placeholder="Password" autocomplete="current-password">
+    <div class="msg" id="lm"></div>
+    <button class="full" id="go">Sign in</button>
+  </div>
+
+  <div id="app" class="hide">
+    <div class="tabs"><button data-t="gen" class="on">Generate</button><button data-t="codes">Codes</button><button data-t="mem">Members</button><button data-t="vis">Visits</button><button data-t="vr">Visitors</button></div>
+
+    <div class="box" id="t-gen">
+      <label>Plan</label><select id="pl"><option value="silver">Pro Plus Metal · $19 per month</option><option value="trial">Free trial (7 days, Pro Plus Metal access)</option></select>
+      <div class="row"><div><label>How many codes</label><input id="n" type="number" min="1" max="50" value="1"></div>
+      <div><label>Days of access (30 = monthly, 365 = yearly)</label><input id="d" type="number" min="1" max="365" value="30"></div></div>
+      <label>Note (optional, e.g. who it is for, or which ad / offer it came from)</label><input id="note" type="text" placeholder="e.g. John, paid Oct, Binance ad">
+      <div class="msg" id="gm"></div>
+      <button class="full" id="mk">Generate codes</button>
+      <div id="out" class="hide"><textarea id="ta" readonly></textarea><button class="ghost full" id="cp">Copy all</button></div>
+    </div>
+
+    <div class="box hide" id="t-codes"><div id="codes"></div></div>
+
+    <div class="hide" id="t-mem"><div id="mem"></div></div>
+
+    <div class="box hide" id="t-vis">
+      <div class="live"><span class="dot"></span><b id="lv">0</b><div>live now<div class="meta" id="lvs"></div></div></div>
+      <div class="ptabs"><button data-p="day" class="on">Daily</button><button data-p="week">Weekly</button><button data-p="month">Monthly</button></div>
+      <div id="vt"></div>
+      <div class="meta" style="margin-top:10px">Live = active in the last 2 minutes. Visit = one browser tab session. Unique = different devices. Refreshes every 20 seconds.</div>
+    </div>
+    <div class="box hide" id="t-vr"><div id="vrt"></div><div class="meta" style="margin-top:10px">One visitor = one device. A new visit counts after 30 minutes away. Times are in your local time.</div></div>
+    <button class="ghost full" id="so">Sign out</button>
+  </div>
+</div>
+
+<script>
+var SB_URL='https://ssukfrvtknfsccqxqkjh.supabase.co', SB_KEY='sb_publishable_qjmaCvag0XhnMlipWFHCeA_fwt3CqST', sb;
+var $=function(i){return document.getElementById(i)};
+var esc=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})};
+var PN={metal:'Pro Plus Metal',pro:'Pro Plus Metal',platinum:'Pro Plus Metal',gold:'Pro Plus Metal',silver:'Pro Plus Metal',starter:'Pro Plus Metal',trial:'Free trial'},pn=function(p){return PN[p]||p};
+var fd=function(t){return new Date(t).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'})};
+var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function say(id,t,ok){var m=$(id);m.textContent=t||'';m.className='msg'+(ok?' ok':'')}
+/* date + time cell: day month on top, time under it */
+function dc(t){if(!t)return'<span class="mut">-</span>';var d=new Date(t),y=d.getFullYear()!==new Date().getFullYear()?' '+d.getFullYear():'',hh=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);return'<b>'+d.getDate()+' '+MON[d.getMonth()]+y+'</b><small>'+hh+'</small>'}
+function left(ex){var ms=new Date(ex).getTime()-Date.now();if(ms<=0)return'<span class="left low">ended</span>';var h=Math.ceil(ms/36e5);return h<24?'<span class="left low">'+h+'h</span>':'<span class="left'+(h<=48?' low':'')+'">'+Math.ceil(ms/864e5)+'d</span>'}
+function ago(t){if(!t)return'-';var d=Math.floor((Date.now()-new Date(t).getTime())/864e5);return d<=0?'today':d+'d ago'}
+
+async function enter(){
+  var s=(await sb.auth.getSession()).data.session;
+  if(!s){$('login').classList.remove('hide');$('app').classList.add('hide');return}
+  var a=await sb.rpc('is_admin');
+  if(a.error||a.data!==true){$('who').textContent='Signed in as '+s.user.email+' (not an admin)';$('login').classList.add('hide');$('app').classList.add('hide');$('login').insertAdjacentHTML('beforebegin','<div class="box" id="na"><div class="msg">This account is not an admin. Sign out and use the admin email.</div><button class="ghost full" onclick="out()">Sign out</button></div>');return}
+  var n=$('na');if(n)n.remove();
+  $('who').textContent='Signed in as '+s.user.email;$('login').classList.add('hide');$('app').classList.remove('hide');
+  loadCodes();loadMem();
+}
+var VP='day',vtimer=null;
+function vlabel(d,p){var x=new Date(d+'T00:00:00');if(p==='month')return x.toLocaleDateString(undefined,{month:'short',year:'numeric'});if(p==='week')return 'Wk '+x.toLocaleDateString(undefined,{day:'numeric',month:'short'});return x.toLocaleDateString(undefined,{day:'numeric',month:'short'})}
+async function loadVis(){
+  var l=await sb.rpc('live_now'),el=$('vt');
+  if(l.error){el.innerHTML='<div class="msg">'+esc(l.error.message)+'</div>';return}
+  var d=(l.data&&l.data[0])||{live:0,guests:0,members:0};$('lv').textContent=d.live;$('lvs').textContent=d.guests+' not signed in \u00b7 '+d.members+' members';
+  var r=await sb.rpc('visit_stats',{p:VP});
+  if(r.error){el.innerHTML='<div class="msg">'+esc(r.error.message)+'</div>';return}
+  if(!r.data.length){el.innerHTML='<div class="empty">No visits recorded yet.</div>';return}
+  el.innerHTML='<div class="tw"><table class="dt"><thead><tr><th>'+(VP==='day'?'Day':VP==='week'?'Week':'Month')+'</th><th class="r">Visits</th><th class="r">Unique</th><th class="r">Not signed in</th><th class="r">Members</th></tr></thead><tbody>'+r.data.map(function(x){return'<tr><td><b>'+esc(vlabel(x.period,VP))+'</b></td><td class="r">'+x.visits+'</td><td class="r">'+x.unique_visitors+'</td><td class="r">'+x.guests+'</td><td class="r">'+x.members+'</td></tr>'}).join('')+'</tbody></table></div>';
+}
+var DN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+var hl=function(h){return (h%12||12)+(h<12?'am':'pm')};
+function funnelHtml(f,L){
+  var h='',x=f.data&&f.data[0];
+  if(x&&x.visitors>0){var pc=function(n,d){return d?Math.round(n/d*100)+'%':'0%'},T=function(n,l){return'<div><b>'+n+'</b><span>'+l+'</span></div>'};
+    h+='<div class="meta" style="margin:12px 0 6px">Funnel</div><div class="st">'+T(x.visitors,'Visitors')+T(x.members+' ('+pc(x.members,x.visitors)+')','Signed up')+T(x.from_guest+' ('+pc(x.from_guest,x.guests+x.from_guest)+')','Guests who later signed up')+T(x.paid+' ('+pc(x.paid,x.members)+')','Members who paid')+'</div>'}
+  if(L&&!L.error&&L.data.length)h+='<div class="meta" style="margin:12px 0 6px">Most tapped locked tools</div><div class="tw"><table class="dt"><thead><tr><th>Tool</th><th class="r">People</th><th class="r">Taps</th></tr></thead><tbody>'+L.data.map(function(r){return'<tr><td class="em">'+esc(r.name)+'</td><td class="r">'+r.people+'</td><td class="r"><b>'+r.clicks+'</b></td></tr>'}).join('')+'</tbody></table></div>';
+  return h;
+}
+async function loadVr(){
+  var el=$('vrt'),tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
+  var a=await sb.rpc('visitor_list'),b=await sb.rpc('visit_peaks',{p_tz:tz}),f=await sb.rpc('funnel_stats'),L=await sb.rpc('lock_stats');
+  if(a.error){el.innerHTML='<div class="msg">'+esc(a.error.message)+'</div>';return}
+  if(!a.data.length){el.innerHTML='<div class="empty">No visitors yet.</div>';return}
+  var tv=a.data.reduce(function(s,x){return s+x.visits},0),mem=a.data.filter(function(x){return x.email}).length,ret=a.data.filter(function(x){return x.visits>1}).length;
+  var h='<div class="live"><b>'+a.data.length+'</b><div>visitors<div class="meta">'+mem+' members \u00b7 '+(a.data.length-mem)+' not signed in (old guests) \u00b7 '+tv+' total visits</div></div></div>';
+  h+='<div class="st" style="margin-top:12px"><div><b>'+ret+' ('+Math.round(ret/a.data.length*100)+'%)</b><span>Came back (2+ visits)</span></div><div><b>'+(tv/a.data.length).toFixed(1)+'</b><span>Visits per visitor</span></div></div>';
+  h+=funnelHtml(f,L);
+  if(!b.error&&b.data.length){
+    var hr=b.data.filter(function(x){return x.kind==='hour'}).sort(function(x,y){return y.n-x.n}).slice(0,3);
+    var dw={};b.data.forEach(function(x){if(x.kind==='dow')dw[x.k]=x.n});
+    var mx=Math.max.apply(null,Object.keys(dw).map(function(k){return dw[k]}).concat([1]));
+    h+='<div class="meta" style="margin-top:12px">Most visited hours: <b style="color:var(--txt)">'+hr.map(function(x){return hl(x.k)+' ('+x.n+')'}).join(', ')+'</b></div><div class="meta" style="margin:10px 0 4px">Visits by day</div>';
+    for(var i=0;i<7;i++){var n=dw[i]||0;h+='<div class="bar"><span>'+DN[i]+'</span><div class="bt"><i style="width:'+Math.round(n/mx*100)+'%"></i></div><b>'+n+'</b></div>'}
+  }
+  h+='<div class="meta" style="margin:14px 0 6px">All visitors, newest activity first</div><div class="tw"><table class="dt"><thead><tr><th>ID</th><th>Email</th><th>First visit</th><th>Last visit</th><th class="r">Visits</th></tr></thead><tbody>'+a.data.map(function(x){
+    var id=String(x.id).padStart(5,'0');
+    return'<tr><td><b>'+id+'</b><span class="pill'+(x.email?'':' r')+'">'+(x.email?'Member':'Not signed in')+'</span></td><td class="em">'+(x.email?esc(x.email)+' <button class="sm ghost" data-copy="'+esc(x.email)+'">Copy</button>':'<span class="mut">-</span>')+'</td><td>'+dc(x.first_seen)+'</td><td>'+dc(x.last_seen)+'</td><td class="r"><b>'+x.visits+'</b></td></tr>'}).join('')+'</tbody></table></div>';
+  el.innerHTML=h;
+}
+async function out(){await sb.auth.signOut();location.reload()}
+
+function code(){var A='ABCDEFGHJKMNPQRSTUVWXYZ23456789',b=new Uint8Array(8);crypto.getRandomValues(b);var c='';b.forEach(function(x){c+=A[x%A.length]});return'MPV-'+c.slice(0,4)+'-'+c.slice(4)}
+
+async function loadCodes(){
+  var r=await sb.from('access_codes').select('*').order('created_at',{ascending:false}).limit(200);
+  var el=$('codes');if(r.error){el.innerHTML='<div class="msg">'+esc(r.error.message)+'</div>';return}
+  if(!r.data.length){el.innerHTML='<div class="empty">No codes yet. Generate some first.</div>';return}
+  el.innerHTML=r.data.map(function(c){var used=!!c.redeemed_by;
+    return'<div class="item"><div><div class="code">'+esc(c.code)+'</div><div class="meta">'+esc(pn(c.plan))+' \u00b7 '+c.days+' days \u00b7 '+(used?'Used by '+esc(c.redeemed_email)+' on '+fd(c.redeemed_at):'Unused')+(c.note?' \u00b7 '+esc(c.note):'')+'</div></div>'+
+    '<div class="acts"><button class="sm ghost" data-copy="'+esc(c.code)+'">Copy</button>'+(used?'':'<button class="sm danger" data-del="'+esc(c.code)+'">Delete</button>')+'</div></div>'}).join('');
+}
+
+/* ---------- MEMBERS ---------- */
+var PPL=[],GP='month';
+function secTbl(title,sub,heads,rows,emails,emptyMsg){
+  var h='<div class="box sec"><div class="sh"><div><h2>'+title+'<i class="cnt">'+rows.length+'</i></h2><div class="meta">'+sub+'</div></div>'+(rows.length?'<button class="sm" data-copy="'+esc(emails.join(', '))+'">Copy all emails</button>':'')+'</div>';
+  if(!rows.length)return h+'<div class="empty">'+emptyMsg+'</div></div>';
+  return h+'<div class="tw"><table class="dt"><thead><tr>'+heads.map(function(x){return'<th'+(x[1]?' class="r"':'')+'>'+x[0]+'</th>'}).join('')+'</tr></thead><tbody>'+rows.join('')+'</tbody></table></div></div>';
+}
+var cpy=function(e){return'<td><button class="sm ghost" data-copy="'+esc(e)+'">Copy</button></td>'};
+var emc=function(e){return'<td class="em">'+esc(e)+'</td>'};
+/* put each person in exactly one group */
+function groups(P){
+  var now=Date.now(),G={act:[],uns:[],gst:[],paid:[]};
+  P.forEach(function(p){
+    var ex=p.m_exp?new Date(p.m_exp).getTime():0,tri=p.m_plan==='trial'||p.m_trial_used||!!p.trial_at;
+    p._tri=tri;p._start=tri?(p.trial_at||p.m_created||p.joined):p.joined;p._ex=ex;
+    if(p.first_paid||(p.has_m&&p.m_plan&&p.m_plan!=='trial'&&p.m_plan!=='free'))G.paid.push(p);
+    else if(tri){(ex>now?G.act:G.uns).push(p)}
+    else G.gst.push(p);
+  });
+  G.act.sort(function(a,b){return a._ex-b._ex});
+  G.uns.sort(function(a,b){return b._ex-a._ex});
+  G.gst.sort(function(a,b){return new Date(b.joined)-new Date(a.joined)});
+  return G;
+}
+function trialActiveHtml(G){
+  return secTbl('Trial Active Members','On the free trial now. Soonest to expire first, remind them before the end.',[['Email'],['Joined trial'],['Trial ends'],['Left']],
+    G.act.map(function(p){return'<tr>'+emc(p.mail)+'<td>'+dc(p._start)+'</td><td>'+dc(p.m_exp)+'</td><td>'+left(p.m_exp)+'</td>'+cpy(p.mail)+'</tr>'}).concat([]).map(function(r){return r}),
+    G.act.map(function(p){return p.mail}),'Nobody is on a trial right now.').replace('<th>Left</th>','<th>Left</th><th></th>');
+}
+function unsubHtml(G){
+  return secTbl('Unsubscribed Trial Members','Trial ended and they never paid. Added here automatically. Copy and send your ads or offers.',[['Email'],['Joined'],['Trial ended'],['Ago']],
+    G.uns.map(function(p){return'<tr>'+emc(p.mail)+'<td>'+dc(p._start)+'</td><td>'+dc(p.m_exp)+'</td><td>'+ago(p.m_exp)+'</td>'+cpy(p.mail)+'</tr>'}),
+    G.uns.map(function(p){return p.mail}),'No expired trials yet.').replace('<th>Ago</th>','<th>Ago</th><th></th>');
+}
+function guestHtml(G){
+  return secTbl('Guest Table','Signed in with email and use the free tools forever. No trial, no payment. Good for ads.',[['Email'],['Joined'],['Last seen']],
+    G.gst.map(function(p){return'<tr>'+emc(p.mail)+'<td>'+dc(p.joined)+'</td><td>'+dc(p.last_seen)+'</td>'+cpy(p.mail)+'</tr>'}),
+    G.gst.map(function(p){return p.mail}),'No guests yet. They appear when someone signs in and does not start the trial.').replace('<th>Last seen</th>','<th>Last seen</th><th></th>');
+}
+function reportHtml(G){
+  var rows=G.paid.filter(function(p){return p.first_paid}).sort(function(a,b){return new Date(b.first_paid)-new Date(a.first_paid)});
+  var emails=rows.map(function(p){return p.mail});
+  var days=rows.map(function(p){return Math.max(0,Math.round((new Date(p.first_paid)-new Date(p._start))/864e5))}),avg=days.length?Math.round(days.reduce(function(a,b){return a+b},0)/days.length):0;
+  return secTbl('Report: who later subscribed','First contact vs the day they paid. Use it to see which ad or offer worked. Average '+avg+' days to subscribe.',
+    [['Email'],['Started as'],['First on'],['Subscribed'],['Days',1],['Paid x',1],['Offer / note']],
+    rows.map(function(p,i){return'<tr>'+emc(p.mail)+'<td><span class="pill'+(p._tri?'':' r')+'">'+(p._tri?'Free trial':'Free / guest')+'</span></td><td>'+dc(p._start)+'</td><td>'+dc(p.first_paid)+'</td><td class="r"><b>'+days[i]+'</b></td><td class="r">'+(p.paid_n||1)+'</td><td>'+(p.paid_note?esc(p.paid_note):'<span class="mut">-</span>')+'</td>'+cpy(p.mail)+'</tr>'}),
+    emails,'Nobody has subscribed yet.').replace('<th>Offer / note</th>','<th>Offer / note</th><th></th>');
+}
+/* growth: sign-ups and paid per week or month */
+function growthHtml(){
+  var n=GP==='week'?8:6,now=new Date();
+  function st(d){var x=new Date(d);x.setHours(0,0,0,0);if(GP==='week')x.setDate(x.getDate()-((x.getDay()+6)%7));else x.setDate(1);return x.getTime()}
+  var keys=[],c=new Date(st(now));
+  for(var i=0;i<=n;i++){keys.push(c.getTime());c=new Date(c);if(GP==='week')c.setDate(c.getDate()-7);else c.setMonth(c.getMonth()-1)}
+  var su={},pd={};keys.forEach(function(k){su[k]=0;pd[k]=0});
+  PPL.forEach(function(p){var a=st(p.joined);if(a in su)su[a]++;if(p.first_paid){var b=st(p.first_paid);if(b in pd)pd[b]++}});
+  var rows=keys.slice(0,n).map(function(k,i){
+    var d=new Date(k),lab=GP==='week'?'Wk '+d.getDate()+' '+MON[d.getMonth()]:MON[d.getMonth()]+' '+d.getFullYear(),pv=su[keys[i+1]],cu=su[k];
+    var ch=pv?Math.round((cu-pv)/pv*100):null,chs=ch===null?'<span class="mut">-</span>':'<span class="left'+(ch<0?' low':'')+'">'+(ch>0?'+':'')+ch+'%</span>';
+    return'<tr><td><b>'+lab+'</b>'+(i===0?'<small>so far</small>':'')+'</td><td class="r"><b>'+cu+'</b></td><td class="r">'+chs+'</td><td class="r"><b>'+pd[k]+'</b></td></tr>'}).join('');
+  return'<div class="box sec"><div class="sh"><div><h2>Growth</h2><div class="meta">New sign-ups and new paying members. Green-blue = up, red = down vs the period before.</div></div></div><div class="ptabs" style="margin-top:0"><button data-g="week"'+(GP==='week'?' class="on"':'')+'>Weekly</button><button data-g="month"'+(GP==='month'?' class="on"':'')+'>Monthly</button></div><div class="tw"><table class="dt"><thead><tr><th>Period</th><th class="r">Sign-ups</th><th class="r">vs before</th><th class="r">New paid</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+}
+function subStats(ms,P){
+  var now=Date.now(),wk=now+7*864e5,k={ap:0,tr:0,et:0,ep:0,soon:0,cv:0,rn:0},list=[],trials=0;
+  var byUid={};P.forEach(function(p){byUid[p.uid]=p});
+  ms.forEach(function(m){var p=byUid[m.user_id]||{},ex=new Date(m.expires_at).getTime(),on=ex>now,tri=m.plan==='trial',paid=!!p.first_paid||(!tri&&m.plan!=='free');
+    if(p._tri||tri)trials++;
+    if(on){if(tri&&!p.first_paid)k.tr++;else k.ap++;if(ex<wk&&!tri)k.soon++}else if(!paid)k.et++;else k.ep++;
+    if(!tri&&ex<wk&&ex>now-7*864e5)list.push({e:m.email,x:ex,on:on});
+    if((p._tri||tri)&&p.first_paid)k.cv++;if((p.paid_n||0)>1)k.rn++});
+  var T=function(n,l){return'<div><b>'+n+'</b><span>'+l+'</span></div>'};
+  return{top:'<div class="box"><div class="st">'+T(k.ap,'Active subscribers')+T(k.tr,'On trial')+T(k.soon,'Expiring in 7 days')+T(ms.length,'Total members')+T(k.et,'Expired trial, never paid')+T(k.ep,'Expired paid')+T(k.cv+(trials?' ('+Math.round(k.cv/trials*100)+'%)':''),'Trial \u2192 paid')+T(k.rn,'Renewed (paid 2+ times)')+'</div><div id="rev"></div></div>',list:list};
+}
+async function revHtml(){
+  var c=await sb.from('access_codes').select('plan,days,redeemed_at').not('redeemed_by','is',null).neq('plan','trial').limit(2000),R={},tot=0;
+  (c.data||[]).forEach(function(x){var v=x.days>=360?190:Math.max(1,Math.round(x.days/30))*19,q=String(x.redeemed_at||'').slice(0,7);R[q]=(R[q]||0)+v;tot+=v});
+  var mo=Object.keys(R).sort().reverse().slice(0,6);
+  return'<div class="meta" style="margin:4px 0 6px">Estimated revenue from redeemed paid codes \u00b7 total <b style="color:var(--txt)">$'+tot+'</b></div>'+(mo.length?'<div class="tw"><table class="dt"><thead><tr><th>Month</th><th class="r">Revenue</th></tr></thead><tbody>'+mo.map(function(q){return'<tr><td><b>'+q+'</b></td><td class="r"><b>$'+R[q]+'</b></td></tr>'}).join('')+'</tbody></table></div>':'<div class="empty">No paid codes redeemed yet.</div>');
+}
+function renewalHtml(list){
+  list.sort(function(a,b){return a.x-b.x});
+  return secTbl('Renewal list','Paid plan expiring in 7 days or expired in the last 7 days. Send them a renewal reminder.',[['Email'],['Plan ends'],['Status']],
+    list.map(function(z){return'<tr>'+emc(z.e)+'<td>'+dc(z.x)+'</td><td>'+(z.on?'<span class="pill">expires '+left(new Date(z.x))+'</span>':'<span class="pill r">expired</span>')+'</td>'+cpy(z.e)+'</tr>'}),
+    list.map(function(z){return z.e}),'Nobody to renew this week.').replace('<th>Status</th>','<th>Status</th><th></th>');
+}
+function subscribersHtml(ms){
+  var rows=ms.filter(function(m){return m.plan!=='trial'&&m.plan!=='free'});
+  return secTbl('Subscribers','Everyone who has a paid plan. +30d adds a month, Revoke removes access.',[['Email'],['Plan'],['Until'],['Left']],
+    rows.map(function(m){var on=new Date(m.expires_at)>new Date();return'<tr>'+emc(m.email)+'<td>'+esc(pn(m.plan))+'</td><td>'+dc(m.expires_at)+'</td><td>'+(on?left(m.expires_at):'<span class="pill r">expired</span>')+'</td><td><div class="acts"><button class="sm ghost" data-ext="'+m.user_id+'" data-exp="'+m.expires_at+'">+30d</button><button class="sm danger" data-rev="'+m.user_id+'">Revoke</button><button class="sm ghost" data-copy="'+esc(m.email)+'">Copy</button></div></td></tr>'}),
+    rows.map(function(m){return m.email}),'No paid members yet.').replace('<th>Left</th>','<th>Left</th><th></th>');
+}
+async function loadMem(){
+  var r=await sb.from('memberships').select('*').order('expires_at',{ascending:false});
+  var el=$('mem');if(r.error){el.innerHTML='<div class="box"><div class="msg">'+esc(r.error.message)+'</div></div>';return}
+  var pe=await sb.rpc('admin_people'),warn='';
+  if(pe.error){PPL=r.data.map(function(m){return{uid:m.user_id,mail:m.email,joined:m.created_at||m.expires_at,last_seen:null,has_m:true,m_plan:m.plan,m_exp:m.expires_at,m_trial_used:m.trial_used,m_created:m.created_at,trial_at:null,first_paid:null,paid_n:0}});
+    warn='<div class="box"><div class="msg">Run the admin_people SQL in Supabase to unlock the full tables ('+esc(pe.error.message)+'). Showing basic data for now.</div></div>'}
+  else PPL=pe.data||[];
+  var G=groups(PPL),S=subStats(r.data,PPL);
+  el.innerHTML=warn+S.top+'<div id="grow">'+growthHtml()+'</div>'+trialActiveHtml(G)+unsubHtml(G)+guestHtml(G)+reportHtml(G)+renewalHtml(S.list)+subscribersHtml(r.data);
+  revHtml().then(function(h){var x=$('rev');if(x)x.innerHTML=h});
+}
+
+document.addEventListener('click',async function(ev){
+  var t=ev.target.closest('button');if(!t)return;
+  if(t.dataset.t){document.querySelectorAll('.tabs button').forEach(function(b){b.classList.toggle('on',b===t)});['gen','codes','mem','vis','vr'].forEach(function(k){$('t-'+k).classList.toggle('hide',k!==t.dataset.t)});clearInterval(vtimer);if(t.dataset.t==='codes')loadCodes();if(t.dataset.t==='mem'){loadMem();vtimer=setInterval(loadMem,60000)}if(t.dataset.t==='vis'){loadVis();vtimer=setInterval(loadVis,20000)}if(t.dataset.t==='vr'){loadVr();vtimer=setInterval(loadVr,30000)}return}
+  if(t.dataset.g){GP=t.dataset.g;$('grow').innerHTML=growthHtml();return}
+  if(t.dataset.p){VP=t.dataset.p;document.querySelectorAll('#t-vis .ptabs button').forEach(function(b){b.classList.toggle('on',b===t)});loadVis();return}
+  if(t.dataset.copy){var o=t.textContent;try{await navigator.clipboard.writeText(t.dataset.copy);t.textContent='Copied'}catch(e){var ta=document.createElement('textarea');ta.value=t.dataset.copy;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');t.textContent='Copied'}catch(x){}document.body.removeChild(ta)}setTimeout(function(){t.textContent=o},1200);return}
+  if(t.dataset.del){if(!confirm('Delete code '+t.dataset.del+'?'))return;await sb.from('access_codes').delete().eq('code',t.dataset.del);loadCodes();return}
+  if(t.dataset.rev){if(!confirm('Remove this member\'s access?'))return;await sb.from('memberships').delete().eq('user_id',t.dataset.rev);loadMem();return}
+  if(t.dataset.ext){var base=Math.max(Date.now(),new Date(t.dataset.exp).getTime());await sb.from('memberships').update({expires_at:new Date(base+30*864e5).toISOString()}).eq('user_id',t.dataset.ext);loadMem();return}
+});
+
+function init(){
+  sb=window.supabase.createClient(SB_URL,SB_KEY);
+  $('go').onclick=async function(){
+    var r=await sb.auth.signInWithPassword({email:$('e').value.trim(),password:$('p').value});
+    if(r.error)return say('lm',r.error.message);enter();
+  };
+  $('so').onclick=out;$('pl').onchange=function(){$('d').value=this.value==='trial'?7:30};$('d').value=30;
+  $('mk').onclick=async function(){
+    var n=Math.min(50,Math.max(1,+$('n').value||1)),d=Math.min(365,Math.max(1,+$('d').value||30)),note=$('note').value.trim()||null,rows=[];
+    for(var i=0;i<n;i++)rows.push({code:code(),days:d,note:note,plan:$('pl').value});
+    var r=await sb.from('access_codes').insert(rows);
+    if(r.error)return say('gm',r.error.message);
+    say('gm',n+' code'+(n>1?'s':'')+' created.',true);
+    $('ta').value=rows.map(function(x){return x.code}).join('\n');$('out').classList.remove('hide');loadCodes();
+  };
+  $('cp').onclick=async function(){try{await navigator.clipboard.writeText($('ta').value);$('cp').textContent='Copied'}catch(e){$('ta').select()}setTimeout(function(){$('cp').textContent='Copy all'},1200)};
+  enter();
+}
+(function load(i){var S=['https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js','https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js'];
+  if(i>=S.length){$('who').textContent='Could not load the sign-in library. Turn off your ad blocker and reload.';return}
+  var s=document.createElement('script');s.src=S[i];s.onload=init;s.onerror=function(){load(i+1)};document.head.appendChild(s)})(0);
+</script>
+<script>document.getElementById('xexit').addEventListener('click',function(){if(document.referrer&&history.length>1){history.back()}else{location.href='/'}});</script>
+</body>
+</html>
