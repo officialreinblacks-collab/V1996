@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Script 2 · MarketPlusView tool guides</title>
+<style>
+  :root{--navy:#0b2a6f;--blue:#1f4fd1;--sky:#e8efff;--red:#e53950;--redsoft:#fdebee;--ink:#14213d;--mut:#55627f;--line:#d6def0;--white:#fff}
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth;scroll-padding-top:70px}
+  body{margin:0;background:var(--white);color:var(--ink);font:15px/1.6 system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;-webkit-text-size-adjust:100%}
+  .top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:max(10px,env(safe-area-inset-top)) 14px 10px;background:var(--navy);color:#fff;border-bottom:3px solid var(--red)}
+  .top b{flex:1;min-width:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .top button{flex:0 0 auto;border:0;border-radius:20px;padding:8px 14px;background:var(--red);color:#fff;font:700 13px system-ui,sans-serif;cursor:pointer}
+  .top button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #ffb3be;outline-offset:2px}
+  main{max-width:760px;margin:0 auto;padding:18px 16px calc(40px + env(safe-area-inset-bottom))}
+  h1{margin:6px 0 4px;font-size:26px;line-height:1.2;color:var(--navy)}
+  h2{margin:30px 0 8px;font-size:19px;color:var(--navy);padding-left:10px;border-left:5px solid var(--red)}
+  h3{margin:18px 0 4px;font-size:15px;color:var(--blue)}
+  p{margin:8px 0}
+  .lead{color:var(--mut);font-size:15px;margin:0 0 14px}
+  .tag{display:inline-block;background:var(--red);color:#fff;font-weight:700;font-size:12px;padding:2px 10px;border-radius:12px;vertical-align:middle}
+  .where{background:var(--sky);border:1px solid var(--line);border-left:5px solid var(--blue);border-radius:10px;padding:10px 12px;margin:12px 0}
+  .warn{background:var(--redsoft);border:1px solid #f4bcc5;border-left:5px solid var(--red);border-radius:10px;padding:10px 12px;margin:14px 0}
+  ol.steps{counter-reset:s;list-style:none;padding:0;margin:10px 0}
+  ol.steps li{counter-increment:s;position:relative;padding:8px 10px 8px 46px;margin:8px 0;background:#fff;border:1px solid var(--line);border-radius:10px}
+  ol.steps li::before{content:counter(s);position:absolute;left:10px;top:8px;width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center}
+  ol.steps li:nth-child(even)::before{background:var(--red)}
+  table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--navy);color:#fff;font-size:13px;white-space:nowrap}
+  tr:nth-child(even) td{background:#f6f9ff}
+  td:first-child{font-weight:600;color:var(--navy)}
+  .sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px;border:1px solid rgba(0,0,0,.25)}
+  details{border:1px solid var(--line);border-radius:10px;margin:8px 0;background:#fff}
+  summary{cursor:pointer;padding:10px 12px;font-weight:700;color:var(--navy)}
+  details[open] summary{border-bottom:1px solid var(--line);background:var(--sky);border-radius:10px 10px 0 0}
+  details>div{padding:4px 12px 10px}
+  .toollist a{display:block;padding:12px 14px;margin:8px 0;border:1px solid var(--line);border-left:5px solid var(--red);border-radius:10px;color:var(--navy);font-weight:700;text-decoration:none;background:#fff}
+  .done{display:block;width:100%;margin:26px 0 0;padding:13px;border:0;border-radius:12px;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;font:700 15px system-ui,sans-serif;cursor:pointer;box-shadow:0 0 0 2px rgba(229,57,80,.45) inset}
+  .tool{display:none}
+  .tool.on{display:block}
+  #home.off{display:none}
+  .foot{margin-top:26px;color:var(--mut);font-size:12.5px;text-align:center}
+</style>
+</head>
+<body>
+<div class="top"><b id="topTitle">Script 2 · tool guides</b><button type="button" id="closeTop">✕ Close</button></div>
+<main>
+
+<!-- ============ HOME (only shown when no tool is named in the link) ============ -->
+<section id="home">
+  <h1>Script 2 · tool guides</h1>
+  <p class="lead">Guides for the newer MarketPlusView tools. Open a tool's <b>Read script</b> button on the chart and it lands straight on its guide.</p>
+  <div class="toollist"><a href="#icp">ICT Playbook</a><a href="#ivi">ICT Imbalances [VHX]</a><a href="#tpz">Time and Price Lines and Zones</a><a href="#ise">ICT Structure Engine</a><a href="#hfg">HTF Fair Value Gap [LuxAlgo]</a><a href="#ifg">HTF IFVG | Flux Charts</a><a href="#dsb">DIY Custom Strategy Builder</a><a href="#hcs">Hammer Candlestick Strategy</a><a href="#hfx">Higher Timeframe Trend Frontier</a><a href="#s3k">3 Strokes by Reinblacks</a></div>
+</section>
+
+<!-- ============ ICT PLAYBOOK ============ -->
+<section class="tool" id="icp" data-title="ICT Playbook">
+  <h1>ICT Playbook <span class="tag">Indicator</span></h1>
+  <p class="lead">Draws the full ICT story on your chart: liquidity gets taken, structure shifts, then a trade box with stop, target and the levels to watch.</p>
+
+  <div class="where"><b>Where to find it:</b> Indicators → Trend → <b>ICT Playbook</b>. Tap the indicator's settings and the <b>📖 Read script</b> button at the top of Inputs opens this page.</div>
+
+  <h2>What it does</h2>
+  <p>ICT Playbook looks for one specific story and draws every step of it so you can read it at a glance:</p>
+  <p>Price builds <b>liquidity</b> (a tight sideways box, or a clear swing high or low) → price <b>grabs</b> that liquidity and snaps back → the market makes a <b>Market Structure Shift (MSS)</b> → a <b>trade box</b> appears with entry, stop and target. Around that story it marks the gaps, order blocks and levels that usually matter next.</p>
+  <p>Both directions are covered. A <b>sell setup</b> starts with buyside liquidity taken above. A <b>buy setup</b> is the exact mirror and starts with sellside liquidity taken below.</p>
+
+  <h2>Quick start</h2>
+  <ol class="steps">
+    <li>Open a liquid market on 5m, 15m or 1h. Scalping and intraday timeframes suit it best.</li>
+    <li>Add <b>ICT Playbook</b> from Indicators → Trend. By default it shows the latest <b>2</b> setups, so the chart stays clean.</li>
+    <li>Wait for the <b>MSS</b> label and the red/green trade box. That is the moment the setup is complete.</li>
+    <li>Read the extra levels (-FVG, -OB, -IOFED, HTF block) to decide where you want to enter. The box entry is the MSS close, the levels give you better prices if price comes back.</li>
+    <li>Check the bigger picture on a higher timeframe before you act. The indicator shows structure, not the news.</li>
+  </ol>
+
+  <h2>How one setup is built</h2>
+  <details open><summary>1 · Liquidity pool</summary><div>
+    <p>Two things count as liquidity. A <b>Liquidity Generation box</b>: a sideways range at least <i>Liquidity box min bars</i> long and not taller than <i>Liquidity box max height</i> × ATR. And a <b>swing high / low</b>, found with <i>Swing length</i> bars on each side (you can turn swings off).</p>
+    <p>The pool line is labelled <b>Buyside Liquidity</b> (above, for sells) or <b>Sellside Liquidity</b> (below, for buys).</p>
+  </div></details>
+  <details open><summary>2 · Liquidity Grab</summary><div>
+    <p>Price pushes through the pool by a meaningful amount, then a candle closes back inside within two candles. A small arc and the words <b>Liquidity Grab</b> mark the spike. The lowest point (or highest, for buys) of the build-up is marked as <b>Accumulation Low / High</b>.</p>
+  </div></details>
+  <details open><summary>3 · MSS (market structure shift)</summary><div>
+    <p>Before the grab, the indicator remembers the last swing in the opposite direction. When a candle <b>closes through that swing</b> inside the <i>MSS search window</i> (and before price makes a new extreme beyond the grab), the dashed <b>MSS</b> line is drawn. If it never closes through in time, there is no setup.</p>
+  </div></details>
+  <details open><summary>4 · Trade box</summary><div>
+    <p><b>Entry</b> is the close of the MSS candle. <b>Stop</b> sits just beyond the grab extreme. <b>Target</b> is the risk multiplied by your <i>Reward : risk</i> (default 1:3). Red = risk, green = reward. The label shows <b>1:3</b> while the trade is open and adds <b>TP</b> or <b>SL</b> once price has hit one of them.</p>
+  </div></details>
+
+  <h2>What you will see on the chart</h2>
+  <div class="scroll"><table>
+    <tr><th>Mark</th><th>Meaning</th></tr>
+    <tr><td>Liquidity Generation</td><td>The grey box where price built up resting orders.</td></tr>
+    <tr><td>Buyside / Sellside Liquidity</td><td>The solid line that price later takes.</td></tr>
+    <tr><td>Liquidity Grab</td><td>The candle that took the liquidity and snapped back.</td></tr>
+    <tr><td>Accumulation Low / High</td><td>Dotted line at the extreme of the build-up.</td></tr>
+    <tr><td>Inversion FVG</td><td>An amber block: a gap that price closed back through, so it flipped from support to resistance (or the reverse).</td></tr>
+    <tr><td>MSS</td><td>Amber dashed line with a 💡 marker where structure breaks.</td></tr>
+    <tr><td>-FVG / -OB / -IOFED</td><td>Levels after the shift. Sell setups use the minus sign. Buy setups mirror them as <b>+FVG, +OB, +IOFED</b>. FVG is a fair value gap, OB an order block, IOFED the midpoint of a gap that price returns into.</td></tr>
+    <tr><td>Breakaway Gap</td><td>Thick red line: a gap that price left behind with strength.</td></tr>
+    <tr><td>Exhaustion Gap</td><td>Blue candle highlight: a late gap far from entry, a sign the move may be tiring.</td></tr>
+    <tr><td>HTF - Rejection Block / Body Lows (Highs)</td><td>The lowest candle body in the look-back window. A sell setup that runs there often reacts.</td></tr>
+  </table></div>
+
+  <h2>Settings</h2>
+  <h3>Setup finding</h3>
+  <div class="scroll"><table>
+    <tr><th>Setting</th><th>Default</th><th>What it does</th></tr>
+    <tr><td>Setups shown (latest)</td><td>2</td><td>How many of the newest setups are drawn. Raise it to see more history, lower it to 1 for the cleanest chart.</td></tr>
+    <tr><td>Swing length</td><td>5</td><td>Bars on each side to count a swing as liquidity. Bigger = fewer, stronger pools.</td></tr>
+    <tr><td>Swing highs / lows count as liquidity</td><td>On</td><td>Turn off to use only the sideways boxes.</td></tr>
+    <tr><td>Liquidity box min bars</td><td>10</td><td>Shortest sideways range that counts as a box.</td></tr>
+    <tr><td>Liquidity box max height</td><td>4 × ATR</td><td>Tallest a range can be and still count as tight.</td></tr>
+    <tr><td>MSS search window</td><td>20 bars</td><td>How long after the grab price has to break structure.</td></tr>
+    <tr><td>Reward : risk</td><td>3</td><td>Target distance as a multiple of the stop distance.</td></tr>
+    <tr><td>HTF body-low look back</td><td>150 bars</td><td>How far back to look for the rejection block.</td></tr>
+    <tr><td>Exhaustion distance</td><td>3 × ATR</td><td>How far from entry a gap must be to count as exhaustion.</td></tr>
+  </table></div>
+  <h3>Show or hide parts</h3>
+  <p>Each part of the drawing has its own switch: Liquidity generation box, Buyside / sellside liquidity line, Liquidity grab, MSS, Accumulation low / high, Inversion FVG, FVG levels, OB levels, IOFED levels, Breakaway gaps, Exhaustion gap, Trade box, HTF rejection block, and the Legend. Switch off what you do not need to keep a minimal chart.</p>
+  <h3>Colours</h3>
+  <div class="scroll"><table>
+    <tr><th>Colour setting</th><th>Default</th></tr>
+    <tr><td>Liquidity box</td><td><span class="sw" style="background:#9aa0a6"></span>#9aa0a6</td></tr>
+    <tr><td>Liquidity line</td><td><span class="sw" style="background:#e6e8ee"></span>#e6e8ee</td></tr>
+    <tr><td>Label</td><td><span class="sw" style="background:#e6e8ee"></span>#e6e8ee</td></tr>
+    <tr><td>Breakaway gap</td><td><span class="sw" style="background:#ef4444"></span>#ef4444</td></tr>
+    <tr><td>Inversion FVG</td><td><span class="sw" style="background:#f59e0b"></span>#f59e0b</td></tr>
+    <tr><td>Exhaustion gap</td><td><span class="sw" style="background:#3b82f6"></span>#3b82f6</td></tr>
+    <tr><td>Risk box</td><td><span class="sw" style="background:#ef4444"></span>#ef4444</td></tr>
+    <tr><td>Reward box</td><td><span class="sw" style="background:#2dd4a7"></span>#2dd4a7</td></tr>
+  </table></div>
+  <p>On a light chart theme, change <b>Label colour</b> and <b>Liquidity line colour</b> to something dark so the words stay readable.</p>
+
+  <h2>Alerts</h2>
+  <p><b>Alert: new setup (MSS)</b> shows a banner such as “ICT Playbook · LONG setup (MSS) · BTCUSDT 15m” when a setup completes on the candle that just closed. Turn on <b>Play a sound</b> for an audible beep. Loading a new symbol or timeframe never fires old alerts.</p>
+
+  <h2>Settings to try</h2>
+  <div class="scroll"><table>
+    <tr><th>Goal</th><th>Try</th></tr>
+    <tr><td>Cleanest chart</td><td>Setups shown 1. Switch off FVG, OB, IOFED, Breakaway and Exhaustion. Keep Liquidity line, Grab, MSS and Trade box.</td></tr>
+    <tr><td>More setups</td><td>Swing length 3, MSS window 30, Setups shown 5.</td></tr>
+    <tr><td>Fewer, stronger setups</td><td>Swing length 8, Liquidity box min bars 15, Reward : risk 3 or higher.</td></tr>
+    <tr><td>Slower markets (4h, 1D)</td><td>Raise HTF look back to 300 and Swing length to 7 or more.</td></tr>
+  </table></div>
+
+  <h2>Good to know</h2>
+  <ul>
+    <li>Setups are built from <b>closed candles</b>. The candle still forming is ignored, so a drawn setup does not vanish when it closes.</li>
+    <li>After a setup completes, the next setup on the same side has to start with a new liquidity grab after that MSS.</li>
+    <li>Only the latest setups are drawn. Raise <i>Setups shown</i> to bring older ones back.</li>
+    <li>Box height, exhaustion distance and stops are measured in ATR, so they scale by themselves between markets.</li>
+  </ul>
+
+  <div class="warn"><b>Important:</b> this is a chart-reading aid, not a promise of profit. Every setup can fail and hit its stop. Test it on a demo or on past candles first and risk only what you can afford to lose.</div>
+
+  <button type="button" class="done" id="closeBottom">Close and return to the chart</button>
+  <p class="foot">Reinblacks Creativz · MarketPlusView</p>
+</section>
+
+
+<!-- ============ ICT IMBALANCES ============ -->
+<section class="tool" id="ivi" data-title="ICT Imbalances [VHX]">
+  <h1>ICT Imbalances [VHX] <span class="tag">Indicator</span></h1>
+  <p class="lead">Marks the places where price moved so fast that one side had little or no trading: Volume Imbalances, Gaps and Fair Value Gaps. Each box stays on the chart until price comes back and fills it.</p>
+
+  <div class="where"><b>Where to find it:</b> Indicators → Trend → <b>ICT · GAPS, Volume &amp; Price Imbalances [VHX]</b>. Tap the indicator's settings and the <b>📖 Read script</b> button at the top of Inputs opens this page.</div>
+
+  <h2>What it does</h2>
+  <p>Traders watch these boxes because price often returns to them before moving on. The indicator finds five kinds of imbalance and draws each as a coloured box that stretches to the right while it is still unfilled:</p>
+  <div class="scroll"><table>
+    <tr><th>Mark</th><th>Meaning</th></tr>
+    <tr><td>VI+ / VI-</td><td><b>Volume Imbalance.</b> Two candles of the same colour whose bodies do not overlap, while their wicks still touch. The box is the empty space between the two bodies.</td></tr>
+    <tr><td>GAP+ / GAP-</td><td><b>True gap.</b> The new candle's low is above the last candle's high (or its high is below the last low). No trading happened in that zone at all.</td></tr>
+    <tr><td>FVG+ / FVG-</td><td><b>Fair Value Gap.</b> A three candle pattern where the first and third candle leave a hole that the middle candle did not cover.</td></tr>
+    <tr><td>LV+ / LV-</td><td><b>Liquidity Void.</b> Several FVGs in a row in the same direction, joined into one tall box.</td></tr>
+    <tr><td>Imp.FVG+ / Imp.FVG-</td><td><b>Implied FVG.</b> A softer gap built from the candle bodies and wicks when the three candles overlap a little.</td></tr>
+    <tr><td>I.FVG+ / I.FVG-</td><td><b>Inverse FVG.</b> An FVG that price closed through. It flips role: a broken bullish FVG now acts as resistance, a broken bearish FVG as support.</td></tr>
+    <tr><td>Dashed line</td><td><b>C.E. (Consequent Encroachment).</b> The middle of the box, a level price often reacts to.</td></tr>
+  </table></div>
+  <p>Green boxes are bullish (support below price). Red boxes are bearish (resistance above price). Gaps are sky blue and inverse FVGs are amber.</p>
+
+  <h2>Quick start</h2>
+  <ol class="steps">
+    <li>Open any market and add <b>ICT Imbalances [VHX]</b> from Indicators → Trend.</li>
+    <li>Leave the defaults on first: Classic Volume Imbalances, True GAPs and Normal FVGs.</li>
+    <li>Look for boxes that are still stretching to the right. Those are <b>unfilled</b> and still active.</li>
+    <li>When price returns into a box, it lights up (highlight). Watch the dashed C.E. line for a reaction.</li>
+    <li>When a candle closes through a box, it turns grey and stops. That imbalance is done.</li>
+  </ol>
+
+  <h2>How a box ends</h2>
+  <details open><summary>Engulf (default)</summary><div>
+    <p>A bullish box ends when a candle <b>body closes below</b> it. A bearish box ends when a body closes above it. Wick touches do not end the box, they only highlight it.</p>
+  </div></details>
+  <details><summary>Mitigate</summary><div>
+    <p>The box ends as soon as price <b>touches</b> it with a wick. The strictest and fastest way to retire a box.</p>
+  </div></details>
+  <details><summary>Rebalance (FVG and GAP only)</summary><div>
+    <p>The box <b>shrinks</b> as price fills it. Only the part that is still empty stays on the chart. When price crosses the whole box, it ends.</p>
+  </div></details>
+
+  <h2>Settings</h2>
+  <h3>Volume Imbalance</h3>
+  <div class="scroll"><table>
+    <tr><th>Setting</th><th>Default</th><th>What it does</th></tr>
+    <tr><td>Volume Imbalance type</td><td>Classic</td><td>None turns VI off. Classic shows the one standard body gap. Advanced adds the other body gap shapes.</td></tr>
+    <tr><td>VI max boxes</td><td>8</td><td>How many of the newest VI boxes are kept.</td></tr>
+    <tr><td>VI mitigation</td><td>Engulf</td><td>Engulf or Mitigate, see above.</td></tr>
+    <tr><td>Extend unmitigated / all VI boxes</td><td>On / Off</td><td>The first stretches only unfilled boxes. The second stretches every VI box forever and never greys it.</td></tr>
+  </table></div>
+  <h3>GAP</h3>
+  <div class="scroll"><table>
+    <tr><th>Setting</th><th>Default</th><th>What it does</th></tr>
+    <tr><td>GAP type</td><td>True GAP</td><td>True GAP is the empty space between the two candles' wicks. GAP + Inefficiency uses the space between the previous close and the new open instead.</td></tr>
+    <tr><td>GAP max boxes</td><td>7</td><td>How many of the newest gaps are kept per direction.</td></tr>
+    <tr><td>GAP mitigation</td><td>Engulf</td><td>Engulf or Rebalance.</td></tr>
+    <tr><td>C.E. line and style</td><td>On, dashed</td><td>The middle line of each gap box.</td></tr>
+  </table></div>
+  <h3>FVG</h3>
+  <div class="scroll"><table>
+    <tr><th>Setting</th><th>Default</th><th>What it does</th></tr>
+    <tr><td>FVG type</td><td>Normal</td><td>None, Normal, or Liquidity Void (joins back to back FVGs).</td></tr>
+    <tr><td>Implied FVG</td><td>Off</td><td>Adds the softer implied gaps.</td></tr>
+    <tr><td>Inverse FVG</td><td>Off</td><td>Turns an FVG into an inverse box when price closes through it. Works only when FVG mitigation is <b>Engulf</b>. If FVG type is None, only the inverse boxes are shown.</td></tr>
+    <tr><td>FVG max / Inverse max</td><td>15 / 4</td><td>How many boxes of each kind are kept.</td></tr>
+    <tr><td>FVG / LV mitigation</td><td>Engulf</td><td>Engulf, Mitigate or Rebalance.</td></tr>
+  </table></div>
+  <h3>Box style</h3>
+  <p>Border style and transparency, the highlight when price is inside a box, labels (size, colour, alignment) and the grey colour used for filled boxes. Every colour and every transparency can be changed. Higher transparency means a fainter box.</p>
+  <p>On a light chart theme, change <b>Label colour</b> to something dark so the words stay readable.</p>
+
+  <h2>Settings to try</h2>
+  <div class="scroll"><table>
+    <tr><th>Goal</th><th>Try</th></tr>
+    <tr><td>Cleanest chart</td><td>VI type None, GAP type None, FVG Normal, FVG max 5, Show labels off.</td></tr>
+    <tr><td>Only flipped levels</td><td>FVG type None and Inverse FVG on. Only the inverse boxes show.</td></tr>
+    <tr><td>Big moves only</td><td>FVG type Liquidity Void.</td></tr>
+    <tr><td>See what is left unfilled</td><td>FVG mitigation Rebalance and GAP mitigation Rebalance.</td></tr>
+  </table></div>
+
+  <h2>Good to know</h2>
+  <ul>
+    <li>Boxes are built from <b>closed candles</b>. A drawn box does not disappear when the candle closes.</li>
+    <li>Only the newest boxes of each kind are kept (the max settings). Older ones are removed from the chart.</li>
+    <li>Grey boxes are filled imbalances. Switch off <b>Grey out mitigated boxes</b> to keep their original colour instead.</li>
+    <li>Imbalances show where price moved fast. They are not a buy or sell signal on their own.</li>
+  </ul>
+
+  <div class="warn"><b>Important:</b> this is a chart-reading aid, not a promise of profit. Price often ignores these boxes. Test on a demo or on past candles first and risk only what you can afford to lose.</div>
+
+  <button type="button" class="done" id="closeBottomIvi">Close and return to the chart</button>
+  <p class="foot">Reinblacks Creativz · MarketPlusView · Based on the open source script by Vulnerable_human_x (MPL 2.0)</p>
+</section>
+
+<!-- ============ TIME AND PRICE LINES AND ZONES ============ -->
+<section class="tool" id="tpz" data-title="Time and Price Lines and Zones">
+  <h1>Time and Price Lines and Zones <span class="tag">Indicator</span></h1>
+  <p class="lead">Time and price are two things traders watch all day: when something happens and where price is. This indicator lets you <b>type</b> what you want to see, in plain words, and it draws the lines and zones on the chart. There is no limit to how many you add.</p>
+
+  <div class="where"><b>Where to find it:</b> Indicators → Trend → <b>Time and Price Lines and Zones</b>. Tap the indicator's settings and the <b>📖 Read script</b> button at the top of Inputs opens this page. The big text box under it is where you type your instructions.</div>
+
+  <h2>How it works</h2>
+  <p>Each new line in the text box makes one line, a set of lines, or a price zone inside a time window. Say the times, the price levels (open, high, low, close) and the look (color, line style, thickness, shade, extend). The indicator reads the line and plots it on every day shown.</p>
+  <div class="warn"><b>Keep each line simple.</b> This is a typed tool, so it understands short, straightforward instructions. One idea per line works best.</div>
+
+  <h2>Quick start</h2>
+  <ol class="steps">
+    <li>Add the indicator. The text box already holds a working example (Asia, London and New York kill zones, an ORB zone, a midnight line and a 9:30 high and low).</li>
+    <li>Check <b>Time zone</b> in the settings. Times you type are read in that zone. The default is America/New_York.</li>
+    <li>Change a time or a color in the text box and tap OK. The chart updates at once.</li>
+    <li>To hide a line without deleting it, put <b>#</b> in front of it.</li>
+  </ol>
+
+  <h2>What you can type</h2>
+  <h3>Time (always required)</h3>
+  <p>Hours are 0 to 23 (0 is midnight) and minutes are 0 to 59. Type one time for a single moment, or two times to box a period.</p>
+  <div class="scroll"><table>
+    <tr><th>You type</th><th>Meaning</th></tr>
+    <tr><td>11</td><td>11:00 AM</td></tr>
+    <tr><td>13</td><td>1:00 PM</td></tr>
+    <tr><td>13:50</td><td>1:50 PM</td></tr>
+    <tr><td>20 to 0</td><td>8:00 PM to midnight (a second time that is earlier than the first ends on the next day)</td></tr>
+  </table></div>
+
+  <h3>Price (optional)</h3>
+  <p>Type <b>open</b>, <b>high</b>, <b>low</b> and/or <b>close</b>. With no price word, the indicator draws <b>vertical lines</b> at the times. With one or more price words it draws horizontal lines or zones.</p>
+  <div class="scroll"><table>
+    <tr><th>Times typed</th><th>Price words</th><th>Result</th></tr>
+    <tr><td>One</td><td>none</td><td>One vertical line.</td></tr>
+    <tr><td>Two</td><td>none</td><td>Two vertical lines. Add <b>shade</b> to fill between them.</td></tr>
+    <tr><td>One</td><td>open</td><td>A horizontal line from that candle's open to the end of the trading day.</td></tr>
+    <tr><td>One</td><td>track high and low</td><td>A live high and a live low that move as new highs and lows are made, until the end of the day.</td></tr>
+    <tr><td>Two</td><td>high and low</td><td>A zone from the highest high to the lowest low of the window.</td></tr>
+    <tr><td>Two</td><td>open and close</td><td>A zone between the window's open and its close.</td></tr>
+    <tr><td>Two</td><td>one word (for example high)</td><td>One horizontal line at that level over the window.</td></tr>
+  </table></div>
+
+  <h3>Color</h3>
+  <p>Type a color name: aqua, black, blue, fuchsia, gray, green, lime, maroon, navy, olive, orange, purple, red, silver, teal, white, yellow. <b>Silver</b> is used when you type none. You can add your own in <b>Your own colors</b>, for example <i>gold=#ffd700, sky=#4ec1f7</i>, and then type <i>gold</i> in a line.</p>
+  <h3>Line style</h3>
+  <p><b>solid</b> (default), <b>dashed</b> or <b>dotted</b>.</p>
+  <h3>Line thickness</h3>
+  <p><b>thin</b> (default), <b>medium</b> or <b>thick</b>.</p>
+  <h3>Fill or no fill</h3>
+  <p>Type <b>shade</b>, <b>shaded</b>, <b>fill</b> or <b>filled</b> to color the area between two times or two price levels with a see-through color. The word <b>zone</b> also fills. Leave them out for an empty box.</p>
+  <h3>Extend or not</h3>
+  <p>Type <b>extend</b> or <b>extended</b> to stretch a zone to the end of the trading day without tracking new price changes. This is how an Open Range Breakout (ORB) is drawn: the high and low of 9:30 to 10:00 stay fixed and run to the right.</p>
+
+  <h2>Examples</h2>
+  <div class="scroll"><table>
+    <tr><th>Type this</th><th>You get</th></tr>
+    <tr><td>12 to 13 gray area shaded with dotted lines</td><td>Two dotted vertical lines, one at noon and one at 1 PM, with the area between them shaded gray.</td></tr>
+    <tr><td>0:00 vertical line red solid</td><td>One red vertical line at midnight.</td></tr>
+    <tr><td>Draw a red line starting from 0 open</td><td>A red line from the midnight open to the end of the trading day.</td></tr>
+    <tr><td>Track high and low starting from 9:30 in a dashed green medium line</td><td>The day's high and low from 9:30, dashed, medium, green, adjusting as new highs and lows are made.</td></tr>
+    <tr><td>20 to 0 green high to low filled</td><td>Asia kill zone: a green box from its high to its low.</td></tr>
+    <tr><td>2:00 to 5 blue low and high filled</td><td>London kill zone: a blue filled box.</td></tr>
+    <tr><td>8:30 to 11:30 orange zone shaded orange between the high and low dotted</td><td>New York kill zone: an orange shaded box with dotted edges.</td></tr>
+    <tr><td>8:30 to 11:30 orange zone shaded orange open close dotted</td><td>A second New York zone from the open to the close, overlapping the high and low zone.</td></tr>
+    <tr><td>9:30 to 10:00 purple extended zone</td><td>ORB: the 9:30 to 10:00 range in purple, extended to the end of the day.</td></tr>
+    <tr><td>Mark the ORB high and low from 9:30 to 10:00 and extend it in orange and shade it</td><td>The same ORB, orange and shaded. Extra words are fine, the tool reads the ones it knows.</td></tr>
+    <tr><td># Asia</td><td>Ignored. Use # for notes or to switch a line off.</td></tr>
+  </table></div>
+
+  <h2>Other settings</h2>
+  <div class="scroll"><table>
+    <tr><th>Setting</th><th>Default</th><th>What it does</th></tr>
+    <tr><td>Time zone</td><td>America/New_York</td><td>The zone the times you type are read in. Choose <i>Chart time zone</i> to follow the chart.</td></tr>
+    <tr><td>Ignore lines that start with</td><td>#</td><td>Lines starting with this character are skipped.</td></tr>
+    <tr><td>Your own colors</td><td>empty</td><td>Add or override color names, written as name=#hex.</td></tr>
+    <tr><td>Show last X days</td><td>5</td><td>Limits the drawing to the newest X days to keep the chart clean.</td></tr>
+    <tr><td>Show next area hours in advance</td><td>0</td><td>Plots lines and zones that start within the next X hours, to the right of the last candle, so you can see upcoming points of interest. Zones that need price (high, low) appear once their candles exist.</td></tr>
+    <tr><td>Hide above timeframe</td><td>Off</td><td>Hides everything when the chart timeframe is above the one you pick.</td></tr>
+    <tr><td>Fill transparency %</td><td>85</td><td>How see-through the shading is. 0 is solid, 100 is invisible.</td></tr>
+  </table></div>
+
+  <h2>If something does not show</h2>
+  <ul>
+    <li>A red message in the top left of the chart names the line that could not be read (for example, it has no time).</li>
+    <li>Use a timeframe below 1 day. Time of day lines need intraday candles.</li>
+    <li>Check the time zone. 9:30 only lines up with the New York open when the zone is America/New_York.</li>
+    <li>Check <b>Show last X days</b> and <b>Hide above timeframe</b>.</li>
+  </ul>
+
+  <div class="warn"><b>Important:</b> this is a chart-reading aid, not a promise of profit. Test on a demo or on past candles first and risk only what you can afford to lose.</div>
+
+  <button type="button" class="done" id="closeBottomTpz">Close and return to the chart</button>
+  <p class="foot">Reinblacks Creativz · MarketPlusView</p>
+</section>
+
+<!-- ============ ICT STRUCTURE ENGINE ============ -->
+<section class="tool" id="ise" data-title="ICT Structure Engine">
+  <h1>ICT Structure Engine <span class="tag">Indicator + Strategy</span></h1>
+  <p class="lead">Reads the market the way ICT traders do: structure breaks, order blocks, fair value gaps, liquidity sweeps, killzones and the daily bias. When a full story lines up (<b>sweep → CHoCH → retest</b>) it marks a BUY or SELL with a stop loss and three targets.</p>
+
+  <div class="where"><b>Where to find it:</b> Indicators → Trend → <b>ICT Structure Engine</b>. Tap the indicator's settings and the <b>📖 Read script</b> button at the top of Inputs opens this page. Best on 5m, 15m or 1H charts. It uses closed candles only, so nothing repaints.</div>
+
+  <h2>What you see on the chart</h2>
+  <div class="scroll"><table>
+    <tr><th>Mark</th><th>Meaning</th></tr>
+    <tr><td>BOS / CHoCH</td><td><b>Break of structure</b> continues the trend. <b>Change of character</b> is the first break against it. Solid lines are external structure, dashed lines are internal.</td></tr>
+    <tr><td>HH / LH / HL / LL</td><td>Confirmed swing points. A label appears a few candles after its swing (confirmation lag).</td></tr>
+    <tr><td>Bull OB / Bear OB ★</td><td><b>Order block</b> with a score of 0 to 4 stars: +1 FVG in the move, +1 liquidity sweep at the start, +1 same direction as the higher timeframe, +1 in discount (demand) or premium (supply). The dotted line is the 50%.</td></tr>
+    <tr><td>Breaker</td><td>An order block that was closed through. It flips side and can act as the opposite zone. Maximum 2 stars.</td></tr>
+    <tr><td>FVG</td><td><b>Fair value gap.</b> Blue is bullish, orange is bearish. It shrinks as price fills it and disappears when it is fully filled.</td></tr>
+    <tr><td>RB / PB</td><td><b>Rejection block</b> (long wick of a swing) and <b>propulsion block</b> (candle that tapped an order block, then price closed beyond it).</td></tr>
+    <tr><td>EQH / EQL / Sweep</td><td>Equal highs / lows are liquidity. <b>Sweep</b> means price poked through, then closed back (stops taken).</td></tr>
+    <tr><td>PDH PDL PWH PWL</td><td>Previous day and previous week high / low. Session highs and lows (Asia H, London L…) become levels when the session ends.</td></tr>
+    <tr><td>Killzone boxes</td><td>Asian, London, NY AM and NY PM ranges (up to 1H charts).</td></tr>
+    <tr><td>Midnight Open + Bias</td><td>Amber dashed line at 00:00 New York with the daily bias arrow.</td></tr>
+    <tr><td>Judas ▲ / ▼</td><td>A false move against the daily bias past the midnight open, then a close back across it.</td></tr>
+    <tr><td>Premium / Discount / OTE</td><td>The current range split at 50%. The OTE band is the 62–79% retracement in the trend direction.</td></tr>
+    <tr><td>Setup ▲ / ▼</td><td>A setup is armed and waiting for the first retest of its zone.</td></tr>
+    <tr><td>▲ BUY / ▼ SELL</td><td>Trade entry at the close of the retest candle. Lines show entry, SL, TP1, TP2 and TP3.</td></tr>
+  </table></div>
+
+  <h2>The setup in four steps</h2>
+  <ol class="steps">
+    <li><b>Sweep.</b> Price takes a liquidity level (equal highs / lows, a swing, PDH / PDL, a session high / low) and closes back.</li>
+    <li><b>CHoCH.</b> Within the window (default 20 candles) price breaks structure the other way, and the leg left a fair value gap (displacement).</li>
+    <li><b>Wait.</b> The fair value gap (or order block) of that move is the entry zone. It waits up to 30 candles for the first return.</li>
+    <li><b>Entry.</b> The candle that touches the zone and does not close beyond it is the signal. The entry location filter (discount for longs, premium for shorts) must agree.</li>
+  </ol>
+  <p>A setup is cancelled when it expires, when an opposite CHoCH appears, or when its zone breaks. The reason is shown in the alert.</p>
+
+  <h2>Risk and targets</h2>
+  <div class="scroll"><table>
+    <tr><th>Setting</th><th>Options</th></tr>
+    <tr><td>Stop loss mode</td><td><b>Wick-Anchored</b> (beyond the signal candle, default), <b>Zone-Anchored</b> (beyond the zone), <b>Sweep-Anchored</b> (beyond the sweep extreme, widest), <b>ATR</b>. Structure modes add 0.25 × ATR and keep at least 0.5 × ATR.</td></tr>
+    <tr><td>Take profit mode</td><td><b>R-Multiples</b> (default) uses 1R / 2R / 3R. <b>Liquidity</b> sends TP2 and TP3 to the next untaken liquidity. <b>Std Deviations</b> uses projections of the sweep → CHoCH leg (−1, −2, −2.5 SD).</td></tr>
+    <tr><td>Risk preset</td><td>Conservative, Balanced, Aggressive, Scalping or Custom.</td></tr>
+    <tr><td>Break-even</td><td>After TP1 the stop moves to entry. A trade counts as a <b>win once TP1 is touched</b>.</td></tr>
+  </table></div>
+
+  <h2>Useful settings</h2>
+  <div class="scroll"><table>
+    <tr><th>Setting</th><th>Default</th><th>What it does</th></tr>
+    <tr><td>External / Internal swing length</td><td>10 / 3</td><td>Higher means fewer and more important swings.</td></tr>
+    <tr><td>Higher timeframe</td><td>On, 4h</td><td>Adds the 4h trend and range to the zone score. It reads the last closed higher-timeframe candle, so it never repaints.</td></tr>
+    <tr><td>Setup time filter</td><td>Killzones</td><td>A setup can only be armed inside an enabled killzone. Silver Bullet limits it to 03–04, 10–11 and 14–15 New York. On charts above 1H the filter is off.</td></tr>
+    <tr><td>Daily bias filter</td><td>Off</td><td>“With bias only” trades longs on bullish days and shorts on bearish days.</td></tr>
+    <tr><td>Entry location filter</td><td>Discount / Premium</td><td>Skips entries on the wrong side of the range. OTE needs a 62% pullback of the setup leg.</td></tr>
+    <tr><td>Entry PD array</td><td>FVG first</td><td>Which zone is used for the retest: FVG first, OB first, FVG only or OB only.</td></tr>
+    <tr><td>Timezone</td><td>America/New_York</td><td>Used for killzones, the midnight open and the day / week boundaries of PDH, PDL, PWH and PWL.</td></tr>
+    <tr><td>History size</td><td>150</td><td>How many old labels and lines stay on the chart.</td></tr>
+  </table></div>
+
+  <h2>Dashboard</h2>
+  <p>The panel shows trend, HTF bias, range position, the last signal, nearest demand and supply, setup status, killzone, daily bias, Judas, the open trade (entry, SL, TP1–3, R:R) and statistics (trades, wins, losses, win rate, form). Choose 24 Hours, 30 Days or All-Time for the statistics. They are recalculated from the loaded candles and are <b>not a real backtest</b>: the model assumes TP is touched before SL when both happen in the same candle.</p>
+
+  <h2>Alerts</h2>
+  <p>While the app is open you get a message when the event candle closes: entries, TP hits, break-even, SL, reversal, BOS / CHoCH, setup armed or cancelled, sweeps, order block touches, new FVG, RB / PB, Judas and daily bias. Each group can be turned off in Inputs.</p>
+
+  <h2>If something does not show</h2>
+  <ul>
+    <li>A red message in the top left names a setting that is not valid (for example SD levels written with letters, or TP1 not smaller than TP2).</li>
+    <li>Killzones, midnight open, daily bias, Judas and PDH / PDL need an intraday chart. Killzone boxes and Judas work up to 1H.</li>
+    <li>The midnight open needs a candle that opens exactly at 00:00 in the chosen timezone. Without it the Judas swing is not checked that day.</li>
+    <li>Few or no BUY / SELL marks is normal: the setup is strict. To see more, set the time filter to Off, the entry location filter to Off, or turn off “Require displacement”.</li>
+    <li>If the higher timeframe is not above the chart timeframe it is ignored.</li>
+  </ul>
+
+  <div class="warn"><b>Important:</b> this is a chart-reading aid, not a promise of profit. Every setup can fail and hit its stop. Test it on a demo or on past candles first and risk only what you can afford to lose.</div>
+
+  <button type="button" class="done" id="closeBottomIse">Close and return to the chart</button>
+  <p class="foot">Reinblacks Creativz · MarketPlusView</p>
+</section>
+<!-- ============ HTF FAIR VALUE GAP ============ -->
+<section class="tool" id="hfg" data-title="HTF Fair Value Gap [LuxAlgo]">
+  <h1>HTF Fair Value Gap [LuxAlgo] <span class="tag">Indicator</span></h1>
+  <p class="lead">A Fair Value Gap (FVG) is a gap left between three candles, where price moved so fast that one side of the market was left behind. This indicator finds the <b>latest FVG on a higher timeframe</b> (Daily by default) and shows it on your lower timeframe chart, so you can trade the small chart with the big picture in view.</p>
+
+  <div class="where"><b>Where to find it:</b> Indicators → Trend → <b>HTF Fair Value Gap [LuxAlgo]</b>. Tap the indicator's settings and the <b>📖 Read script</b> button at the top of Inputs opens this page.</div>
+
+  <h2>What you see</h2>
+  <div class="scroll"><table>
+    <tr><th>On the chart</th><th>Meaning</th></tr>
+    <tr><td>Box to the right</td><td>The latest higher timeframe FVG. <b>Green</b> is bullish (price jumped up), <b>red</b> is bearish (price dropped). The line through the middle is the average (the middle of the gap).</td></tr>
+    <tr><td>Wicks on the box</td><td>A thin line above and below the box shows how far price has pushed past the gap since it formed.</td></tr>
+    <tr><td>Dashed lines</td><td>The top and the bottom of the gap, drawn from the exact candle that made each edge and carried across to the box.</td></tr>
+    <tr><td>Box outline</td><td>Present while the gap is <b>Unmitigated</b>. It disappears once the gap is <b>Mitigated</b>.</td></tr>
+    <tr><td>Shaded candles</td><td>The candle where a new higher timeframe FVG showed up (you can turn this off).</td></tr>
+    <tr><td>Dashboard</td><td>Shows <b>Unmitigated</b> or <b>Mitigated</b>. Bullish gap: mitigated when price closes below the bottom of the gap. Bearish gap: mitigated when price closes above the top.</td></tr>
+  </table></div>
+
+  <h2>Quick start</h2>
+  <ol class="steps">
+    <li>Open a chart on a timeframe <b>lower</b> than the one you want (for example 1h or 15m for Daily).</li>
+    <li>Add the indicator. The Daily FVG appears as a box on the right.</li>
+    <li>Change <b>Timeframe</b> to 4h, 1d or 1w to watch a different level.</li>
+    <li>Use <b>Box offset</b> and <b>Box width</b> to move or resize the box.</li>
+  </ol>
+
+  <h2>Settings</h2>
+  <div class="scroll"><table>
+    <tr><th>Setting</th><th>Default</th><th>What it does</th></tr>
+    <tr><td>Timeframe</td><td>1d</td><td>The higher timeframe to read the FVG from. It must be above the chart timeframe.</td></tr>
+    <tr><td>Box offset</td><td>20</td><td>How many bars to the right of the last candle the box starts.</td></tr>
+    <tr><td>Box width</td><td>20</td><td>How wide the box is, in bars.</td></tr>
+    <tr><td>Bullish / Bearish FVG</td><td>Green / Red</td><td>The two colors.</td></tr>
+    <tr><td>Box transparency %</td><td>50</td><td>Higher is more see-through.</td></tr>
+    <tr><td>Shade the candle…</td><td>On</td><td>Marks the candle where each new higher timeframe FVG appeared.</td></tr>
+    <tr><td>Dashboard</td><td>On, Top Right, Small</td><td>Show or hide the status table, choose its corner and size.</td></tr>
+  </table></div>
+
+  <h2>How to use it</h2>
+  <ul>
+    <li>An <b>Unmitigated</b> gap is still open. Many traders watch it as an area where price may return and react.</li>
+    <li>The <b>average line</b> (middle of the gap) is a common level to watch.</li>
+    <li>A <b>Mitigated</b> gap has been closed through by price and is usually treated as used up.</li>
+  </ul>
+
+  <h2>If you see something odd</h2>
+  <ul>
+    <li><b>Red message “Chart timeframe needs to be lower…”:</b> switch your chart to a timeframe below the one in the Timeframe setting, or raise the setting.</li>
+    <li><b>Dashboard says “No FVG”:</b> there is no gap in the loaded history for that timeframe. Load more candles or pick a lower timeframe.</li>
+    <li>Daily and weekly candles are built from closed chart candles, using UTC days and weeks (weeks start on Monday). Only closed candles are used, so the box does not repaint.</li>
+  </ul>
+
+  <div class="warn"><b>Important:</b> this is a chart-reading aid, not a promise of profit. Price often ignores gaps. Test it on a demo or on past candles first and risk only what you can afford to lose.</div>
+
+  <button type="button" class="done" id="closeBottomHfg">Close and return to the chart</button>
+  <p class="foot">Reinblacks Creativz · MarketPlusView · Original Pine script by LuxAlgo (CC BY-NC-SA 4.0)</p>
+</section>
+
+<!-- ============ DIY CUSTOM STRATEGY BUILDER ============ -->
+
+<section class="tool" id="ifg" data-title="HTF IFVG | Flux Charts">
+  <h1>HTF Inversion Fair Value Gap | Flux Charts <span class="tag">Indicator</span></h1>
+  <p class="lead">A Fair Value Gap (FVG) is a gap left between three candles. When price later breaks back <b>through</b> that gap, the gap is said to be <b>inverted</b> (an IFVG): a broken bullish gap turns into a <b>bearish</b> zone and a broken bearish gap turns into a <b>bullish</b> zone. This indicator finds these on a higher timeframe (4h by default) and shows the newest one on your lower timeframe chart.</p>
+
+  <div class="where"><b>Where to find it:</b> Indicators → Trend → <b>HTF IFVG | Flux Charts</b>. Tap the indicator's settings and the <b>📖 Read script</b> button at the top of Inputs opens this page.</div>
+
+  <h2>What you see</h2>
+  <div class="scroll"><table>
+    <tr><th>On the chart</th><th>Meaning</th></tr>
+    <tr><td>Box to the right</td><td>The newest inverted gap. <b>Red</b> = bearish IFVG (a bullish gap that was broken down). <b>Green</b> = bullish IFVG (a bearish gap that was broken up). It is split into two halves; the line between them is the middle of the gap.</td></tr>
+    <tr><td>Box outline</td><td>Present while the IFVG is <b>Valid</b>. It disappears once the IFVG is <b>Mitigated</b> and a single line is drawn through the middle instead.</td></tr>
+    <tr><td>Wicks on the box</td><td>Thin lines above and below the box show how far price has travelled past the gap since it was inverted.</td></tr>
+    <tr><td>Dashed lines</td><td>The top and bottom of the gap, drawn from the candle that made each edge, plus a middle line that starts at the candle that broke the gap.</td></tr>
+    <tr><td>Dashboard</td><td>Shows <b>Valid</b>, <b>Mitigated</b> or <b>None</b> (no inverted gap found).</td></tr>
+  </table></div>
+
+  <h2>Quick start</h2>
+  <ol class="steps">
+    <li>Open a chart on a timeframe <b>lower</b> than the one you want (for example 15m or 1h for 4h).</li>
+    <li>Add the indicator. The newest 4h IFVG appears as a box on the right.</li>
+    <li>Change <b>Higher Timeframe</b> to 1h, 1d or 1w to watch a different level.</li>
+    <li>Use <b>Offset</b> and <b>Width</b> to move or resize the box.</li>
+  </ol>
+
+  <h2>Settings</h2>
+  <div class="scroll"><table>
+    <tr><th>Setting</th><th>Default</th><th>What it does</th></tr>
+    <tr><td>Higher Timeframe</td><td>4h</td><td>The timeframe the gaps are read from. It must be above the chart timeframe.</td></tr>
+    <tr><td>Zone invalidation</td><td>Wick</td><td>When a gap counts as broken (and turns into an IFVG): when a <b>wick</b> goes through it, or only when a candle <b>closes</b> through it.</td></tr>
+    <tr><td>IFVG zone invalidation</td><td>Wick</td><td>When the IFVG itself counts as <b>Mitigated</b>: wick or close through its far side.</td></tr>
+    <tr><td>Zone filtering</td><td>Average Range</td><td>Average Range keeps only gaps that are big compared with recent candles. Volume Threshold uses volume instead (needs volume data).</td></tr>
+    <tr><td>Volume threshold %</td><td>50</td><td>Only used when filtering by volume.</td></tr>
+    <tr><td>FVG detection</td><td>Same Type</td><td>Same Type needs all three candles to be bullish or all bearish. All allows mixed candles.</td></tr>
+    <tr><td>Detection sensitivity</td><td>Extreme</td><td>All, Extreme, High, Normal, Low. Extreme finds more gaps, Low only the biggest.</td></tr>
+    <tr><td>Allow gaps between bars</td><td>Off</td><td>Turn on for markets that open away from the last close (like stocks).</td></tr>
+    <tr><td>Offset / Width</td><td>25 / 20</td><td>Where the box starts to the right of the last candle, and how wide it is, in bars.</td></tr>
+    <tr><td>Bullish / Bearish</td><td>Green / Red</td><td>The two colors.</td></tr>
+    <tr><td>Dashboard</td><td>On, Top Right, Small</td><td>Show or hide the status table, choose its place and size.</td></tr>
+  </table></div>
+
+  <h2>How to use it</h2>
+  <ul>
+    <li>A <b>Valid</b> IFVG is still holding. Many traders watch it as an area where price may react, a bearish IFVG as possible resistance and a bullish IFVG as possible support.</li>
+    <li>The <b>middle line</b> is a common level to watch inside the zone.</li>
+    <li>A <b>Mitigated</b> IFVG has been broken through again and is usually treated as used up.</li>
+  </ul>
+
+  <h2>If you see something odd</h2>
+  <ul>
+    <li><b>Red message “Chart timeframe needs to be lower…”:</b> switch your chart to a timeframe below the one in Higher Timeframe, or raise that setting.</li>
+    <li><b>Dashboard says “None”:</b> no gap on that timeframe has been inverted in the loaded history. Load more candles, lower the timeframe, or raise the sensitivity.</li>
+    <li>Higher timeframe candles are built from closed chart candles, using UTC time (weeks start on Monday). Only closed candles are used, so the box does not repaint.</li>
+  </ul>
+
+  <div class="warn"><b>Important:</b> this is a chart-reading aid, not a promise of profit. Price often ignores these zones. Test it on a demo or on past candles first and risk only what you can afford to lose.</div>
+
+  <button type="button" class="done" id="closeBottomIfg">Close and return to the chart</button>
+  <p class="foot">Reinblacks Creativz · MarketPlusView · Original Pine script by Flux Charts (MPL 2.0)</p>
+</section>
+
+<section class="tool" id="dsb" data-title="DIY Custom Strategy Builder">
+  <h1>DIY Custom Strategy Builder <span class="tag">Strategy</span></h1>
+  <p class="lead">Build your own signal system. You choose <b>one leading indicator</b> (it gives the first signal) and then tick as many <b>confirmation indicators</b> as you want (they act as filters). A <b>LONG</b> or <b>SHORT</b> signal is printed only when the leading indicator signals <b>and every ticked confirmation agrees</b>.</p>
+
+  <div class="where"><b>Where to find it:</b> Indicators → Trend → <b>DIY Custom Strategy Builder</b>. Tap the indicator's settings and the <b>📖 Read script</b> button at the top of Inputs opens this page.</div>
+
+  <h2>What you see</h2>
+  <div class="scroll"><table>
+    <tr><th>On the chart</th><th>Meaning</th></tr>
+    <tr><td>Green arrow “LONG” below a candle</td><td>The leading indicator turned bullish and all your confirmations agreed. Printed on a <b>closed</b> candle.</td></tr>
+    <tr><td>Red arrow “SHORT” above a candle</td><td>The same for the bearish side.</td></tr>
+    <tr><td>Small orange dot</td><td>A setup that <b>expired</b>: the leading indicator signalled, but the confirmations did not all agree within the <b>Signal expiry</b> candles. It is a reminder that a setup was missed. Turn it off with “Mark setups that expired”.</td></tr>
+    <tr><td>Dashboard</td><td>A table with the leading indicator and every ticked confirmation. A green ✓ means that check agrees right now, a red ✗ means it does not, one column for Long and one for Short. The last line says whether a signal just printed.</td></tr>
+    <tr><td>Lines on the chart</td><td>Optional. Moving averages, SuperTrend, Range Filter, Half Trend, Parabolic SAR, VWAP and Bollinger Bands can be drawn under <b>Chart overlays</b>. They do not change the signals.</td></tr>
+  </table></div>
+
+  <h2>Quick start</h2>
+  <ol class="steps">
+    <li>Add the indicator. By default the leading indicator is <b>Range Filter</b> and <b>Rational Quadratic Kernel (RQK)</b> is the one confirmation.</li>
+    <li>Open the settings. At the top, under <b>Setup</b>, pick your <b>Leading indicator</b>.</li>
+    <li>Scroll down to the confirmations you like and tick <b>Use as confirmation</b> on each one. Change its numbers if you want.</li>
+    <li>Look at the dashboard. When the leading row and every confirmation row show ✓ in the same column, that side fires.</li>
+    <li>Set <b>Signal expiry</b> to give the confirmations more or fewer candles to catch up.</li>
+  </ol>
+
+  <h2>How the signal is decided</h2>
+  <ul>
+    <li><b>Leading indicator</b> turns Long or Short first. It starts the clock.</li>
+    <li><b>Confirmations</b> must all agree. You have <b>Signal expiry</b> candles (default 3) after the leading indicator signals. If one confirmation is still ✗ after that, the setup is dropped (orange dot) and you wait for the leading indicator to signal again.</li>
+    <li><b>Alternate signal</b> (on by default) prints Long, Short, Long, Short… in turn, so you never get two longs in a row. The very first setup only sets the direction, the first printed signal is the one after it. Turn it off to see every qualifying signal.</li>
+    <li>Signals use <b>closed candles only</b>, so a printed arrow does not disappear.</li>
+  </ul>
+
+  <h2>The leading indicators (pick one)</h2>
+  <p>Range Filter, Rational Quadratic Kernel, Supertrend, Half Trend, Ichimoku Cloud, SuperIchi, True Strength Indicator, Trend Direction Force Index, Trendline Breakout, Range Detector, Heiken-Ashi Candlestick Oscillator, Donchian Trend Ribbon, Stochastic, RSI, Rate of Change, VWAP, CCI, 2 EMA Cross, 3 EMA Cross, B-Xtrender, Bull Bear Power Trend, Detrended Price Oscillator, BB Oscillator, Chandelier Exit, DMI (ADX), Parabolic SAR, MACD, SSL Channel, Waddah Attar Explosion, Chaikin Money Flow, Vortex Index, Schaff Trend Cycle, Awesome Oscillator, Volatility Oscillator, Wolfpack Id, QQE Mod and Hull Suite.</p>
+
+  <h2>The confirmations (tick any)</h2>
+  <p>All of the leading indicators above can also be ticked as confirmations. These extra ones are confirmations only:</p>
+  <div class="scroll"><table>
+    <tr><th>Filter</th><th>Long needs</th><th>Short needs</th></tr>
+    <tr><td>EMA filter</td><td>Price above the EMA (default 200)</td><td>Price below the EMA</td></tr>
+    <tr><td>McGinley Dynamic</td><td>Price above the line</td><td>Price below the line</td></tr>
+    <tr><td>Choppiness Index</td><td colspan="2">The index is below the threshold (default 61.8), meaning the market is trending. Same for both sides.</td></tr>
+    <tr><td>Damiani Volatility</td><td colspan="2">Volatility is “on” (Simple, Threshold or 10p Difference). Same for both sides.</td></tr>
+    <tr><td>Volume</td><td colspan="2">Volume above its moving average, or an up / down volume comparison (Simple, Delta).</td></tr>
+    <tr><td>RSI MA Direction</td><td>RSI average rising or flat</td><td>RSI average falling or flat</td></tr>
+    <tr><td>RSI Limit / RSI MA Limit</td><td>RSI (or its average) at least 40</td><td>RSI (or its average) at most 60</td></tr>
+  </table></div>
+  <p>Some confirmations only agree for a single candle (for example “2 EMA Cross” on <b>Default</b> is true only on the candle where the cross happens). That is how they work, so pair them with a longer <b>Signal expiry</b> or use the <b>Lookback</b> type.</p>
+
+  <h2>Main settings</h2>
+  <div class="scroll"><table>
+    <tr><th>Setting</th><th>Default</th><th>What it does</th></tr>
+    <tr><td>Leading indicator</td><td>Range Filter</td><td>The indicator that gives the first signal.</td></tr>
+    <tr><td>Signal expiry</td><td>3</td><td>Candles the confirmations may take to agree after the leading indicator signals.</td></tr>
+    <tr><td>Alternate signal</td><td>On</td><td>Long and short signals take turns.</td></tr>
+    <tr><td>Show Long / Short signals</td><td>On</td><td>Show or hide the arrows.</td></tr>
+    <tr><td>Mark setups that expired</td><td>On</td><td>Orange dot where the confirmations were too late.</td></tr>
+    <tr><td>Signal size</td><td>Small</td><td>Size of the arrows.</td></tr>
+    <tr><td>Dashboard, location, size</td><td>On, Bottom Right, Small</td><td>Show or hide the checks table and choose its corner and size.</td></tr>
+    <tr><td>Alert on a new signal</td><td>On</td><td>A message (and optional sound) when a new Long or Short signal appears on a closed candle while the app is open.</td></tr>
+    <tr><td>Each indicator's own numbers</td><td>Common values</td><td>Every indicator has its own section with its length, levels and type.</td></tr>
+  </table></div>
+
+  <h2>Tips</h2>
+  <ul>
+    <li>Start with the leading indicator plus <b>one or two</b> confirmations. The more you tick, the fewer signals you get.</li>
+    <li>Use a trend confirmation (EMA filter, SuperTrend) with a momentum leading indicator (RSI, Stochastic, MACD) so you trade with the trend.</li>
+    <li>If you see a lot of orange dots, raise <b>Signal expiry</b> a little or untick the slowest confirmation.</li>
+    <li>If nothing prints, check the dashboard: a row that stays ✗ in one column is the filter that blocks the signal.</li>
+  </ul>
+
+  <h2>If you see something odd</h2>
+  <ul>
+    <li><b>“Not enough candles loaded”:</b> scroll the chart back or use a lower timeframe so more candles load.</li>
+    <li><b>Range Detector gives nothing:</b> its default ATR length is 500 candles, so it needs at least that many candles. Lower <b>ATR length</b> for short histories.</li>
+    <li><b>Volume Simple / Delta:</b> up and down volume are measured from the candle itself (green or red candle), not from lower timeframe data.</li>
+    <li>VWAP uses UTC days, weeks, months, quarters or years as the anchor.</li>
+  </ul>
+
+  <div class="warn"><b>Important:</b> this is a chart-reading aid, not a promise of profit. A signal means your chosen conditions lined up, not that price will move. Test your combination on past candles or on a demo first and risk only what you can afford to lose.</div>
+
+  <button type="button" class="done" id="closeBottomDsb">Close and return to the chart</button>
+  <p class="foot">Reinblacks Creativz · MarketPlusView</p>
+</section>
+
+<!-- ============ HAMMER CANDLESTICK STRATEGY ============ -->
+<section class="tool" id="hcs" data-title="Hammer Candlestick Strategy">
+  <h1>Hammer Candlestick Strategy <span class="tag">Strategy</span></h1>
+  <p class="lead">Finds the setup from the <b>HAMMER CANDLESTICK</b> picture: price falls along a downtrend line, a <b>hammer</b> prints at <b>support</b>, and a candle that closes <b>above the trendline</b> gives the <b>entry</b>. The stop loss sits under the hammer, the target at the prior swing high, and the tool draws the green <b>reward</b> box and the red <b>risk</b> box for you.</p>
+
+  <div class="where"><b>Where to find it:</b> Indicators → Trend → <b>Hammer Candlestick Strategy</b>. Tap its settings and the <b>📖 Read script</b> button at the top of Inputs opens this page.</div>
+
+  <h2>How the setup is found</h2>
+  <ol class="steps">
+    <li><b>Downtrend line.</b> The tool joins two lower swing highs (trendline rejection, resistance rejection). The line is only valid if no candle closed above it before the hammer.</li>
+    <li><b>Hammer at support.</b> A small body at the top of the candle and a long lower wick, after a fall, at the lowest low of the look-back or at an earlier swing low (support rejection).</li>
+    <li><b>Entry.</b> A green candle closes above the trendline (and above the hammer high) within the allowed number of bars. Entry price is that candle's close.</li>
+    <li><b>Stop loss</b> goes a little under the hammer low. <b>Target</b> is the highest high before the hammer (or a fixed Risk:Reward).</li>
+    <li><b>Result.</b> The boxes run until price touches the target (win) or the stop (loss). If both happen on one candle it counts as a loss.</li>
+  </ol>
+
+  <h2>What you see</h2>
+  <div class="scroll"><table>
+    <tr><th>On the chart</th><th>Meaning</th></tr>
+    <tr><td>Grey line</td><td>The downtrend line, drawn from the first swing high to the entry candle.</td></tr>
+    <tr><td>Blue circles</td><td>Trendline Rejection, Resistance Rejection (the two swing highs on the line), Support Rejection (the hammer) and the ENTRY.</td></tr>
+    <tr><td>H marker</td><td>A hammer that qualified at support. It does not mean a trade yet.</td></tr>
+    <tr><td>LONG arrow</td><td>The entry candle closed. Alerts fire on this candle.</td></tr>
+    <tr><td>Green box (REWARD)</td><td>From the entry up to the target.</td></tr>
+    <tr><td>Red box (Risk)</td><td>From the entry down to the stop loss.</td></tr>
+    <tr><td>Dashboard</td><td>Setups, wins / losses / open, win rate, net result in R, and whether a hammer is waiting for its breakout.</td></tr>
+  </table></div>
+
+  <h2>Quick start</h2>
+  <ol class="steps">
+    <li>Open any chart and add <b>Hammer Candlestick Strategy</b> from Indicators → Trend.</li>
+    <li>Scroll back to find the green and red boxes. The latest 4 trades are drawn.</li>
+    <li>If you see H markers but no boxes, lower <b>Skip setups with reward below</b> or switch <b>Target</b> to Risk:Reward.</li>
+    <li>Turn on <b>Both</b> in Direction to also get the mirror setup (shooting star at resistance, uptrend line, short).</li>
+  </ol>
+
+  <h2>Settings</h2>
+  <div class="scroll"><table>
+    <tr><th>Setting</th><th>Default</th><th>What it does</th></tr>
+    <tr><td>Direction</td><td>Long only</td><td>Long only is the picture. Both also looks for the mirrored short setup.</td></tr>
+    <tr><td>Trade opposite</td><td>Off</td><td>When ON, every setup is traded the other way: the buy becomes a <b>SELL</b> and the sell becomes a <b>BUY</b>. It uses the same entry candle and the same risk and reward distances, mirrored around the entry. The normal signals are switched off while this is ON (you get one or the other, never both). Switch it OFF to go back to the normal signals.</td></tr>
+    <tr><td>Lower wick at least X times the body</td><td>2</td><td>How long the hammer's tail must be compared with its body.</td></tr>
+    <tr><td>Upper wick max % of range</td><td>25</td><td>The hammer may only have a small wick on top.</td></tr>
+    <tr><td>Min candle range (x ATR)</td><td>0.5</td><td>Ignores tiny candles.</td></tr>
+    <tr><td>Downtrend look-back</td><td>8</td><td>The hammer low must be the lowest of this many bars, or touch an earlier swing low, after a fall of at least 1 ATR.</td></tr>
+    <tr><td>Support tolerance</td><td>0.3</td><td>How close to an earlier swing low counts as support (x ATR).</td></tr>
+    <tr><td>Swing pivot strength</td><td>4</td><td>Bars on each side needed to call a swing high or low. Higher = fewer, bigger swings.</td></tr>
+    <tr><td>Entry trigger</td><td>Trendline break</td><td>Trendline break needs a close above the line. Hammer high break only needs a close above the hammer high.</td></tr>
+    <tr><td>Bars allowed to trigger</td><td>6</td><td>If no entry comes within this many bars after the hammer, the setup is dropped. It is also dropped if price trades below the hammer low.</td></tr>
+    <tr><td>Stop buffer</td><td>0.1</td><td>Distance under the hammer low (x ATR).</td></tr>
+    <tr><td>Target</td><td>Prior swing high</td><td>Highest high in the look-back before the hammer, or a fixed Risk:Reward.</td></tr>
+    <tr><td>Skip setups with reward below</td><td>1.5 R</td><td>Setups with a smaller reward than this are not shown.</td></tr>
+    <tr><td>Trades drawn / Box extension</td><td>4 / 5</td><td>How many latest trades are drawn, and how far an open trade's box reaches to the right.</td></tr>
+  </table></div>
+
+  <div class="warn"><b>Good to know:</b> signals use closed candles only, so they do not repaint. Win / loss counts are a quick check on the chart history, not a guarantee. No setup works every time, so always size your risk.</div>
+</section>
+
+<!-- ============ HIGHER TIMEFRAME TREND FRONTIER ============ -->
+<section class="tool" id="hfx" data-title="Higher Timeframe Trend Frontier">
+  <h1>Higher Timeframe Trend Frontier <span class="tag">Indicator</span></h1>
+  <p class="lead">A smooth trend line that lives inside each higher-timeframe candle, with the candle's range, its opening zone, and a map of where buyers and sellers are most likely trapped.</p>
+
+  <div class="where"><b>Where to find it:</b> Indicators → Trend → <b>Higher Timeframe Trend Frontier</b>. Tap the indicator's settings and the <b>📖 Read script</b> button at the top of Inputs opens this page.</div>
+
+  <h2>What you see on the chart</h2>
+  <div class="scroll"><table>
+    <tr><th>On the chart</th><th>Meaning</th></tr>
+    <tr><td>Echo Frontier</td><td>The main line. It trails price inside the current higher-timeframe candle and restarts at that candle's open. <span class="sw" style="background:#00e676"></span>Green = rising, <span class="sw" style="background:#ff5252"></span>red = falling. The thick band behind it fades as the period ages.</td></tr>
+    <tr><td>Period dot</td><td>A small dot where the frontier starts again after a new higher-timeframe candle opens.</td></tr>
+    <tr><td>HTF boxes</td><td>One shaded box per higher-timeframe candle, from its high to its low. Green means price is above that candle's open, red means below.</td></tr>
+    <tr><td>High / low labels</td><td>Price tags on the exact candle that made each period's high and low.</td></tr>
+    <tr><td>ATR opening zone</td><td>A thin blue band centred on the period's open with a dotted line through the middle. Its half-width is a share of the previous higher-timeframe candle's ATR.</td></tr>
+    <tr><td>Vertical dividers</td><td>Dotted lines where each new higher-timeframe period begins.</td></tr>
+    <tr><td>Trapped buyers / sellers</td><td>A two-sided profile to the right of the last candle. Trapped buyers grow to the left, trapped sellers to the right. A blue frame marks the buyer peak and an orange frame the seller peak.</td></tr>
+    <tr><td>Status text</td><td>Top of the chart: the higher timeframe, how far through the period you are, and the current frontier speed multiplier.</td></tr>
+  </table></div>
+
+  <h2>How it works</h2>
+  <h3>The frontier follows price, but not blindly</h3>
+  <p>On every candle the frontier moves toward the close by a limited step: <b>Frontier Speed</b> times the chart's ATR(14). A bigger speed hugs price, a smaller one is smoother.</p>
+  <h3>Echo memory</h3>
+  <p>The previous higher-timeframe candle's range (plus a quarter above and below) is cut into nine zones. Each time price sits in a zone, the tool remembers what price did three candles later, and old memories fade. When price is back in a zone that usually led higher, the frontier rises a little faster than it falls, and the other way round. Until enough history exists it moves evenly.</p>
+  <h3>Late-period acceleration</h3>
+  <p>Near the end of the higher-timeframe candle the speed rises from 1x to your final multiplier, so the frontier catches up with price before the period closes.</p>
+  <h3>Trapped buyers and sellers</h3>
+  <p>The three newest higher-timeframe candles (including the one still forming) are split into price rows. Each chart candle adds weight to the rows it touched, using volume, body, close position and wicks. Rows now under water count more: buyers who bought above the current price and sellers who sold below it. Red higher-timeframe candles lean toward trapped buyers, green ones toward trapped sellers, and older periods count a little less.</p>
+  <div class="warn"><b>Estimate, not exchange data.</b> The profile is built from candle open, high, low, close and volume. It is not real bid and ask delta, so treat it as a map of likely pressure.</div>
+
+  <h2>Quick start</h2>
+  <ol class="steps">
+    <li>Add <b>Higher Timeframe Trend Frontier</b> from Indicators → Trend.</li>
+    <li>Pick a <b>Higher timeframe</b> above the chart timeframe (for example 1h or 4h on a 5m or 15m chart). If it is not higher, the chart shows a message saying so.</li>
+    <li>Read the frontier colour: green and rising means buyers lead inside this period, red and falling means sellers lead.</li>
+    <li>Check the open: price holding above the period's open and opening zone is a stronger bullish read. Price stuck inside the zone means the period has not picked a side.</li>
+    <li>Look right for the blue (buyers) and orange (sellers) peaks. Price often reacts when it returns to those rows.</li>
+    <li>Wait for the candle to close, then confirm with your own entry rules and stop loss.</li>
+  </ol>
+
+  <h2>Ways to use it</h2>
+  <ul>
+    <li><b>Trend filter:</b> longs only while the frontier is green and rising, shorts only while it is red and falling.</li>
+    <li><b>Pullbacks:</b> in a trend, a pullback to the frontier or the opening zone is a place to look for continuation.</li>
+    <li><b>Caution levels:</b> the seller peak above price can act as resistance, the buyer peak below price as support.</li>
+    <li><b>Timing:</b> late in the period the frontier is faster, so it sits closer to price.</li>
+  </ul>
+
+  <h2>Settings</h2>
+  <div class="scroll"><table>
+    <tr><th>Setting</th><th>Default</th><th>What it does</th></tr>
+    <tr><td>Higher timeframe</td><td>1h</td><td>Period used for boxes, opening zone, profile and the frontier restart. Must be above the chart timeframe.</td></tr>
+    <tr><td>Show Echo Frontier line</td><td>On</td><td>Turns the frontier line and its fading band on or off.</td></tr>
+    <tr><td>Frontier up / down</td><td>Green / Red</td><td>Colours for a rising and a falling frontier.</td></tr>
+    <tr><td>Frontier speed (chart ATR)</td><td>0.15</td><td>How fast the frontier follows price. Range 0.01 to 1.5. Lower is smoother.</td></tr>
+    <tr><td>Late-HTF acceleration</td><td>On</td><td>Speeds the frontier up as the period nears its close.</td></tr>
+    <tr><td>Start after HTF progress (%)</td><td>70</td><td>How far through the period the acceleration begins. Range 10 to 95.</td></tr>
+    <tr><td>Final speed multiplier</td><td>3</td><td>Speed multiplier reached at the end of the period. Range 1 to 10.</td></tr>
+    <tr><td>Acceleration curve</td><td>1.5</td><td>1 is a straight ramp. Higher values keep the speed low for longer and push it to the very end.</td></tr>
+    <tr><td>Coloured HTF boxes</td><td>On</td><td>Shaded high-to-low box per period, with bullish and bearish colours.</td></tr>
+    <tr><td>High / low price labels</td><td>On</td><td>Price tags on the extreme candles. Choose high colour, low colour and size (Tiny to Huge).</td></tr>
+    <tr><td>HTF ATR opening zone</td><td>On</td><td>Band around each period's open. Width is a multiple of the previous higher-timeframe ATR (default 0.05, range 0.01 to 1).</td></tr>
+    <tr><td>Vertical dividers</td><td>On</td><td>Dotted lines at each new period.</td></tr>
+    <tr><td>Trapped buyers / sellers profile</td><td>On</td><td>Shows the two-sided profile of the newest three periods.</td></tr>
+    <tr><td>Price rows</td><td>48</td><td>Number of price bins in the profile. Range 12 to 60.</td></tr>
+    <tr><td>Offset / Side width (bars)</td><td>10 / 22</td><td>Gap between the last candle and the profile, and the widest each side can grow.</td></tr>
+    <tr><td>Trapped buyers / sellers colour</td><td>Indigo / Teal</td><td>Colours of the left and right sides.</td></tr>
+    <tr><td>Normalise each side</td><td>On</td><td>On: each side reaches full width at its own strongest row. Off: both share one scale so you can compare them.</td></tr>
+    <tr><td>Show trap labels</td><td>On</td><td>Shows or hides the TRAPPED BUYERS / TRAPPED SELLERS titles without changing the profile.</td></tr>
+    <tr><td>Show status text</td><td>On</td><td>Shows the progress and speed line at the top of the chart.</td></tr>
+  </table></div>
+
+  <div class="warn"><b>Good to know:</b> the higher-timeframe candles are built from the candles already loaded on the chart, so no extra data is requested. With few periods loaded, the first period is skipped and the opening-zone ATR uses as many periods as exist (up to 14). The profile needs three periods and sits right of the last candle, so scroll the chart left if it is cut off. On markets without volume every candle is weighted equally. The newest candle is live, so values settle when it closes. This tool shows market context, not advice: always use a stop loss.</div>
+
+  <button type="button" class="done" id="closeBottomHfx">Close and return to the chart</button>
+  <p class="foot">Reinblacks Creativz · MarketPlusView</p>
+</section>
+
+<!-- ============ 3 STROKES BY REINBLACKS ============ -->
+<section class="tool" id="s3k" data-title="3 Strokes by Reinblacks">
+  <h1>3 Strokes by Reinblacks <span class="tag">Indicator</span></h1>
+  <p class="lead">Three horizontal lines: the price area where the market sold the most (red), the area where it bought the most (green), and a yellow line exactly in the middle of the two. Candles are coloured when price comes back to touch a line, and you can be alerted.</p>
+
+  <div class="where"><b>Where to find it:</b> Indicators → Volume → <b>3 Strokes by Reinblacks</b>. Tap the indicator's settings and the <b>📖 Read script</b> button at the top of Inputs opens this page.</div>
+
+  <h2>What you see on the chart</h2>
+  <div class="scroll"><table>
+    <tr><th>On the chart</th><th>Meaning</th></tr>
+    <tr><td><span class="sw" style="background:#ff3b3b"></span>Red line</td><td>The price area with the most selling. Sellers were strongest here.</td></tr>
+    <tr><td><span class="sw" style="background:#ffd400"></span>Yellow line</td><td>Exactly the middle between the red and green lines. It does not count candles, it only measures the middle.</td></tr>
+    <tr><td><span class="sw" style="background:#00c853"></span>Green line</td><td>The price area with the most buying. Buyers were strongest here.</td></tr>
+    <tr><td>Soft band</td><td>Each line sits in a thin zone. Price reacts to areas more than to one exact price.</td></tr>
+    <tr><td>Coloured candles</td><td>The first 2 to 3 candles after price touches a line (see the next table).</td></tr>
+  </table></div>
+
+  <h2>Candle colours after a touch</h2>
+  <div class="scroll"><table>
+    <tr><th>Line touched</th><th>Candle colour</th></tr>
+    <tr><td>Red</td><td><span class="sw" style="background:#9aa0a6"></span>Grey</td></tr>
+    <tr><td>Yellow, price arrives from above (going down)</td><td><span class="sw" style="background:#ffffff;border:1px solid #888"></span>White</td></tr>
+    <tr><td>Yellow, price arrives from below (going up)</td><td><span class="sw" style="background:#2962ff"></span>Blue</td></tr>
+    <tr><td>Green</td><td><span class="sw" style="background:#9c27b0"></span>Purple</td></tr>
+  </table></div>
+  <p>A touch means the candle's high to low reaches the line's zone after a candle that did not. If one candle fits two lines, the nearest line decides the colour.</p>
+
+  <h2>Quick start</h2>
+  <ol>
+    <li>Add the indicator and set <b>Lookback</b> to the number of candles you want the lines built from (200 is the default).</li>
+    <li>To use lines from a bigger timeframe, switch on <b>Lock lines to a higher timeframe</b> and pick it. Example: lock to 4h, then trade on the 5 minute chart. The lines come from the 4h candles and stay on your 5 minute chart.</li>
+    <li>Choose <b>Live</b> (lines recalculate) or <b>Static</b> (lines freeze).</li>
+    <li>Switch on the alerts you want.</li>
+  </ol>
+
+  <h2>Settings</h2>
+  <div class="scroll"><table>
+    <tr><th>Setting</th><th>Default</th><th>What it does</th></tr>
+    <tr><td>Lookback (number of candles)</td><td>200</td><td>How many candles build the red and green lines. Range 10 to 1000.</td></tr>
+    <tr><td>Price precision (bins)</td><td>60</td><td>How finely the price range is sliced. More bins give thinner, more exact zones.</td></tr>
+    <tr><td>Line method</td><td>Net delta</td><td><b>Net delta:</b> red is where sellers beat buyers the most, green is where buyers beat sellers the most. <b>Raw volume:</b> uses total sell volume and total buy volume, which often puts all three lines in the same place.</td></tr>
+    <tr><td>Minimum distance between red and green (% of range)</td><td>30</td><td>Keeps red and green apart. Red is the strongest selling area in the upper part of the range, green is the strongest buying area in the lower part, and yellow sits exactly between them, so the order is always red, yellow, green from top to bottom.</td></tr>
+    <tr><td>Lock lines to a higher timeframe</td><td>Off</td><td>Builds the lines from the timeframe you pick (15m, 30m, 1h, 2h, 4h, 6h, 12h, 1D, 1W) and draws them on any chart timeframe.</td></tr>
+    <tr><td>Lines refresh</td><td>Live</td><td><b>Live:</b> recalculates as new candles arrive, so lines can move. <b>Static:</b> freezes the lines the first time they are drawn and keeps them after a reload.</td></tr>
+    <tr><td>Re-freeze now</td><td>Off</td><td>Switch it on or off to make Static lines take a fresh snapshot.</td></tr>
+    <tr><td>Colour candles after a touch</td><td>On</td><td>Turns the candle colouring on or off.</td></tr>
+    <tr><td>Candles to colour</td><td>3</td><td>How many candles are coloured after each touch. Range 1 to 6.</td></tr>
+    <tr><td>Colour history (candles)</td><td>300</td><td>How far back the colouring is shown.</td></tr>
+    <tr><td>Touch tolerance (% of price)</td><td>0.05</td><td>Extra room around each zone that still counts as a touch.</td></tr>
+    <tr><td>Zone bands / Line labels / Info text</td><td>On</td><td>Show or hide the soft bands, the price labels and the top text.</td></tr>
+    <tr><td>Alert on red / yellow / green</td><td>On</td><td>Choose which lines can alert you.</td></tr>
+    <tr><td>Play a sound</td><td>Off</td><td>Adds a beep to the alert.</td></tr>
+  </table></div>
+
+  <h2>Alerts</h2>
+  <p>You get one alert each time price touches a line, including on the live candle, while the app is open. Allow notifications in your browser if you also want them outside the app.</p>
+
+  <h2>Static or Live, which one?</h2>
+  <p>Say the 4h lines look right to you. Lock to 4h, choose <b>Static</b>, and enter on the 5 minute chart against lines that will not move. Use <b>Live</b> when you want the lines to follow the market.</p>
+
+  <div class="warn"><b>Good to know:</b> in Live mode, candle colours in the past use today's lines, so older colours can change when the lines move. Static avoids this. Locked lines use Binance data, with a temporary version built from the chart candles while it loads, and for other markets the chart candles are used. This is a chart-reading aid, not a promise of profit.</div>
+
+  <button type="button" class="done" id="closeBottomS3k">Close and return to the chart</button>
+  <p class="foot">Reinblacks Creativz · MarketPlusView</p>
+</section>
+
+</main>
+<script>
+(function(){
+  var home=document.getElementById('home'), tools=[].slice.call(document.querySelectorAll('.tool')), title=document.getElementById('topTitle');
+  function route(){
+    var k=(location.hash||'').replace('#','').trim(), hit=null;
+    tools.forEach(function(t){ var on=t.id===k; t.classList.toggle('on',on); if(on) hit=t; });
+    home.classList.toggle('off',!!hit);
+    title.textContent=hit?('Script 2 · '+hit.getAttribute('data-title')):'Script 2 · tool guides';
+    window.scrollTo(0,0);
+  }
+  function closeMe(){
+    try{ if(window.parent&&window.parent!==window){ window.parent.postMessage({rcs:'close'},'*'); return; } }catch(e){}
+    if(history.length>1) history.back(); else location.hash='';
+  }
+  document.getElementById('closeTop').onclick=closeMe;
+  document.getElementById('closeBottom').onclick=closeMe;
+  var cb2=document.getElementById('closeBottomIvi'); if(cb2) cb2.onclick=closeMe;
+  var cb3=document.getElementById('closeBottomTpz'); if(cb3) cb3.onclick=closeMe;
+  var cb4=document.getElementById('closeBottomIse'); if(cb4) cb4.onclick=closeMe;
+  var cb5=document.getElementById('closeBottomHfg'); if(cb5) cb5.onclick=closeMe;
+  var cb7=document.getElementById('closeBottomIfg'); if(cb7) cb7.onclick=closeMe;
+  var cb6=document.getElementById('closeBottomDsb'); if(cb6) cb6.onclick=closeMe;
+  var cb8=document.getElementById('closeBottomHfx'); if(cb8) cb8.onclick=closeMe;
+  var cb9=document.getElementById('closeBottomS3k'); if(cb9) cb9.onclick=closeMe;
+  window.addEventListener('hashchange',route); route();
+})();
+</script>
+</body>
+</html>
