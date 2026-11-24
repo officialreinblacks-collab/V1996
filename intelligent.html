@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Market Intelligence · Marketplusview</title>
+<style>
+:root{--bg:#0b0e14;--cd:#141925;--ln:#232a3b;--tx:#e6e9f2;--mu:#8b95ab;--up:#2bd48a;--dn:#ff4d5e;--am:#ffb020;--bl:#4a8dff;box-sizing:border-box}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+body{padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--ln);position:sticky;top:0;background:var(--bg);z-index:5;flex-wrap:wrap}
+h1{margin:0;font-size:16px;flex:1;min-width:150px;line-height:1.2}h1 small{display:block;font-weight:400;color:var(--mu);font-size:11px}
+.xexit{flex:none;width:26px;height:26px;border-radius:50%;border:1.5px solid #fff;background:#d4202c;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}.xexit svg{width:11px;height:11px}
+select,input,button.pill{background:var(--cd);color:var(--tx);border:1px solid var(--ln);border-radius:9px;padding:7px 9px;font:inherit;font-size:13px;max-width:100%}
+button.pill{cursor:pointer}
+nav{display:flex;gap:6px;overflow-x:auto;padding:8px 12px;scrollbar-width:none;border-bottom:1px solid var(--ln)}nav::-webkit-scrollbar{display:none}
+nav button{flex:none;background:transparent;color:var(--mu);border:1px solid var(--ln);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+nav button.on{background:var(--tx);color:#0b0e14;border-color:var(--tx);font-weight:600}
+main{padding:12px;max-width:980px;margin:0 auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:0 0 12px}
+.k{background:var(--cd);border:1px solid var(--ln);border-radius:12px;padding:10px}.k small{color:var(--mu);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em}.k b{font-size:18px;display:block;margin:2px 0}.k em{font-style:normal;color:var(--mu);font-size:12px}
+.box{background:var(--cd);border:1px solid var(--ln);border-radius:12px;padding:12px;margin:0 0 12px}.box h3{margin:0 0 8px;font-size:14px}
+.up{color:var(--up)}.dn{color:var(--dn)}.warn{color:var(--am)}
+.sum{border-left:3px solid var(--bl);padding:2px 0 2px 10px;color:#cfd5e6;margin:0 0 12px}
+.hint,.note{color:var(--mu);font-size:12.5px;margin:6px 0}
+body.beg .adv{display:none}body:not(.beg) .hint{display:none}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:7px 6px;text-align:right;border-bottom:1px solid var(--ln);white-space:nowrap}th:first-child,td:first-child{text-align:left}th{color:var(--mu);font-weight:500;font-size:11px;text-transform:uppercase}
+tr.cl{cursor:pointer}tr.cl:active{background:#1b2130}
+.tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:99px;border:1px solid var(--am);color:var(--am);margin-left:4px}
+.ld,.err{padding:30px 10px;text-align:center;color:var(--mu)}.err{color:var(--tx)}.err button{margin-top:8px;background:var(--bl);border:0;color:#fff;border-radius:8px;padding:8px 14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px}.row label{color:var(--mu);font-size:12px}
+.f{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}.f label{display:block;color:var(--mu);font-size:11px}.f input{width:100%}
+.soon{display:flex;flex-wrap:wrap;gap:6px}.soon span{border:1px dashed var(--ln);color:var(--mu);border-radius:99px;padding:3px 10px;font-size:12px}
+a{color:var(--bl)}footer{color:var(--mu);font-size:11.5px;padding:10px 12px 24px;text-align:center}
+.hm td{text-align:center;font-weight:600}
+</style></head>
+<body class="beg">
+<header>
+ <button class="xexit" id="xexit" type="button" aria-label="Exit to chart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg></button>
+ <h1>Market Intelligence<small>Information only · not signals</small></h1>
+ <select id="sym" aria-label="Market"></select>
+ <button class="pill" id="mode" type="button">Beginner</button>
+</header>
+<nav id="tabs"></nav>
+<main id="view"></main>
+<footer>Data: Binance public spot API · cached 30–60 s · nothing is estimated when data is missing · historical statistics describe the past and do not predict the future · <span id="upd"></span></footer>
+<script>
+const $=(s,r=document)=>r.querySelector(s),avg=a=>a.reduce((x,y)=>x+y,0)/(a.length||1);
+const API='https://api.binance.com/api/v3/',cache=new Map();
+const ASSETS=[['BTCUSDT','Bitcoin'],['ETHUSDT','Ethereum'],['SOLUSDT','Solana'],['XRPUSDT','XRP'],['BNBUSDT','BNB'],['DOGEUSDT','Dogecoin'],['ADAUSDT','Cardano'],['AVAXUSDT','Avalanche'],['PAXGUSDT','Gold (PAXG)']];
+const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const S={sym:(new URLSearchParams(location.search).get('s')||'BTCUSDT').toUpperCase().replace(/[^A-Z0-9]/g,''),tab:'dash',pp:'7',cp:'30',vt:'1h',tz:'UTC'};
+const nm=s=>(ASSETS.find(a=>a[0]===s)||[0,s])[1];
+const fp=n=>n>=1000?n.toLocaleString('en',{maximumFractionDigits:2}):n>=1?n.toFixed(2):n.toPrecision(3);
+const sg=n=>(n>0?'+':'')+n.toFixed(2)+'%',cl=n=>n>0?'up':n<0?'dn':'';
+const rgp=x=>(x.h-x.l)/x.l*100;
+const card=(k,v,s,c)=>`<div class="k"><small>${k}</small><b class="${c||''}">${v}</b><em>${s||''}</em></div>`;
+const H=t=>`<p class="hint">${t}</p>`,A=t=>`<p class="adv note">${t}</p>`;
+async function j(u,ttl=60000){const c=cache.get(u);if(c&&Date.now()-c.t<ttl)return c.d;const r=await fetch(API+u);if(!r.ok)throw new Error('Binance responded '+r.status+' for '+u.split('?')[0]);const d=await r.json();cache.set(u,{t:Date.now(),d});return d}
+async function kl(s,iv,n){const d=await j(`klines?symbol=${s}&interval=${iv}&limit=${n}`);return d.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5],q:+k[7]}))}
+function bars(el,vals,o={}){const h=o.h||150,w=el.clientWidth||320,cv=document.createElement('canvas'),dp=window.devicePixelRatio||1;cv.width=w*dp;cv.height=h*dp;cv.style.cssText='width:100%;height:'+h+'px';el.appendChild(cv);const x=cv.getContext('2d');x.scale(dp,dp);const mx=Math.max(...vals,o.line||0,1e-9),pad=o.lab?18:4,bw=(w-8)/vals.length;
+ vals.forEach((v,i)=>{const bh=(h-pad-6)*v/mx;x.fillStyle=o.cols?o.cols[i]:'#4a8dff';x.fillRect(4+i*bw+1,h-pad-bh,Math.max(1,bw-2),bh);if(o.lab&&(!o.every||i%o.every===0)){x.fillStyle='#8b95ab';x.font='10px system-ui';x.textAlign='center';x.fillText(o.lab[i],4+i*bw+bw/2,h-5)}});
+ if(o.line){x.strokeStyle='#ffb020';x.setLineDash([4,3]);const y=h-pad-(h-pad-6)*o.line/mx;x.beginPath();x.moveTo(0,y);x.lineTo(w,y);x.stroke()}}
+const sel=(k,opts,v)=>`<select onchange="set('${k}',this.value)">${opts.map(o=>`<option value="${o[0]}"${o[0]==v?' selected':''}>${o[1]}</option>`).join('')}</select>`;
+const V={};let tok=0;
+
+V.dash=async r=>{
+ const [t,d,tk]=await Promise.all([j('ticker/24hr?symbol='+S.sym,30000),kl(S.sym,'1d',31),j('ticker/24hr?symbols='+encodeURIComponent(JSON.stringify(ASSETS.map(a=>a[0]))),30000)]);
+ const hist=d.slice(0,-1),ar=avg(hist.map(rgp)),av=avg(hist.map(x=>x.q));
+ const rg=(+t.highPrice-+t.lowPrice)/+t.lowPrice*100,rr=rg/ar,vr=+t.quoteVolume/av,sc=Math.max(0,Math.min(100,Math.round((rr+vr)/2*50)));
+ const cond=rr>1.5?['High volatility','warn']:rr<.7?['Quiet / compressed','']:['Normal range',''];
+ const rows=tk.map(x=>({s:x.symbol,p:+x.lastPrice,c:+x.priceChangePercent,q:+x.quoteVolume,r:(+x.highPrice-+x.lowPrice)/+x.lowPrice*100}));
+ const med=rows.map(x=>x.r).sort((a,b)=>a-b)[rows.length>>1];
+ const by=f=>[...rows].sort(f)[0],best=by((a,b)=>b.c-a.c),worst=by((a,b)=>a.c-b.c),top=by((a,b)=>b.q-a.q);
+ const pct=(+t.priceChangePercent);
+ r.innerHTML=`<div class="grid">${card(nm(S.sym),fp(+t.lastPrice),S.sym)}${card('24h change',sg(pct),'',cl(pct))}${card('24h range vs 30d avg',rr.toFixed(2)+'×',rg.toFixed(2)+'% vs '+ar.toFixed(2)+'%')}${card('24h volume vs 30d avg',vr.toFixed(2)+'×','$'+(+t.quoteVolume/1e6).toFixed(1)+'M')}${card('Activity score',sc+'/100','50 = normal')}${card('Condition',cond[0],'',cond[1])}</div>
+ <p class="sum">${nm(S.sym)}’s 24h range is ${rr.toFixed(1)}× its 30-day average daily range and 24h volume is ${vr.toFixed(1)}× its 30-day average. Among tracked assets, ${nm(best.s)} is strongest (${sg(best.c)}), ${nm(worst.s)} weakest (${sg(worst.c)}), and ${nm(top.s)} has the highest volume.</p>
+ ${H('Activity score compares today’s movement and volume with the last 30 days. 50 is a normal day; higher means busier than usual.')}${A('Score = clamp(50 × (range ratio + volume ratio) / 2, 0, 100). Range = (24h high − low) / low. Volume = 24h quote volume.')}
+ <div class="box"><h3>Tracked markets <small style="color:var(--mu);font-weight:400">· tap a row to analyse it</small></h3><div style="overflow-x:auto"><table><tr><th>Asset</th><th>Price</th><th>24h</th><th>Volume</th><th>Range</th></tr>${rows.map(x=>`<tr class="cl" onclick="set('sym','${x.s}')"><td>${nm(x.s)}${x.r>1.5*med?'<span class="tag">active</span>':''}</td><td>${fp(x.p)}</td><td class="${cl(x.c)}">${sg(x.c)}</td><td>$${(x.q/1e6).toFixed(0)}M</td><td>${x.r.toFixed(2)}%</td></tr>`).join('')}</table></div></div>
+ <div class="box"><h3>Tools</h3><div class="soon">${[['monty','Monty Watch'],['prof','Profile Explorer'],['corr','Correlation Watch'],['vol','Volume Intelligence'],['ses','Session Watch'],['risk','Risk Calculator']].map(x=>`<button class="pill" onclick="set('tab','${x[0]}')">${x[1]}</button>`).join('')}</div>
+ <p class="hint" style="margin-top:10px">Coming next:</p><div class="soon">${['Liquidity Map','Liquidation Radar','Leverage Watch','Divergence Detector','Seasonality','Market Reaction Tracker','Range Breakout Statistics','Market Memory','Market Anatomy','Wick Intelligence','Strength Comparison','Condition Scanner','Unusual Activity','Strategy Lab','Scenario Lab'].map(x=>`<span>${x}</span>`).join('')}</div></div>`;
+};
+
+V.monty=async r=>{
+ const d=(await kl(S.sym,'1d',91)).slice(0,-1),h=await kl(S.sym,'1h',500);
+ const rg=d.map(rgp),wd=Array.from({length:7},()=>[]);d.forEach((x,i)=>wd[new Date(x.t).getUTCDay()].push(rg[i]));
+ const wa=wd.map(avg),order=[1,2,3,4,5,6,0],hr=Array.from({length:24},()=>[]);h.forEach(x=>hr[new Date(x.t).getUTCHours()].push(rgp(x)));const ha=hr.map(avg);
+ const mx=rg.indexOf(Math.max(...rg)),mn=rg.indexOf(Math.min(...rg)),dt=i=>new Date(d[i].t).toISOString().slice(0,10);
+ const bull=d.filter(x=>x.c>x.o).length/d.length*100,we=avg([...wd[0],...wd[6]]),wk=avg([1,2,3,4,5].flatMap(i=>wd[i]));
+ let pk=d[0].c,dd=0;d.forEach(x=>{pk=Math.max(pk,x.c);dd=Math.min(dd,(x.c-pk)/pk*100)});
+ const hv=ha.indexOf(Math.max(...ha)),a30=avg(rg.slice(-30)),a90=avg(rg);
+ r.innerHTML=`<div class="grid">${card('Avg daily range',a90.toFixed(2)+'%','90 days')}${card('Largest range',rg[mx].toFixed(2)+'%',dt(mx))}${card('Smallest range',rg[mn].toFixed(2)+'%',dt(mn))}${card('Bullish days',bull.toFixed(0)+'%','of '+d.length)}${card('Weekend vs weekday',we.toFixed(2)+'% / '+wk.toFixed(2)+'%','avg range')}${card('Max drawdown',dd.toFixed(1)+'%','on daily closes')}</div>
+ <p class="sum">Volatility over the last 30 days (${a30.toFixed(2)}% avg daily range) is ${a30>a90?'above':'below'} its 90-day average (${a90.toFixed(2)}%). Weekend days averaged ${we.toFixed(2)}% against ${wk.toFixed(2)}% on weekdays. The busiest hour is ${String(hv).padStart(2,'0')}:00 UTC.</p>
+ <div class="box"><h3>Average daily range by weekday</h3><div id="c1"></div>${H('Taller bars = bigger typical price swings on that weekday (amber = weekend).')}${A('UTC weekdays, last 90 closed daily candles. Range = (high − low) / low.')}</div>
+ <div class="box"><h3>Activity by hour (UTC)</h3><div id="c2"></div>${H('Shows which hours of the day usually move the most. Amber = the busiest hour.')}${A('Average 1h candle range per UTC hour over the last 500 hours.')}</div>
+ <p class="hint" style="display:block">Want the full version with calendar, distribution and more? <a href="graph.html?s=${S.sym}">Open full Monty Watch</a></p>`;
+ bars($('#c1'),order.map(i=>wa[i]),{lab:order.map(i=>DAYS[i]),cols:order.map(i=>i%6===0?'#ffb020':'#4a8dff')});
+ bars($('#c2'),ha,{lab:ha.map((_,i)=>i),every:3,cols:ha.map((_,i)=>i===hv?'#ffb020':'#4a8dff')});
+};
+
+V.prof=async r=>{
+ const n={1:24,7:168,30:720}[S.pp],k=await kl(S.sym,'1h',n),B=48;
+ const lo=Math.min(...k.map(x=>x.l)),hi=Math.max(...k.map(x=>x.h)),st=(hi-lo)/B,vb=new Array(B).fill(0);
+ k.forEach(x=>{const a=Math.min(B-1,Math.floor((x.l-lo)/st)),b=Math.min(B-1,Math.floor((x.h-lo)/st));if(a===b){vb[a]+=x.v;return}const sp=x.h-x.l;for(let i=a;i<=b;i++){const bl=lo+i*st,ov=Math.min(bl+st,x.h)-Math.max(bl,x.l);if(ov>0)vb[i]+=x.v*ov/sp}});
+ const m=avg(vb),poc=vb.indexOf(Math.max(...vb));let a=poc,b=poc,acc=vb[poc];const tot=m*B;
+ while(acc<tot*.7&&(a>0||b<B-1)){const u=b<B-1?vb[b+1]:-1,dn=a>0?vb[a-1]:-1;if(u>=dn){b++;acc+=vb[b]}else{a--;acc+=vb[a]}}
+ const px=i=>lo+(i+.5)*st,vah=lo+(b+1)*st,val=lo+a*st,last=k[k.length-1].c;
+ const hvn=[],lvn=[];for(let i=1;i<B-1;i++){if(vb[i]>1.3*m&&vb[i]>=vb[i-1]&&vb[i]>=vb[i+1])hvn.push(px(i));if(vb[i]<.5*m&&vb[i]<=vb[i-1]&&vb[i]<=vb[i+1])lvn.push(px(i))}
+ const pos=last>vah?'above':last<val?'below':'inside';
+ r.innerHTML=`<div class="row"><label>Period</label>${sel('pp',[['1','1 day'],['7','7 days'],['30','30 days']],S.pp)}</div>
+ <div class="grid">${card('Point of Control',fp(px(poc)),'most volume traded')}${card('Value Area High',fp(vah),'70% of volume')}${card('Value Area Low',fp(val))}${card('Last price',fp(last),pos+' value area')}</div>
+ <p class="sum">Most volume in the last ${S.pp==='1'?'day':S.pp+' days'} traded near ${fp(px(poc))}. About 70% of volume sits between ${fp(val)} and ${fp(vah)}; price is currently ${pos} that area.</p>
+ <div class="box"><h3>Volume profile</h3><div id="c1"></div>${H('Each bar shows how much trading happened at that price. Long bars = prices the market accepted; short bars = prices it passed through quickly. Amber = busiest price (POC), blue = value area.')}${A('48 price bins. Each 1h candle’s volume is spread evenly across the bins its high–low range touches (candle data, not tick data, so this is an approximation).')}</div>
+ <div class="box"><h3>Volume nodes</h3><p>High-volume nodes: ${hvn.slice(0,5).map(fp).join(' · ')||'none detected'}</p><p>Low-volume nodes: ${lvn.slice(0,5).map(fp).join(' · ')||'none detected'}</p>${H('High-volume nodes are prices where trading clustered; low-volume nodes are gaps where price moved through quickly.')}</div>`;
+ const el=$('#c1'),W=el.clientWidth||320,Ht=380,cv=document.createElement('canvas'),dp=window.devicePixelRatio||1;cv.width=W*dp;cv.height=Ht*dp;cv.style.cssText='width:100%;height:'+Ht+'px';el.appendChild(cv);const x=cv.getContext('2d');x.scale(dp,dp);const mx=Math.max(...vb),bh=Ht/B;
+ vb.forEach((v,i)=>{x.fillStyle=i===poc?'#ffb020':(i>=a&&i<=b?'#4a8dff':'#3a4357');x.fillRect(0,Ht-(i+1)*bh+1,(W-70)*v/mx,bh-1)});
+ x.fillStyle='#8b95ab';x.font='10px system-ui';x.textAlign='right';[hi,(hi+lo)/2,lo].forEach((p,i)=>x.fillText(fp(p),W,[10,Ht/2,Ht-2][i]));
+ const ly=Ht-(last-lo)/(hi-lo)*Ht;x.strokeStyle='#fff';x.setLineDash([3,3]);x.beginPath();x.moveTo(0,ly);x.lineTo(W-70,ly);x.stroke();
+};
+
+V.corr=async r=>{
+ const L=['BTCUSDT','ETHUSDT','SOLUSDT','XRPUSDT','BNBUSDT','PAXGUSDT'],n=+S.cp;
+ const all=await Promise.all(L.map(s=>kl(s,'1d',n+1))),len=Math.min(...all.map(a=>a.length));
+ const ret=all.map(a=>{const c=a.slice(-len).map(x=>x.c);return c.slice(1).map((v,i)=>Math.log(v/c[i]))});
+ const pr=(x,y)=>{const mx=avg(x),my=avg(y);let sxy=0,sx=0,sy=0;x.forEach((v,i)=>{sxy+=(v-mx)*(y[i]-my);sx+=(v-mx)**2;sy+=(y[i]-my)**2});return sxy/Math.sqrt(sx*sy)};
+ const M=ret.map(a=>ret.map(b=>pr(a,b))),pairs=[];for(let i=0;i<L.length;i++)for(let k=i+1;k<L.length;k++)pairs.push([nm(L[i])+' / '+nm(L[k]),M[i][k]]);pairs.sort((a,b)=>b[1]-a[1]);
+ const col=v=>v>=0?`rgba(43,212,138,${.12+v*.6})`:`rgba(255,77,94,${.12+(-v)*.6})`;
+ r.innerHTML=`<div class="row"><label>Period</label>${sel('cp',[['7','7 days'],['30','30 days'],['90','90 days'],['180','180 days']],S.cp)}</div>
+ <p class="sum">Over ${len-1} daily returns, the most closely related pair is ${pairs[0][0]} (${pairs[0][1].toFixed(2)}) and the least related is ${pairs[pairs.length-1][0]} (${pairs[pairs.length-1][1].toFixed(2)}).</p>
+ <div class="box"><h3>Correlation matrix</h3><div style="overflow-x:auto"><table class="hm"><tr><th></th>${L.map(s=>`<th>${nm(s).split(' ')[0]}</th>`).join('')}</tr>${M.map((row,i)=>`<tr><td>${nm(L[i]).split(' ')[0]}</td>${row.map(v=>`<td style="background:${col(v)}">${v.toFixed(2)}</td>`).join('')}</tr>`).join('')}</table></div>
+ ${H('+1 means two assets move together, −1 means they move opposite, 0 means no clear link. Correlation does not mean one asset causes the other.')}${A('Pearson correlation of daily log returns from Binance daily closes. DXY, indices and stocks are not available from this data source; Gold is represented by PAXG.')}</div>
+ <div class="box"><h3>Ranked pairs</h3><table>${pairs.map(p=>`<tr><td>${p[0]}</td><td class="${cl(p[1])}">${p[1].toFixed(2)}</td></tr>`).join('')}</table></div>`;
+};
+
+V.vol=async r=>{
+ const raw=await kl(S.sym,S.vt,200),k=raw.slice(0,-1),av=k.map((_,i)=>i<20?null:avg(k.slice(i-20,i).map(x=>x.v)));
+ const sp=k.map((x,i)=>av[i]&&x.v>2*av[i]);const lastAvg=avg(k.slice(-20).map(x=>x.v)),prevAvg=avg(k.slice(-40,-20).map(x=>x.v));
+ const x=k[k.length-1],up=x.c>=x.o,hi=x.v>av[k.length-1];
+ const T={'1_1':['Price up + volume above average','Buying activity is backed by above-normal participation.'],'1_0':['Price up + volume below average','The rise is happening on lighter participation than usual.'],'0_1':['Price down + volume above average','The decline is happening with heavier participation than usual.'],'0_0':['Price down + volume below average','The decline is happening on lighter participation than usual.']};
+ const c=T[(up?1:0)+'_'+(hi?1:0)],spk=k.map((v,i)=>sp[i]?i:-1).filter(i=>i>=0),tr=(lastAvg/prevAvg-1)*100;
+ r.innerHTML=`<div class="row"><label>Timeframe</label>${sel('vt',[['15m','15m'],['1h','1h'],['4h','4h'],['1d','1d']],S.vt)}</div>
+ <div class="grid">${card('Last closed candle',up?'Up':'Down','',up?'up':'dn')}${card('Volume vs 20-avg',(x.v/av[k.length-1]).toFixed(2)+'×')}${card('Volume trend',sg(tr),'last 20 vs prior 20',cl(tr))}${card('Spikes (>2×)',spk.length,'in '+k.length+' candles','warn')}</div>
+ <p class="sum">${c[0]}. ${c[1]} Volume over the last 20 candles is ${Math.abs(tr).toFixed(0)}% ${tr>=0?'higher':'lower'} than the 20 before.</p>
+ <div class="box"><h3>Volume (green up candles, red down, amber = spike)</h3><div id="c1"></div>${H('Tall amber bars are unusually busy candles. Dashed line = recent average volume.')}${A('Spike = volume above 2× the average of the previous 20 candles. Last candle (still open) is excluded.')}</div>
+ <div class="box"><h3>Latest spikes</h3>${spk.slice(-6).reverse().map(i=>`<p style="margin:4px 0">${new Date(k[i].t).toLocaleString()} · ${(k[i].v/av[i]).toFixed(1)}× avg · <span class="${k[i].c>=k[i].o?'up':'dn'}">${k[i].c>=k[i].o?'up':'down'} candle</span></p>`).join('')||'<p class="hint" style="display:block">No spikes in this window.</p>'}${H('These conditions describe what happened, not what will happen next.')}</div>`;
+ bars($('#c1'),k.map(v=>v.v),{cols:k.map((v,i)=>sp[i]?'#ffb020':v.c>=v.o?'#2bd48a':'#ff4d5e'),line:lastAvg});
+};
+
+V.ses=async r=>{
+ const k=await kl(S.sym,'1h',720),SES=[['Asia',0,8],['London',7,16],['New York',13,22],['London/NY overlap',13,16]];
+ const tzo=['UTC','America/New_York','Europe/London','Asia/Tokyo','Africa/Lagos'];
+ const loc=h=>new Date(Date.UTC(2026,0,15,h)).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:S.tz});
+ const days={};k.forEach(x=>{const d=new Date(x.t).toISOString().slice(0,10);(days[d]=days[d]||[]).push(x)});
+ const res=SES.map(([n,s,e])=>{const R=[],Q=[],B=[];Object.values(days).forEach(c=>{const w=c.filter(x=>{const h=new Date(x.t).getUTCHours();return h>=s&&h<e});if(w.length<e-s)return;R.push((Math.max(...w.map(x=>x.h))-Math.min(...w.map(x=>x.l)))/Math.min(...w.map(x=>x.l))*100);Q.push(w.reduce((a,x)=>a+x.q,0));B.push(w[w.length-1].c>w[0].o?1:0)});return{n,s,e,r:avg(R),q:avg(Q),b:avg(B)*100,d:R.length}});
+ const top=[...res].sort((a,b)=>b.r-a.r)[0];
+ r.innerHTML=`<div class="row"><label>Show times in</label><select onchange="set('tz',this.value)">${tzo.map(z=>`<option${z===S.tz?' selected':''}>${z}</option>`).join('')}</select></div>
+ <p class="sum">Over the last ${top.d} full days, the ${top.n} session had the largest average range (${top.r.toFixed(2)}%) for ${nm(S.sym)}.</p>
+ <div class="box"><h3>Session comparison</h3><div style="overflow-x:auto"><table><tr><th>Session</th><th>Hours</th><th>Avg range</th><th>Avg volume</th><th>Bullish</th></tr>${res.map(x=>`<tr><td>${x.n}</td><td>${loc(x.s)}–${loc(x.e)}</td><td>${x.r.toFixed(2)}%</td><td>$${(x.q/1e6).toFixed(0)}M</td><td>${x.b.toFixed(0)}%</td></tr>`).join('')}</table></div>
+ <div id="c1" style="margin-top:10px"></div>${H('Taller bars = bigger typical price swings during that part of the day. Overlaps are when two sessions are open at once.')}${A('Sessions defined in UTC (Asia 00–08, London 07–16, New York 13–22, overlap 13–16); only complete days in the last 720 hourly candles. Times shown are converted for display only.')}</div>`;
+ bars($('#c1'),res.map(x=>x.r),{lab:res.map(x=>x.n.split('/')[0].slice(0,9)),cols:res.map(x=>x===top?'#ffb020':'#4a8dff')});
+};
+
+V.risk=async r=>{
+ r.innerHTML=`<div class="box"><h3>Position size &amp; risk</h3><div class="f">
+ <div><label>Account balance</label><input id="rb" type="number" value="1000" inputmode="decimal"></div>
+ <div><label>Risk %</label><input id="rp" type="number" value="1" step="0.1" inputmode="decimal"></div>
+ <div><label>Entry price</label><input id="re" type="number" step="any" inputmode="decimal"></div>
+ <div><label>Stop-loss price</label><input id="rs" type="number" step="any" inputmode="decimal"></div>
+ <div><label>Target price</label><input id="rt" type="number" step="any" inputmode="decimal"></div>
+ <div><label>Leverage (×)</label><input id="rl" type="number" value="1" inputmode="decimal"></div>
+ <div><label>Fee % per side</label><input id="rf" type="number" value="0.1" step="0.01" inputmode="decimal"></div></div>
+ <div class="row" style="margin-top:8px"><button class="pill" id="live" type="button">Use live ${nm(S.sym)} price as entry</button></div>${H('Long or short is detected automatically: stop below entry = long, stop above entry = short.')}</div>
+ <div id="out"></div>`;
+ const g=i=>parseFloat($('#'+i).value),o=$('#out');
+ const calc=()=>{const bal=g('rb'),rp=g('rp'),e=g('re'),s=g('rs'),t=g('rt'),lev=g('rl')||1,fee=(g('rf')||0)/100;
+  if(!(bal>0&&rp>0&&e>0&&s>0)||e===s){o.innerHTML='<p class="hint" style="display:block">Enter balance, risk %, entry and stop-loss to see results.</p>';return}
+  const long=s<e,risk=bal*rp/100,dist=Math.abs(e-s),q=risk/(dist+e*fee+s*fee),val=q*e,mar=val/lev,fees=q*(e+s)*fee,warn=[];
+  let rew='',rr='';if(t>0){const ok=long?t>e:t<e;if(!ok)warn.push('Target is on the wrong side of entry for a '+(long?'long':'short')+'.');else{const pf=q*Math.abs(t-e)-q*(e+t)*fee;rew=card('Potential profit','$'+pf.toFixed(2),'after fees','up');rr=card('Risk / reward','1 : '+(Math.abs(t-e)/dist).toFixed(2),'before fees')}}
+  if(mar>bal)warn.push('Required margin exceeds your balance — lower the leverage or risk, or tighten the stop.');
+  if(lev>20)warn.push('High leverage: a small move against you can reach liquidation before your stop.');
+  o.innerHTML=`<div class="grid">${card('Direction',long?'Long':'Short','',long?'up':'dn')}${card('Risk amount','$'+risk.toFixed(2),rp+'% of balance')}${card('Position size',q.toPrecision(4),'units')}${card('Position value','$'+val.toFixed(2),'exposure')}${card('Margin required','$'+mar.toFixed(2),'at '+lev+'×')}${card('Max loss at stop','$'+(risk).toFixed(2),'fees included: $'+fees.toFixed(2),'dn')}${rew}${rr}</div>
+  ${warn.map(w=>`<p class="warn">⚠ ${w}</p>`).join('')}
+  ${H('Position size is how many units you can buy so that, if the stop-loss is hit, you lose only the amount you chose to risk. Margin is the part of your balance locked as collateral when using leverage.')}${A('Qty = risk ÷ (|entry − stop| + fee × (entry + stop)). Stop assumed to fill at the stop price; real fills can slip. Funding costs are not included.')}`};
+ document.querySelectorAll('.f input').forEach(i=>i.oninput=calc);
+ $('#live').onclick=async()=>{try{const p=await j('ticker/price?symbol='+S.sym,5000);$('#re').value=p.price;calc()}catch(e){o.innerHTML='<p class="warn">Could not load the live price.</p>'}};
+ calc();
+};
+
+const TABS=[['dash','Dashboard'],['monty','Monty Watch'],['prof','Profile'],['corr','Correlation'],['vol','Volume'],['ses','Sessions'],['risk','Risk']];
+function paintTabs(){$('#tabs').innerHTML=TABS.map(t=>`<button class="${t[0]===S.tab?'on':''}" onclick="set('tab','${t[0]}')">${t[1]}</button>`).join('')}
+function paintSym(){let o=ASSETS.map(a=>a[0]);if(!o.includes(S.sym))o.unshift(S.sym);$('#sym').innerHTML=o.map(s=>`<option value="${s}"${s===S.sym?' selected':''}>${nm(s)==s?s:nm(s)}</option>`).join('')+'<option value="__c">Custom pair…</option>'}
+async function go(){const my=++tok,r=$('#view');r.innerHTML='<div class="ld">Loading market data…</div>';try{await V[S.tab](r);if(my===tok)$('#upd').textContent='Updated '+new Date().toLocaleTimeString()}catch(e){if(my===tok)r.innerHTML=`<div class="err"><b>Could not load data</b><br>${e.message}<br><small>Binance may be unreachable from your network or region. Nothing is estimated when data is missing.</small><br><button onclick="go()">Retry</button></div>`}}
+window.set=(k,v)=>{S[k]=v;if(k==='tab')paintTabs();if(k==='sym')paintSym();go()};
+$('#sym').onchange=e=>{let v=e.target.value;if(v==='__c'){v=(prompt('Trading pair, e.g. LINKUSDT')||'').toUpperCase().replace(/[^A-Z0-9]/g,'');if(!v){paintSym();return}}set('sym',v)};
+$('#mode').onclick=()=>{const b=document.body.classList.toggle('beg');$('#mode').textContent=b?'Beginner':'Advanced';try{localStorage.setItem('mpiMode',b?'b':'a')}catch(e){}};
+try{if(localStorage.getItem('mpiMode')==='a'){document.body.classList.remove('beg');$('#mode').textContent='Advanced'}}catch(e){}
+paintTabs();paintSym();go();
+/* Exit without reloading the chart */
+(function(){function leave(){try{if(window.parent&&window.parent!==window){window.parent.postMessage({type:'mpv-close'},'*');return}}catch(e){}try{if(window.opener&&!window.opener.closed){window.opener.focus();window.close();return}}catch(e){}if(history.length>1)history.back();else location.href='index.html'}
+$('#xexit').addEventListener('click',leave);document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!/INPUT|SELECT/.test((e.target||{}).tagName||''))leave()})})();
+</script>
+</body></html>
