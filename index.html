@@ -10499,6 +10499,10 @@ function entries(){ const e=[];
   if(typeof fundSheet==='function') e.push({id:'x:fund',kind:'tool',cat:'Metrics',name:'Fundamentals',sub:'Market cap, supply, funding, open interest'});
   e.push({id:'x:copy',kind:'tool',cat:'Backup',name:'Copy my settings',sub:'Copy everything on this chart'},{id:'x:paste',kind:'tool',cat:'Backup',name:'Paste settings',sub:'Restore settings you copied'});
   return e; }
+/* [tcount] Admin tool counter: lets admin.html read the live tool list (read-only, changes nothing). */
+window.mpvToolCount=function(){ try{ const all=entries().filter(x=>x.kind==='ind'||x.kind==='strat').map(x=>({id:x.id,name:x.name,cat:x.cat,kind:x.kind}));
+  const coll={}; [['Pro plus Metal',METALID],['Trending',TRID],['Essential Trading',ESID],['Price Action',PAID],['Candlestick Trading',CDLID]].forEach(a=>{ try{ coll[a[0]]=a[1].map(id=>{ const f=all.find(x=>x.id===id); return {id:id,name:f?f.name:id,missing:!f}; }); }catch(e){} });
+  return {tools:all,collections:coll,ts:Date.now()}; }catch(e){ return null; } };
 function run(en){ close(); if(en.kind==='ind'||en.kind==='strat'){ irec=[en.id].concat(irec.filter(i=>i!==en.id)).slice(0,8); irSave(); }
   if(en.kind==='ind'){ if(addInd(en.k)===false) return; if(IND[en.k].fx) indSettings(inds[inds.length-1]); }
   else if(en.kind==='strat'){ addStrat(en.k); }
