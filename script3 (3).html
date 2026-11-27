@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPlusView - Script guides (part 3)</title>
+<style>
+  :root{ --navy:#0b2a6f; --red:#e53950; --green:#26a69a; --bear:#ef5350; --ink:#1b2333; --mute:#5a6578; --line:#dfe4ee; --bg:#f5f7fb; }
+  *{ box-sizing:border-box }
+  html,body{ margin:0; background:#fff; color:var(--ink); font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; -webkit-text-size-adjust:100% }
+  main{ max-width:760px; margin:0 auto; padding:16px 16px 40px }
+  section{ display:none } section.on{ display:block }
+  h1{ font-size:21px; line-height:1.25; margin:4px 0 6px; color:var(--navy) }
+  h2{ font-size:16px; margin:24px 0 8px; padding-left:10px; border-left:4px solid var(--red); color:var(--navy) }
+  p{ margin:8px 0 } ul,ol{ margin:8px 0; padding-left:22px } li{ margin:4px 0 }
+  .lead{ color:var(--mute); margin-bottom:14px }
+  .box{ background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin:12px 0 }
+  .warn{ background:#fff7e6; border-color:#f3d28a }
+  .grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px } @media(max-width:560px){ .grid{ grid-template-columns:1fr } }
+  .tag{ display:inline-block; padding:1px 8px; border-radius:10px; font-weight:700; font-size:12px; color:#fff; vertical-align:1px }
+  .g{ background:var(--green) } .r{ background:var(--bear) } .n{ background:#8d949e }
+  table{ width:100%; border-collapse:collapse; margin:8px 0; font-size:14px; display:block; overflow-x:auto }
+  th,td{ text-align:left; padding:7px 9px; border-bottom:1px solid var(--line); vertical-align:top } th{ background:var(--bg); white-space:nowrap }
+  code{ background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:0 5px; font-size:13px }
+  .hint{ font-size:13px; color:var(--mute) }
+</style>
+</head>
+<body>
+<main>
+
+<section id="mts">
+  <h1>MARKETPLUSVIEW &mdash; MTF STRUCTURE SIGNALS</h1>
+  <p class="lead">One tool, one selector: pick a higher timeframe for market structure and a lower timeframe for entries. The tool prints BUY / SELL only after a candle has closed and only in the direction of the higher-timeframe bias.</p>
+
+  <h2>Quick start</h2>
+  <ol>
+    <li>Add the tool from <b>Premium Strategy</b> and open its settings.</li>
+    <li>Choose <b>STRATEGY MODE</b>: <b>BOS</b> (trend continuation) or <b>CHOCH</b> (trend reversal). This is the main setting; the other mode is switched off automatically.</li>
+    <li>Choose the <b>Higher structure timeframe</b> (default 1 Hour) and the <b>Entry timeframe</b> (default 5 Minutes). The higher timeframe must be larger than the entry timeframe.</li>
+    <li>Leave the rest on the defaults to start. It works on whatever chart timeframe you are viewing.</li>
+  </ol>
+
+  <h2>The two modes</h2>
+  <div class="grid">
+    <div class="box"><b>BOS &mdash; Trend Continuation</b>
+      <ul>
+        <li>HTF: a candle <i>closes</i> beyond the last swing in the direction of the existing structure = BOS. That sets the bias.</li>
+        <li>Entry: wait for an entry-timeframe BOS the same way. <span class="tag g">BUY</span> with bullish bias, <span class="tag r">SELL</span> with bearish bias.</li>
+        <li>If the HTF prints a CHOCH, the bias goes <b>neutral</b> until a new BOS confirms the new direction.</li>
+      </ul></div>
+    <div class="box"><b>CHOCH &mdash; Trend Reversal</b>
+      <ul>
+        <li>HTF: a close beyond the swing <i>against</i> the existing structure = CHOCH. That flips the bias.</li>
+        <li>Entry: wait for an entry-timeframe CHOCH in the direction of the new HTF bias.</li>
+        <li>The bias stays until the opposite HTF CHOCH.</li>
+      </ul></div>
+  </div>
+  <p class="hint">Switching the mode re-calculates everything from scratch: old signal conditions and alert history of the other mode are dropped.</p>
+
+  <h2>How structure is read</h2>
+  <ul>
+    <li><b>Confirmed swings only.</b> A swing high / low counts after N candles on each side have closed (Swing sensitivity: 2, 3, 5, 8, 10 or Custom). Larger = fewer, more significant swings.</li>
+    <li><b>BOS</b> = break in the established direction. <b>CHOCH</b> = break against it. The very first break, when no structure exists yet, is shown as a grey <code>BRK</code> and is never counted as BOS or CHOCH.</li>
+    <li><b>Break confirmation:</b> candle close (recommended) or wick break.</li>
+    <li>Swings are labelled HH / LH / HL / LL. Dotted grey lines are <i>developing</i> (not yet confirmed) swings; solid markers are confirmed.</li>
+  </ul>
+
+  <h2>What you see on the chart</h2>
+  <table>
+    <tr><th>Item</th><th>Meaning</th></tr>
+    <tr><td>Strip along the bottom</td><td>HTF bias: green bullish, red bearish, grey neutral</td></tr>
+    <tr><td>BOS / CHOCH lines + labels</td><td>Broken HTF structure levels, from the swing to the closing candle of the break</td></tr>
+    <tr><td>Dotted lines "HTF swing high / low"</td><td>Active, still unbroken HTF levels</td></tr>
+    <tr><td>"entry BOS / entry CHOCH"</td><td>The entry-timeframe break behind each signal</td></tr>
+    <tr><td>Arrow + label</td><td><span class="tag g">BUY</span> / <span class="tag r">SELL</span> with price, entry timeframe, HTF bias and strategy. Labels thin out automatically when signals are close together.</td></tr>
+  </table>
+  <p>Every component has its own on/off switch in the settings.</p>
+
+  <h2>Filters (all optional)</h2>
+  <ul>
+    <li><b>Require higher timeframe confirmation</b> (on by default): a signal needs an HTF bias that matches.</li>
+    <li><b>Require entry confirmation candle:</b> the break candle must close in the signal direction.</li>
+    <li><b>Prevent duplicate signals</b> in the same direction (on by default).</li>
+    <li><b>Signal cooldown</b> in entry candles.</li>
+    <li><b>Ignore signals when structure is neutral</b> (on by default).</li>
+    <li><b>Minimum swing size</b>, <b>minimum candle body</b> and <b>ATR volatility</b> filters, each with its own value.</li>
+  </ul>
+  <p>A signal never goes against the HTF bias, whatever the filter settings.</p>
+
+  <h2>Dashboard</h2>
+  <p>Strategy, Higher TF, Entry TF, HTF Bias, Last HTF Event, Entry Structure (Bullish / Bearish / Waiting), Signal Status (BUY / SELL / WAIT) and the Last Signal with price and time (UTC). Signal Status shows BUY or SELL while the last signal still agrees with the HTF bias, otherwise WAIT.</p>
+
+  <h2>Alerts</h2>
+  <p>Available: Bullish BOS BUY, Bearish BOS SELL, Bullish CHOCH BUY, Bearish CHOCH SELL, HTF bullish structure, HTF bearish structure, HTF bias change, and any new entry signal. Each confirmed event fires <b>once</b>. Alerts work while the app is open.</p>
+
+  <h2>No repainting</h2>
+  <ul>
+    <li>Signals and structure use closed candles only; a candle counts as closed only if its data was read after it ended.</li>
+    <li>The HTF event is known at the close of its candle, never earlier: no look-ahead.</li>
+    <li>Printed signals never move or disappear when new candles arrive.</li>
+  </ul>
+
+  <h2>Good to know</h2>
+  <ul>
+    <li>HTF and entry candles are loaded on their own, so the chart timeframe does not matter. 2 minutes, 10 minutes and 8 hours are built from 1m, 5m and 4h candles.</li>
+    <li>History depth follows what the data feed provides (up to roughly 1000 candles per request, with extra pages for the entry timeframe). Signals appear only where both timeframes have data.</li>
+    <li>If you see few signals in BOS mode, that is expected: after an HTF CHOCH the bias is neutral until a new BOS. Try a smaller swing sensitivity or the CHOCH mode.</li>
+  </ul>
+
+  <div class="box warn"><b>Risk notice.</b> This is a market-structure tool. It does not predict price, and no signal, setting or result is a guarantee of profit. Test it on your own markets and manage your risk.</div>
+</section>
+
+</main>
+<script>
+(function(){
+  var secs=[].slice.call(document.querySelectorAll('section'));
+  function show(){ var k=(location.hash||'').replace('#',''), s=document.getElementById(k); if(!s||s.tagName!=='SECTION') s=secs[0]; secs.forEach(function(x){ x.classList.toggle('on',x===s); }); window.scrollTo(0,0); }
+  window.addEventListener('hashchange',show); show();
+})();
+</script>
+</body>
+</html>
