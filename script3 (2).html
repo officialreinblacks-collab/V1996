@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>MarketPlusView · Script guides (3)</title>
+<style>
+:root{--bg:#fff;--ink:#14171f;--mut:#5b6475;--line:#e3e7ef;--navy:#0b2a6f;--red:#e53950;--g:#00a844;--r:#e0183c;--card:#f5f7fb}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-text-size-adjust:100%}
+.wrap{max-width:760px;margin:0 auto;padding:14px 14px 40px}
+section{display:none}
+section.on{display:block}
+h1{font-size:21px;line-height:1.25;margin:6px 0 4px;color:var(--navy)}
+h2{font-size:16px;margin:24px 0 6px;color:var(--navy);border-bottom:2px solid var(--red);padding-bottom:3px}
+h3{font-size:14px;margin:14px 0 4px}
+p{margin:6px 0}
+.sub{color:var(--mut);font-size:13px;margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:10px 0}
+.note{border-left:4px solid var(--red);background:#fff4f6;padding:8px 12px;border-radius:0 10px 10px 0;margin:10px 0;font-size:14px}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin:8px 0}
+th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{background:#eef2fa;color:var(--navy)}
+.tablewrap{overflow-x:auto}
+.b{color:var(--g);font-weight:700}.s{color:var(--r);font-weight:700}.n{color:#7a8396;font-weight:700}
+code{background:#eef2fa;border-radius:5px;padding:1px 5px;font-size:13px}
+ul,ol{padding-left:20px;margin:6px 0}
+li{margin:3px 0}
+.close{display:block;width:100%;margin:22px 0 0;padding:12px;border:0;border-radius:12px;background:var(--navy);color:#fff;font:700 14px system-ui,sans-serif;cursor:pointer;box-shadow:0 0 0 2px rgba(229,57,80,.45) inset}
+.foot{color:var(--mut);font-size:12.5px;margin-top:18px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<section id="mzs">
+<h1>MARKETPLUSVIEW — MTF STRUCTURE SIGNALS</h1>
+<p class="sub">Higher timeframe BOS / CHOCH sets the bias · the entry timeframe prints the BUY / SELL · one tool, one selector</p>
+
+<div class="note"><b>Analysis tool only.</b> It never sends an order and nothing here promises profit. A signal is a structure event that matched your rules, not a guaranteed result. Always use your own stop loss and risk limit.</div>
+
+<h2>1. What it does</h2>
+<p>You choose a <b>higher structure timeframe</b> (for example 1 Hour) and an <b>entry timeframe</b> (for example 5 Minutes). The tool reads market structure on the higher timeframe to decide the direction (the <b>bias</b>), then waits for the entry timeframe to confirm a matching break. Only then does it print BUY or SELL. It does not matter which timeframe your chart is showing: both timeframes are loaded on their own.</p>
+
+<h2>2. Quick start</h2>
+<ol>
+<li>Add <b>MARKETPLUSVIEW — MTF STRUCTURE SIGNALS</b> to the chart (Indicators → Trend).</li>
+<li>Open its settings. At the top choose <b>Strategy mode</b>: <code>BOS — Trend Continuation</code> or <code>CHOCH — Trend Reversal</code>.</li>
+<li>Pick the higher timeframe and the entry timeframe. Default: <b>1 Hour</b> and <b>5 Minutes</b>.</li>
+<li>Press OK. Wait a few seconds while both timeframes load (a yellow message appears at the bottom while loading).</li>
+<li>Read the dashboard (top left), then wait for a BUY or SELL arrow after a candle has closed.</li>
+</ol>
+<p>That is all a beginner needs. Everything else is optional.</p>
+
+<h2>3. BOS mode and CHOCH mode</h2>
+<p>The two modes are <b>mutually exclusive</b>. Only the selected one is active. Switching resets the signal conditions and the alert memory, so nothing from the previous mode leaks into the new one.</p>
+<div class="tablewrap"><table>
+<tr><th></th><th>BOS — Trend Continuation</th><th>CHOCH — Trend Reversal</th></tr>
+<tr><td><b>Higher TF bias</b></td><td>Direction of the last higher-timeframe structure break. A close above the confirmed swing high in a bullish structure = <span class="b">bullish BOS</span> → bullish bias. A close below the confirmed swing low in a bearish structure = <span class="s">bearish BOS</span> → bearish bias.</td><td>Direction of the last higher-timeframe <b>CHOCH</b>. A bearish structure that breaks above its swing high = <span class="b">bullish CHOCH</span> → bullish bias. A bullish structure that breaks below its swing low = <span class="s">bearish CHOCH</span> → bearish bias. Neutral until the first CHOCH.</td></tr>
+<tr><td><b>Entry TF trigger</b></td><td>A <b>BOS</b> on the entry timeframe in the bias direction (candle closed beyond the level).</td><td>A <b>CHOCH</b> on the entry timeframe in the bias direction (candle closed beyond the level).</td></tr>
+<tr><td><b>Never</b></td><td>No SELL while the bias is bullish, no BUY while it is bearish.</td><td>No signal against the higher-timeframe bias.</td></tr>
+</table></div>
+<p><b>BOS</b> = a break in the direction of the established structure (continuation). <b>CHOCH</b> = a break against the previously established direction (change of character). The very first break after the tool starts reading has no earlier structure, so it is shown as <i>BOS (start)</i> and never creates a signal.</p>
+
+<h2>4. Timeframes</h2>
+<table>
+<tr><th>Higher structure timeframe</th><td>5 Minutes, 15 Minutes, 30 Minutes, 1 Hour, 2 Hours, 4 Hours, 8 Hours, 12 Hours, Daily, Weekly</td></tr>
+<tr><th>Entry timeframe</th><td>1 Minute, 2 Minutes, 3 Minutes, 5 Minutes, 10 Minutes, 15 Minutes, 30 Minutes</td></tr>
+</table>
+<p>Keep the higher timeframe clearly larger than the entry timeframe (for example 1H with 5M, or 4H with 15M). If it is not larger, the tool shows a warning. 2 Minutes and 10 Minutes are built from 1 Minute and 5 Minute candles. Each timeframe loads 1000 candles by default (2000 or 3000 in settings). Older history has no signals.</p>
+
+<h2>5. How structure is found</h2>
+<ul>
+<li>A <b>swing high / low</b> is confirmed only after <i>N</i> candles on each side are lower / higher. <i>N</i> is the <b>swing sensitivity</b>: 2, 3, 5, 8, 10 or Custom. A small number reacts fast and gives more noise. A big number gives fewer, cleaner swings. Defaults: 5 on the higher timeframe, 3 on the entry timeframe. Higher and entry sensitivity are separate.</li>
+<li><b>Break confirmation</b>: <code>Candle close</code> (recommended) needs a candle to close beyond the level. <code>Wick break</code> accepts a wick. Even in wick mode, <i>Require entry timeframe confirmation</i> keeps the signal until a candle has closed beyond the level.</li>
+<li>The level that gets broken is the most recent confirmed swing. The label tells you whether it was a BOS or a CHOCH.</li>
+</ul>
+
+<h2>6. What you see on the chart</h2>
+<table>
+<tr><th>Item</th><th>Look</th></tr>
+<tr><td>Higher TF bias strip</td><td>Thin bar on the top edge: <span class="b">green</span> bullish, <span class="s">red</span> bearish, <span class="n">grey</span> neutral</td></tr>
+<tr><td>Higher TF swings</td><td>Small dots labelled HH / HL / LH / LL</td></tr>
+<tr><td>BOS</td><td>Solid line from the swing to the break candle, label <i>BOS 1H</i></td></tr>
+<tr><td>CHOCH</td><td>Dashed line, label <i>CHoCH 1H</i></td></tr>
+<tr><td>Entry TF structure</td><td>Thinner, fainter lines with small lowercase labels (<i>bos 5M</i>, <i>choch 5M</i>)</td></tr>
+<tr><td>Active levels</td><td>Dotted grey line to the right for the confirmed higher TF swing high / low that is not broken yet</td></tr>
+<tr><td>Developing candle</td><td>Dotted grey <i>dev H / dev L (forming)</i> lines: the higher TF candle that is still open. This is <b>not</b> confirmed structure</td></tr>
+<tr><td>BUY</td><td>Green arrow under the candle, label with signal price, entry timeframe, higher TF bias and strategy type</td></tr>
+<tr><td>SELL</td><td>Red arrow above the candle, same label</td></tr>
+</table>
+<p>Every item can be switched off in <i>Show on the chart</i>. Signal labels never stack on top of each other: when two are close, the older one keeps only its arrow. Choose <i>Compact</i> or <i>Arrow only</i> for a cleaner chart. Colours are changed in the Style tab.</p>
+
+<h2>7. Dashboard</h2>
+<div class="card">
+<b>MARKETPLUSVIEW — MTF STRUCTURE</b><br>
+Strategy: BOS / CHOCH<br>
+Higher TF: 1H · Entry TF: 5M<br>
+HTF Bias: BULLISH / BEARISH / NEUTRAL<br>
+Last HTF Event: Bullish BOS / Bearish BOS / Bullish CHOCH / Bearish CHOCH<br>
+Entry Structure: Bullish / Bearish / Waiting<br>
+Signal Status: BUY / SELL / WAIT<br>
+Last Signal: price and time
+</div>
+<p><b>Signal Status</b> shows BUY or SELL for a number of entry candles after the signal (default 5, adjustable), then goes back to WAIT. Choose <i>Full</i>, <i>Compact</i> or <i>Off</i>, and the corner it sits in.</p>
+
+<h2>8. Optional signal filters</h2>
+<p>Each filter is independent and can be switched on or off.</p>
+<table>
+<tr><th>Filter</th><th>Meaning</th><th>Default</th></tr>
+<tr><td>Require higher timeframe confirmation</td><td>The last closed higher TF candle must still be on the bias side of the broken higher TF level. If that level has been given back, no signal.</td><td>On</td></tr>
+<tr><td>Require entry timeframe confirmation</td><td>The breaking candle itself must have closed beyond the entry level.</td><td>On</td></tr>
+<tr><td>Prevent duplicate signals</td><td>No second signal in the same direction until the entry structure has printed a break the other way.</td><td>On</td></tr>
+<tr><td>Signal cooldown</td><td>Minimum number of entry candles between two signals.</td><td>On, 3</td></tr>
+<tr><td>Ignore signals when neutral</td><td>No signal while the higher TF bias is neutral.</td><td>On</td></tr>
+<tr><td>Minimum swing size</td><td>The leg that was broken must be at least this % of price.</td><td>Off</td></tr>
+<tr><td>Minimum candle body</td><td>Body of the breaking candle as % of its full range.</td><td>Off</td></tr>
+<tr><td>ATR volatility filter</td><td>ATR as % of price must be inside a minimum / maximum range (maximum 0 = no upper limit).</td><td>Off</td></tr>
+</table>
+
+<h2>9. Alerts</h2>
+<p>Alerts show as a message while the app is open. Available: Bullish BOS BUY, Bearish BOS SELL, Bullish CHOCH BUY, Bearish CHOCH SELL, higher timeframe bullish structure, higher timeframe bearish structure, higher timeframe bias change, and any new entry signal. Each confirmed signal or higher timeframe event fires <b>once</b>. When you open the tool, change a setting or switch mode, existing history is treated as already seen and does not trigger alerts.</p>
+
+<h2>10. No repainting</h2>
+<ul>
+<li>Swing points are confirmed only after the required candles on both sides. Nothing is guessed from the forming candle.</li>
+<li>Signals are built only from <b>closed</b> entry candles. The forming candle of either timeframe is never used.</li>
+<li>A higher timeframe break counts only from the moment that higher TF candle has <b>closed</b>. An entry candle never sees a higher TF candle that was still open at that time: no look-ahead.</li>
+<li>A printed signal does not move or disappear when new candles arrive. If you change a setting, the whole chart is recalculated from the rules you chose; that is a new calculation, not repainting.</li>
+</ul>
+
+<h2>11. Good to know</h2>
+<ul>
+<li>Data comes from the exchange feed of the market on your chart (spot or perpetual). Markets without that feed use the chart candles when the chart timeframe divides the selected timeframe (for example a 1 Minute chart can build a 5 Minute entry timeframe). Otherwise the tool shows a message.</li>
+<li>Close to a market open or after a data gap, a swing needs enough candles to be confirmed. Expect a short wait after loading.</li>
+<li>More signals do not mean a better tool. Start with the defaults, watch the dashboard, and tighten with filters only when you understand why.</li>
+<li>Test any setup on history and in paper trading before using real money.</li>
+</ul>
+
+<button class="close" id="cl">Close and return to the chart</button>
+<p class="foot">MarketPlusView · not financial advice · trading carries risk of loss</p>
+</section>
+
+</div>
+<script>
+(function(){
+  var secs=document.querySelectorAll('section');
+  function show(){ var id=(location.hash||'').replace('#',''), f=null; for(var i=0;i<secs.length;i++){ var on=secs[i].id===id; secs[i].className=on?'on':''; if(on) f=secs[i]; } if(!f&&secs.length) secs[0].className='on'; window.scrollTo(0,0); }
+  window.addEventListener('hashchange',show); show();
+  document.getElementById('cl').onclick=function(){ try{ parent.postMessage({rcs:'close'},'*'); }catch(e){} };
+})();
+</script>
+</body>
+</html>
